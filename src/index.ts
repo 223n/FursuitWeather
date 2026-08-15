@@ -2,7 +2,7 @@
 // /api/* のみ本Workerが処理し、それ以外は静的アセット（public/）が配信される
 // （wrangler.jsoncのassets.run_worker_first設定による）
 
-import { handleForecast } from './api/forecast';
+import { handleForecast, jsonError } from './api/forecast';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -13,17 +13,18 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/forecast') {
-      return handleForecast(request);
+      // 最終防衛線: 予期しない例外もCORSヘッダー付きのJSONで返し、公開APIの契約を守る
+      // （awaitなしのreturnでは非同期の失敗を捕捉できないため必ずawaitする）
+      try {
+        return await handleForecast(request);
+      } catch (error) {
+        console.error('予期しないエラー:', error);
+        return jsonError(500, 'サーバー内部でエラーが発生しました');
+      }
     }
 
     if (url.pathname.startsWith('/api/')) {
-      return new Response(
-        JSON.stringify({ error: '存在しないAPIパスです' }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        },
-      );
+      return jsonError(404, '存在しないAPIパスです');
     }
 
     // run_worker_firstの対象外パスは通常ここに到達しないが、念のためアセットへ委譲する

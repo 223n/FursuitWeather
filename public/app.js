@@ -81,12 +81,17 @@
   const hoursTitle = document.getElementById('hours-title');
   const noticesList = document.getElementById('notices-list');
 
+  // 可変状態はこのブロックの6変数のみ（描画関数はここを参照する）
   let currentForecast = null;
   let selectedDate = null;
   /** 最後に予報を取得したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
   let lastQuery = null;
   /** 最後に表示した地点の名前（「予報を更新」でラベルを維持するために保持） */
   let lastLocationName = null;
+  /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
+  let requestSeq = 0;
+  /** 地点セレクトのデバウンス用タイマー */
+  let cityChangeTimer = null;
 
   /** 2地点間の距離（km）をハーバーサイン公式で求める */
   function distanceKm(lat1, lon1, lat2, lon2) {
@@ -133,7 +138,7 @@
           `活動しやすい時間帯は${today.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
-      `洗濯指数は「${today.laundry.label}」、ファースーツの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
+      `洗濯指数は「${today.laundry.label}」、着ぐるみの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
       '詳しくは日別サマリーと時間別予報の表をご確認ください。',
     ];
     return parts.join('');
@@ -193,30 +198,38 @@
   }
 
   /** 洗濯乾燥レベルごとのバッジ設定（色+記号）
-   * 雨・低温は青系（雨雲・温度計アイコン付き）、乾きにくいほど暖色に近づける */
+   * 雨・低温は青系（雨雲・温度計アイコン付き）、乾きにくいほど暖色に近づける。
+   * gradeの既定記号（GRADE_SYMBOLS）と同じ場合はsymbolを省略する */
   const LAUNDRY_BADGES = {
-    excellent: { grade: 0, symbol: ['◎'] },
+    excellent: { grade: 0 },
     veryGood: { grade: 0, symbol: ['○'] },
-    good: { grade: 1, symbol: ['○'] },
-    fair: { grade: 2, symbol: ['△'] },
-    indoorDry: { grade: 3, symbol: ['✕'] },
+    good: { grade: 1 },
+    fair: { grade: 2 },
+    indoorDry: { grade: 3 },
     noDryRain: { grade: 3, symbol: [{ icon: 'cloud-rain' }, '✕'], cold: true },
     noDryCold: { grade: 3, symbol: [{ icon: 'temperature-low' }, '✕'], cold: true },
   };
 
-  /** ファースーツ乾燥目安のバッジ設定を組み立てる */
+  /** 冷房要否ごとのバッジ設定（色+記号）。ラベルはAPIのcoolingLabelを使う */
+  const COOLING_BADGES = {
+    required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'] },
+    recommended: { grade: 1, symbol: [{ icon: 'snowflake' }, '○'] },
+    none: { grade: 0 },
+  };
+
+  /** 着ぐるみ乾燥目安のバッジ設定を組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
     if (laundry.moldWarning) {
-      return { grade: 3, symbol: ['✕'], label: `約${hours}時間・カビ注意` };
+      return { grade: 3, label: `約${hours}時間・カビ注意` };
     }
     if (hours <= 30) {
-      return { grade: 0, symbol: ['◎'], label: `約${hours}時間` };
+      return { grade: 0, label: `約${hours}時間` };
     }
     if (hours <= 40) {
-      return { grade: 1, symbol: ['○'], label: `約${hours}時間` };
+      return { grade: 1, label: `約${hours}時間` };
     }
-    return { grade: 2, symbol: ['△'], label: `約${hours}時間` };
+    return { grade: 2, label: `約${hours}時間` };
   }
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
@@ -240,127 +253,131 @@
     }
   }
 
-  /** 日別カードを描画する
+  /** 気温レンジ（最低〜最高℃）の要素を作る
+   * 「〜」は音声合成で読まれ方が環境依存（無音になることもある）ため、
+   * 見た目は「〜」のままスクリーンリーダーには「から」と読ませる */
+  function createTemperatureRange(min, max) {
+    const tilde = document.createElement('span');
+    tilde.setAttribute('aria-hidden', 'true');
+    tilde.textContent = '〜';
+    const tildeReading = document.createElement('span');
+    tildeReading.className = 'sr-only';
+    tildeReading.textContent = 'から';
+    const range = document.createElement('span');
+    range.append(`${Math.round(min)}`, tilde, tildeReading, `${Math.round(max)}℃`);
+    return range;
+  }
+
+  /** 日別カード1枚を作る
    * カード本体はarticleにし、選択操作は見出し内のbutton（aria-pressed付き）が担う。
    * button内に見出しやリストを入れるとスクリーンリーダーで平坦化されるため */
-  function renderDayCards(forecast) {
+  function createDayCard(day) {
+    const card = document.createElement('article');
+    card.className = 'day-card';
+    card.dataset.date = day.date;
+
+    const title = document.createElement('h3');
+    const titleButton = document.createElement('button');
+    titleButton.type = 'button';
+    titleButton.className = 'day-card-button';
+    titleButton.textContent = formatDate(day.date);
+    // スクリーンリーダーにはボタンの目的（時間別予報の切り替え）も読み上げる
+    const srPurpose = document.createElement('span');
+    srPurpose.className = 'sr-only';
+    srPurpose.textContent = 'の時間別予報を表示';
+    titleButton.appendChild(srPurpose);
+    title.appendChild(titleButton);
+    card.appendChild(title);
+
+    const weatherLine = document.createElement('p');
+    weatherLine.className = 'weather-line';
+    const weatherContent = weatherWithLabel(day.weatherCode, day.weatherLabel);
+    weatherContent.appendChild(createTemperatureRange(day.temperatureMin, day.temperatureMax));
+    weatherLine.appendChild(weatherContent);
+    card.appendChild(weatherLine);
+
+    // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
+    const mainCaption = document.createElement('p');
+    mainCaption.className = 'main-judgement-caption';
+    mainCaption.textContent = '屋外判定（日中の最も厳しい時間帯）';
+    card.appendChild(mainCaption);
+
+    const mainJudgement = document.createElement('p');
+    mainJudgement.className = 'main-judgement';
+    mainJudgement.appendChild(createBadge(day.outdoorWorst, true));
+    card.appendChild(mainJudgement);
+
+    const list = document.createElement('dl');
+
+    const addRow = (label, valueNode) => {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      const dd = document.createElement('dd');
+      if (typeof valueNode === 'string') {
+        dd.textContent = valueNode;
+      } else {
+        dd.appendChild(valueNode);
+      }
+      list.appendChild(dt);
+      list.appendChild(dd);
+    };
+
+    const hasRecommended = day.recommendedHours.length > 0;
+    addRow(
+      '活動しやすい時間帯',
+      badgeWithText(
+        hasRecommended ? { grade: 0, label: 'あり' } : { grade: 3, label: 'なし' },
+        hasRecommended ? day.recommendedHours.join('、') : '休憩と冷却を最優先に',
+      ),
+    );
+    // 日別サマリーのAPIレスポンス（coolingRequired）にはラベルが無いため、ここの文言はフロントで持つ
+    addRow(
+      '屋内（空調なしの場合）',
+      createBadge(
+        day.coolingRequired
+          ? { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' }
+          : { grade: 0, label: '冷房なしでも可の時間帯あり' },
+      ),
+    );
+    addRow(
+      '洗濯・乾燥',
+      badgeWithText(
+        { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
+        `指数${day.laundry.score}`,
+      ),
+    );
+    addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
+
+    card.appendChild(list);
+
+    const selectDay = () => {
+      selectedDate = day.date;
+      updateSelectedCard();
+      renderHours();
+    };
+    titleButton.addEventListener('click', selectDay);
+    // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
+    card.addEventListener('click', (event) => {
+      if (!titleButton.contains(event.target)) {
+        selectDay();
+      }
+    });
+
+    return card;
+  }
+
+  /** 日別カードを描画する */
+  function renderDayCards() {
     dayCardsElement.replaceChildren();
-    for (const day of forecast.days) {
-      const card = document.createElement('article');
-      card.className = 'day-card';
-      card.dataset.date = day.date;
-
-      const title = document.createElement('h3');
-      const titleButton = document.createElement('button');
-      titleButton.type = 'button';
-      titleButton.className = 'day-card-button';
-      titleButton.textContent = formatDate(day.date);
-      // スクリーンリーダーにはボタンの目的（時間別予報の切り替え）も読み上げる
-      const srPurpose = document.createElement('span');
-      srPurpose.className = 'sr-only';
-      srPurpose.textContent = 'の時間別予報を表示';
-      titleButton.appendChild(srPurpose);
-      title.appendChild(titleButton);
-      card.appendChild(title);
-
-      const weatherLine = document.createElement('p');
-      weatherLine.className = 'weather-line';
-      const weatherContent = weatherWithLabel(day.weatherCode, day.weatherLabel);
-      // 「〜」は音声合成で読まれ方が環境依存（無音になることもある）ため、
-      // 見た目は「〜」のままスクリーンリーダーには「から」と読ませる
-      const tilde = document.createElement('span');
-      tilde.setAttribute('aria-hidden', 'true');
-      tilde.textContent = '〜';
-      const tildeReading = document.createElement('span');
-      tildeReading.className = 'sr-only';
-      tildeReading.textContent = 'から';
-      const temperatureRange = document.createElement('span');
-      temperatureRange.append(
-        `${Math.round(day.temperatureMin)}`,
-        tilde,
-        tildeReading,
-        `${Math.round(day.temperatureMax)}℃`,
-      );
-      weatherContent.appendChild(temperatureRange);
-      weatherLine.appendChild(weatherContent);
-      card.appendChild(weatherLine);
-
-      // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
-      const mainCaption = document.createElement('p');
-      mainCaption.className = 'main-judgement-caption';
-      mainCaption.textContent = '屋外判定（日中の最も厳しい時間帯）';
-      card.appendChild(mainCaption);
-
-      const mainJudgement = document.createElement('p');
-      mainJudgement.className = 'main-judgement';
-      mainJudgement.appendChild(createBadge(day.outdoorWorst, true));
-      card.appendChild(mainJudgement);
-
-      const list = document.createElement('dl');
-
-      const addRow = (label, valueNode) => {
-        const dt = document.createElement('dt');
-        dt.textContent = label;
-        const dd = document.createElement('dd');
-        if (typeof valueNode === 'string') {
-          dd.textContent = valueNode;
-        } else {
-          dd.appendChild(valueNode);
-        }
-        list.appendChild(dt);
-        list.appendChild(dd);
-      };
-
-      const hasRecommended = day.recommendedHours.length > 0;
-      addRow(
-        '活動しやすい時間帯',
-        badgeWithText(
-          hasRecommended
-            ? { grade: 0, symbol: ['◎'], label: 'あり' }
-            : { grade: 3, symbol: ['✕'], label: 'なし' },
-          hasRecommended ? day.recommendedHours.join('、') : '休憩と冷却を最優先に',
-        ),
-      );
-      addRow(
-        '屋内（空調なしの場合）',
-        createBadge(
-          day.coolingRequired
-            ? { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' }
-            : { grade: 0, symbol: ['◎'], label: '冷房なしでも可の時間帯あり' },
-        ),
-      );
-      addRow(
-        '洗濯・乾燥',
-        badgeWithText(
-          { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2, symbol: '△' }), label: day.laundry.label },
-          `指数${day.laundry.score}`,
-        ),
-      );
-      addRow('ファースーツ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
-
-      card.appendChild(list);
-
-      const selectDay = () => {
-        selectedDate = day.date;
-        updateSelectedCard();
-        renderHours(currentForecast);
-      };
-      titleButton.addEventListener('click', selectDay);
-      // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
-      card.addEventListener('click', (event) => {
-        if (!titleButton.contains(event.target)) {
-          selectDay();
-        }
-      });
-
-      dayCardsElement.appendChild(card);
+    for (const day of currentForecast.days) {
+      dayCardsElement.appendChild(createDayCard(day));
     }
     updateSelectedCard();
   }
 
   /** 時間別テーブルを描画する */
-  function renderHours(forecast) {
-    const hours = forecast.hours.filter((h) => h.time.startsWith(selectedDate));
+  function renderHours() {
+    const hours = currentForecast.hours.filter((h) => h.time.startsWith(selectedDate));
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
@@ -401,16 +418,17 @@
         }),
       );
 
-      // 屋内判定はレベルバッジ+冷房要否バッジ（雪の結晶アイコン付き）で表示する
-      const COOLING_BADGES = {
-        required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' },
-        recommended: { grade: 1, symbol: [{ icon: 'snowflake' }, '○'], label: '冷房推奨' },
-        none: { grade: 0, symbol: ['◎'], label: '冷房なしでも可' },
-      };
+      // 屋内判定はレベルバッジ+冷房要否バッジ（雪の結晶アイコン付き）で表示する。
+      // 冷房ラベルの文言はAPIのcoolingLabelをそのまま使う（フロントで再定義しない）
       const indoorCell = document.createElement('span');
       indoorCell.className = 'badge-line';
       indoorCell.appendChild(createBadge(hour.indoor));
-      indoorCell.appendChild(createBadge(COOLING_BADGES[hour.indoor.cooling] ?? COOLING_BADGES.none));
+      indoorCell.appendChild(
+        createBadge({
+          ...(COOLING_BADGES[hour.indoor.cooling] ?? COOLING_BADGES.none),
+          label: hour.indoor.coolingLabel,
+        }),
+      );
       addCell(indoorCell);
 
       hoursBody.appendChild(row);
@@ -418,17 +436,14 @@
   }
 
   /** 注意事項を描画する */
-  function renderNotices(forecast) {
+  function renderNotices() {
     noticesList.replaceChildren();
-    for (const notice of forecast.notices) {
+    for (const notice of currentForecast.notices) {
       const item = document.createElement('li');
       item.textContent = notice;
       noticesList.appendChild(item);
     }
   }
-
-  /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
-  let requestSeq = 0;
 
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
@@ -463,11 +478,11 @@
 
       setStatus('', false);
       setLocationLabel(locationName);
-      renderDayCards(body);
-      renderNotices(body);
+      renderDayCards();
+      renderNotices();
 
       if (selectedDate) {
-        renderHours(body);
+        renderHours();
       }
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
@@ -498,7 +513,6 @@
   // （valueはCITIES配列のインデックスに対応）
   // changeは矢印キーでの選択肢探索でも発火するため、デバウンスして
   // 連続操作中の取得と読み上げ通知の洪水を防ぐ（確定は600ms静止後）
-  let cityChangeTimer = null;
   citySelect.addEventListener('change', () => {
     clearTimeout(cityChangeTimer);
     cityChangeTimer = setTimeout(loadSelectedCity, 600);

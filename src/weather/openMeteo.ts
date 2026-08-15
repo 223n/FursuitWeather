@@ -5,6 +5,22 @@
 import { OPEN_METEO_BASE_URL, UPSTREAM_CACHE_TTL_SECONDS } from '../constants';
 import type { HourlyWeather } from '../types';
 
+/**
+ * 取得・検証に使うhourlyデータフィールド（時刻timeを除く）
+ * 取得URL（buildForecastUrl）とレスポンス検証（parseWeatherResponse）の両方が参照する
+ * 単一情報源。フィールドを追加する際はOpenMeteoResponse型とpickHourも更新すること。
+ * 注意: 'time'はレスポンスにのみ現れる（URLのhourlyパラメータに含めると上流がエラーを返す）
+ */
+const HOURLY_FIELDS = [
+  'temperature_2m',
+  'relative_humidity_2m',
+  'apparent_temperature',
+  'precipitation',
+  'weather_code',
+  'shortwave_radiation',
+  'wind_speed_10m',
+] as const;
+
 /** Open-Meteoのレスポンスのうち本サービスが使用する部分 */
 interface OpenMeteoResponse {
   latitude: number;
@@ -35,15 +51,7 @@ export function buildForecastUrl(latitude: number, longitude: number, days: numb
   const params = new URLSearchParams({
     latitude: latitude.toFixed(4),
     longitude: longitude.toFixed(4),
-    hourly: [
-      'temperature_2m',
-      'relative_humidity_2m',
-      'apparent_temperature',
-      'precipitation',
-      'weather_code',
-      'shortwave_radiation',
-      'wind_speed_10m',
-    ].join(','),
+    hourly: HOURLY_FIELDS.join(','),
     timezone: 'Asia/Tokyo',
     // 風速はWBGT式に合わせてm/sで取得する（デフォルトはkm/h）
     wind_speed_unit: 'ms',
@@ -102,7 +110,48 @@ export interface WeatherResult {
 }
 
 /**
+ * 上流レスポンスを検証してWeatherResultへ変換する純粋関数
+ * 形式の異常はUpstreamErrorとして投げる（上流の仕様変更・異常応答への防御）
+ */
+export function parseWeatherResponse(data: unknown): WeatherResult {
+  const candidate = data as OpenMeteoResponse;
+  const requiredArrays = ['time', ...HOURLY_FIELDS] as const;
+  if (
+    typeof candidate !== 'object' ||
+    candidate === null ||
+    typeof candidate.latitude !== 'number' ||
+    typeof candidate.longitude !== 'number' ||
+    typeof candidate.timezone !== 'string' ||
+    typeof candidate.hourly !== 'object' ||
+    candidate.hourly === null ||
+    requiredArrays.some((key) => !Array.isArray(candidate.hourly[key]))
+  ) {
+    throw new UpstreamError('気象データAPIのレスポンス形式が想定と異なります');
+  }
+
+  const hours: HourlyWeather[] = [];
+  for (let i = 0; i < candidate.hourly.time.length; i += 1) {
+    const hour = pickHour(candidate.hourly, i);
+    if (hour) {
+      hours.push(hour);
+    }
+  }
+
+  if (hours.length === 0) {
+    throw new UpstreamError('気象データが空でした');
+  }
+
+  return {
+    hours,
+    latitude: candidate.latitude,
+    longitude: candidate.longitude,
+    timezone: candidate.timezone,
+  };
+}
+
+/**
  * 時間別の気象データを取得する
+ * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
@@ -124,7 +173,7 @@ export async function fetchWeather(
         cacheTtl: UPSTREAM_CACHE_TTL_SECONDS,
         cacheEverything: true,
       },
-    } as RequestInit);
+    });
   } catch (error) {
     throw new UpstreamError(
       `気象データの取得に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
@@ -135,50 +184,12 @@ export async function fetchWeather(
     throw new UpstreamError(`気象データAPIがエラーを返しました（HTTP ${response.status}）`);
   }
 
-  let data: OpenMeteoResponse;
+  let data: unknown;
   try {
-    data = (await response.json()) as OpenMeteoResponse;
+    data = await response.json();
   } catch {
     throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
   }
 
-  // 使用する並列配列がすべて揃っているか検証する（上流の仕様変更・異常応答への防御）
-  const requiredArrays = [
-    'time',
-    'temperature_2m',
-    'relative_humidity_2m',
-    'apparent_temperature',
-    'precipitation',
-    'weather_code',
-    'shortwave_radiation',
-    'wind_speed_10m',
-  ] as const;
-  if (
-    typeof data !== 'object' ||
-    data === null ||
-    typeof data.hourly !== 'object' ||
-    data.hourly === null ||
-    requiredArrays.some((key) => !Array.isArray(data.hourly[key]))
-  ) {
-    throw new UpstreamError('気象データAPIのレスポンス形式が想定と異なります');
-  }
-
-  const hours: HourlyWeather[] = [];
-  for (let i = 0; i < data.hourly.time.length; i += 1) {
-    const hour = pickHour(data.hourly, i);
-    if (hour) {
-      hours.push(hour);
-    }
-  }
-
-  if (hours.length === 0) {
-    throw new UpstreamError('気象データが空でした');
-  }
-
-  return {
-    hours,
-    latitude: data.latitude,
-    longitude: data.longitude,
-    timezone: data.timezone,
-  };
+  return parseWeatherResponse(data);
 }

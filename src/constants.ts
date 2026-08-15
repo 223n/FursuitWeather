@@ -61,8 +61,10 @@ export interface HeatBand {
  * 出典: https://www.wbgt.env.go.jp/wbgt.php
  * 出典: https://www.japan-sports.or.jp/medicine/tabid/922/Default.aspx
  * 活動時間の上限目安は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
- * ファースーツコミュニティの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
+ * イベントガイドなどの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
  * 最も涼しい帯でも45分を上限とし、常時表示の「30分着たら30分休む」を基本とする
+ * 出典: https://www.city.saitama.lg.jp/006/012/001/004/004/p010212_d/fil/kigurumi-m.pdf （さいたま市 着ぐるみ使用マニュアル）
+ * 出典: https://www.anthrocon.org/guides/fursuiting-in-the-summer/ （Anthrocon公式ガイド）
  */
 export const HEAT_BANDS: readonly HeatBand[] = [
   {
@@ -121,7 +123,6 @@ export interface ColdBand {
 /**
  * 低温側のしきい値（体感温度0/-10/-20℃）
  * 汗冷えによる低体温・凍結路面・末端の凍傷リスクを段階化
- * 0〜10℃程度は着ぐるみ着用に適した環境とされる（ファースーツコミュニティの知見）
  */
 export const COLD_BANDS: readonly ColdBand[] = [
   {
@@ -184,9 +185,9 @@ export const LAUNDRY = {
   normalizeDivisor: 1.8,
   /** この気温（℃）未満は「寒くて乾きにくい」扱い（ウェザーニューズの段階設計に準拠） */
   coldLimit: 5,
-  /** ファースーツ全身洗いの最短乾燥時間（時間、扇風機併用前提） */
+  /** 着ぐるみ全身洗いの最短乾燥時間（時間、扇風機併用前提） */
   fursuitMinDryingHours: 24,
-  /** ファースーツ全身洗いの最長目安時間（時間、これを超えるとカビリスク大） */
+  /** 着ぐるみ全身洗いの最長目安時間（時間、これを超えるとカビリスク大） */
   fursuitMaxDryingHours: 48,
   /** この指数未満はカビ警告を出す */
   moldWarningScore: 30,
@@ -197,16 +198,29 @@ export interface LaundryBand {
   /** この値以下なら該当 */
   upperBound: number;
   id: LaundryLevelId;
-  label: string;
 }
 
 export const LAUNDRY_BANDS: readonly LaundryBand[] = [
-  { upperBound: 30, id: 'indoorDry', label: '部屋干し推奨' },
-  { upperBound: 50, id: 'fair', label: 'やや乾く' },
-  { upperBound: 70, id: 'good', label: '乾く' },
-  { upperBound: 85, id: 'veryGood', label: 'よく乾く' },
-  { upperBound: 100, id: 'excellent', label: '大変よく乾く' },
+  { upperBound: 30, id: 'indoorDry' },
+  { upperBound: 50, id: 'fair' },
+  { upperBound: 70, id: 'good' },
+  { upperBound: 85, id: 'veryGood' },
+  { upperBound: 100, id: 'excellent' },
 ] as const;
+
+/**
+ * 洗濯乾燥レベルの表示ラベル
+ * スコア由来の5段階に加え、例外レベル（降雨・低温）を含む全レベル分を一元管理する
+ */
+export const LAUNDRY_LEVEL_LABELS: Record<LaundryLevelId, string> = {
+  noDryRain: '外干しNG（雨）',
+  noDryCold: '乾きにくい（低温）',
+  indoorDry: '部屋干し推奨',
+  fair: 'やや乾く',
+  good: '乾く',
+  veryGood: 'よく乾く',
+  excellent: '大変よく乾く',
+};
 
 /** 日別サマリーで「日中」とみなす時間帯（時、開始を含み終了を含まない） */
 export const DAYTIME_START_HOUR = 9;

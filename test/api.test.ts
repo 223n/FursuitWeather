@@ -133,6 +133,20 @@ describe('handleForecast', () => {
     expect(response.status).toBe(502);
   });
 
+  it('上流APIのレスポンスに位置情報（latitude）が欠けている場合は502を返す', async () => {
+    const broken = openMeteoBody() as Record<string, unknown>;
+    delete broken['latitude'];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(broken), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(502);
+  });
+
   it('日射量が欠測の時間は結果から除外される（0補完で危険側に誤らない）', async () => {
     const body = openMeteoBody() as {
       hourly: { shortwave_radiation: (number | null)[] };
@@ -177,7 +191,22 @@ describe('buildForecastUrl', () => {
     expect(url.searchParams.get('timezone')).toBe('Asia/Tokyo');
     expect(url.searchParams.get('wind_speed_unit')).toBe('ms');
     expect(url.searchParams.get('forecast_days')).toBe('4');
-    expect(url.searchParams.get('hourly')).toContain('temperature_2m');
-    expect(url.searchParams.get('hourly')).toContain('shortwave_radiation');
+  });
+
+  it('hourlyパラメータは必要フィールドと完全一致する（timeを含めない）', () => {
+    // 検証用フィールド一覧（HOURLY_FIELDS）と取得URLの意図しない乖離を検出する。
+    // 'time'はレスポンス専用で、URLに含めると上流がエラーを返すため完全一致で確認する
+    const url = new URL(buildForecastUrl(35.6785, 139.6823, 4));
+    expect(url.searchParams.get('hourly')).toBe(
+      [
+        'temperature_2m',
+        'relative_humidity_2m',
+        'apparent_temperature',
+        'precipitation',
+        'weather_code',
+        'shortwave_radiation',
+        'wind_speed_10m',
+      ].join(','),
+    );
   });
 });
