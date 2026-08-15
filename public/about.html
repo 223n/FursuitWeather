@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FursuitWeather（着ぐるみ天気予報）の判定の仕組み、API仕様、免責事項の説明ページです。">
+  <meta name="theme-color" content="#0072B2">
+  <title>このサービスについて - FursuitWeather</title>
+  <link rel="canonical" href="https://fursuit-weather.223n.tech/about">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='%230072B2' d='M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z'/></svg>">
+</head>
+<body>
+  <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
+  <a class="skip-link" href="#main">本文へスキップ</a>
+
+  <header class="site-header">
+    <h1><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true" style="fill: currentColor;"><path d="M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z"/></svg> FursuitWeather</h1>
+    <p class="tagline">このサービスについて - 判定の仕組み・API・免責事項</p>
+  </header>
+
+  <main id="main">
+    <nav class="breadcrumb" aria-label="ページ内リンク">
+      <p>
+        <a href="/">← 予報トップへ戻る</a> ｜
+        <a href="#mechanism">判定の仕組み</a> ｜
+        <a href="#api">API</a> ｜
+        <a href="#disclaimer">免責事項</a> ｜
+        <a href="#sources">データ出典</a>
+      </p>
+    </nav>
+
+    <section id="mechanism" aria-label="判定の仕組み">
+      <h2>判定の仕組み</h2>
+
+      <h3>暑さ指数（WBGT）と着ぐるみ補正</h3>
+      <p>
+        環境省の熱中症予防情報サイトと同じ推定式（小野ら2014）で暑さ指数（WBGT）を計算しています。
+      </p>
+      <pre class="formula">WBGT = 0.735×Ta + 0.0374×RH + 0.00292×Ta×RH
+       + 7.619×SR − 4.557×SR² − 0.0572×WS − 4.064
+
+Ta: 気温（℃）  RH: 相対湿度（%）
+SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
+      <p>
+        着ぐるみの熱負荷は、厚生労働省「職場における熱中症予防基本対策要綱」のWBGT着衣補正値
+        （フード付き蒸気不透過つなぎ服 = <strong>+11℃</strong>）で補正し、
+        環境省の5段階（21/25/28/31℃）で判定します。
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">補正後WBGTと判定・連続活動時間の対応表</caption>
+          <thead>
+            <tr>
+              <th scope="col">補正後WBGT</th>
+              <th scope="col">判定</th>
+              <th scope="col">連続活動時間の上限目安</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>21℃未満</td><td>◎ ほぼ安全</td><td>45分</td></tr>
+            <tr><td>21〜25℃</td><td>○ 注意</td><td>30分</td></tr>
+            <tr><td>25〜28℃</td><td>△ 警戒</td><td>20分</td></tr>
+            <tr><td>28〜31℃</td><td>✕ 厳重警戒</td><td>10分</td></tr>
+            <tr><td>31℃以上</td><td>危険</td><td>着用中止</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        連続活動時間は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
+        ファースーツコミュニティの推奨（30〜45分で休憩）の範囲内で段階化した上限の目安です。
+        基本は「30分着たら30分休む」を推奨します。
+      </p>
+
+      <h3>低温側の判定</h3>
+      <p>
+        気温15℃未満では体感温度による低温判定（0／−10／−20℃境界）を併用し、
+        汗冷え・凍結路面・凍傷などの注意を表示します。着ぐるみは低温でも発熱するため、
+        暑熱判定と低温判定の深刻な方を採用します。
+      </p>
+
+      <h3>屋内判定と冷房要否</h3>
+      <p>
+        屋内は日射なし・微風（空調のない会場で室温が外気温と同程度になる場合）を想定した参考値です。
+        着ぐるみ補正後のWBGTが25℃以上で「冷房必須」、21℃以上で「冷房推奨」と判定します。
+      </p>
+
+      <h3>洗濯乾燥指数</h3>
+      <p>
+        Tetensの式による飽和水蒸気圧から飽差（VPD: 空気の乾きやすさ）を求め、
+        風速関数を掛けた乾燥スピードを干し時間帯（9〜15時）で積算して0〜100に指数化します。
+        降水時は「外干しNG」、平均気温5℃未満は「乾きにくい（低温）」となります。
+      </p>
+      <p>
+        ファースーツの全身洗いは扇風機併用で24〜48時間の乾燥目安を表示し、
+        乾きにくい日はカビ警告を出します。乾燥機は熱でファーが傷むため使用禁止です。
+      </p>
+    </section>
+
+    <section id="api" aria-label="API仕様">
+      <h2>API</h2>
+      <p>
+        予報データはJSON APIとして公開しています。CORS対応のため、ほかのサイトやアプリからも利用できます。
+      </p>
+
+      <h3>GET /api/forecast</h3>
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">APIパラメータの一覧</caption>
+          <thead>
+            <tr>
+              <th scope="col">パラメータ</th>
+              <th scope="col">必須</th>
+              <th scope="col">説明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>lat</td><td>○</td><td>緯度（-90〜90）</td></tr>
+            <tr><td>lon</td><td>○</td><td>経度（-180〜180）</td></tr>
+            <tr><td>days</td><td>-</td><td>予報日数（1〜4、デフォルト4）</td></tr>
+            <tr><td>demo</td><td>-</td><td><code>1</code>でデモデータを返す</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>リクエスト例:</p>
+      <pre class="formula">curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&amp;lon=139.6823"</pre>
+
+      <p>
+        レスポンスは時間別予報（<code>hours</code>: 気象値と屋外・屋内判定）と
+        日別サマリー（<code>days</code>: 最高最低気温・最悪判定・活動しやすい時間帯・洗濯指数など）を含むJSONです。
+      </p>
+      <ul>
+        <li>予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データがなくWBGTを計算できないため）</li>
+        <li>気象データはエッジで30分キャッシュされます（気象庁MSMの更新は3時間ごと）</li>
+        <li>大量アクセスはデータ提供元（Open-Meteo）の無料枠を圧迫するためお控えください</li>
+      </ul>
+    </section>
+
+    <section id="disclaimer" aria-label="免責事項">
+      <h2>免責事項</h2>
+      <ul>
+        <li>本予報は目安であり、安全を保証するものではありません。医学的な助言に代わるものでもありません。</li>
+        <li>体調・装備・活動内容により安全な活動時間は変わります。最終判断はご自身で行ってください。</li>
+        <li>着ぐるみ活動は必ず2人以上で行い、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。吐き気・めまい・頭痛などの体調の変化を感じたら直ちに中止してください。</li>
+        <li>予報データは数値予報モデルによる推定値であり、実際の気象と異なる場合があります。</li>
+        <li>本サービスの利用により生じたいかなる損害についても、開発者は責任を負いません。</li>
+        <li>本サービスは予告なく変更・停止することがあります。</li>
+      </ul>
+    </section>
+
+    <section id="sources" aria-label="データ出典">
+      <h2>データ出典・ライセンス</h2>
+      <ul>
+        <li>気象データ: <a href="https://open-meteo.com/" rel="noopener">Weather data by Open-Meteo.com</a>（CC BY 4.0、気象庁MSM/GSMモデル由来、非商用利用）</li>
+        <li>WBGT推定式: <a href="https://www.wbgt.env.go.jp/" rel="noopener">環境省 熱中症予防情報サイト</a>（小野ら2014）</li>
+        <li>着衣補正値: 厚生労働省「職場における熱中症予防基本対策要綱」（ISO 7243:2017準拠）</li>
+        <li>アイコン: <a href="https://fontawesome.com/" rel="noopener">Font Awesome Free</a>（CC BY 4.0）</li>
+        <li>ソースコード: <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>（Apache License 2.0）</li>
+      </ul>
+    </section>
+
+    <p><a href="/">← 予報トップへ戻る</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      <a href="https://open-meteo.com/" rel="noopener">Weather data by Open-Meteo.com</a>
+      （CC BY 4.0 / 気象庁MSM・GSMモデル）
+    </p>
+    <p>
+      Icons by <a href="https://fontawesome.com/" rel="noopener">Font Awesome Free</a>（CC BY 4.0）
+    </p>
+    <p>
+      <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
+    </p>
+  </footer>
+</body>
+</html>

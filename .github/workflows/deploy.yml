@@ -35,6 +35,9 @@ jobs:
       - name: アセットを圧縮（minify）
         run: npm run minify
 
+      - name: トップページのCSSをインライン化
+        run: node scripts/inline-css.mjs
+
       - name: デプロイ
         uses: cloudflare/wrangler-action@v4
         with:
