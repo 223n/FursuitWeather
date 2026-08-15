@@ -214,11 +214,17 @@ button:focus {
 }
 
 /* ステータス表示
- * 出現・消滅でレイアウトシフト（CLS）が発生しないよう、高さは常に確保しておく */
-#status {
+ * 通常メッセージ（#status）とエラー（#status-error、role=alert）をgridで同じ位置に重ね、
+ * 出現・消滅でレイアウトシフト（CLS）が発生しないよう高さは常に確保しておく */
+.status-area {
+  display: grid;
   min-height: 3.4rem;
-  padding: 0.75rem 1rem;
   margin-bottom: 1rem;
+}
+
+.status-box {
+  grid-area: 1 / 1;
+  padding: 0.75rem 1rem;
   border-radius: 6px;
   border-left: 4px solid transparent;
 }
@@ -228,7 +234,7 @@ button:focus {
   border-left-color: var(--color-blue);
 }
 
-#status.error:not(:empty) {
+#status-error:not(:empty) {
   background-color: #FBE3DD;
   border-left-color: var(--color-red);
 }
@@ -358,20 +364,23 @@ button:focus {
   display: none;
 }
 
-/* 開閉状態を矢印の向き（形）で示す */
+/* 開閉状態を矢印の向き（形）で示す。代替テキスト構文（/ ''）で読み上げから除外する
+ * （未対応ブラウザ向けに通常のcontent指定を先に置く） */
 .legend-details summary::before {
   content: '▶';
+  content: '▶' / '';
   color: var(--color-blue);
   font-size: 0.8rem;
 }
 
 .legend-details[open] summary::before {
   content: '▼';
+  content: '▼' / '';
 }
 
-.legend-details summary h2 {
-  margin: 0;
-  display: inline;
+.legend-details summary {
+  color: var(--color-blue);
+  font-weight: 700;
 }
 
 .legend-details summary:focus {
@@ -379,9 +388,8 @@ button:focus {
   outline-offset: 2px;
 }
 
-.summary-hint {
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
+.legend h2 {
+  margin-bottom: 0.5rem;
 }
 
 .legend-details[open] .hint {

@@ -132,20 +132,26 @@
         <button type="button" id="geolocation-button">現在地を使う</button>
         <button type="button" id="reload-button">予報を更新</button>
       </div>
-      <p id="location-label" class="location-label" aria-live="polite"></p>
+      <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
+      <p id="location-label" class="location-label"></p>
       <p class="control-note">
         現在地の取得にはブラウザの位置情報の許可が必要です。位置情報は予報の取得のみに使い、保存しません。
       </p>
     </section>
 
-    <div id="status" role="status" aria-live="polite"></div>
+    <!-- 通常メッセージはpolite、エラーはalertで即時に読み上げられるよう領域を分ける。
+         gridで同じ位置に重ねて、出現・消滅によるレイアウトシフトを防ぐ -->
+    <div class="status-area">
+      <div id="status" class="status-box" role="status" aria-live="polite"></div>
+      <div id="status-error" class="status-box" role="alert"></div>
+    </div>
 
-    <section class="legend" aria-label="判定の見方">
+    <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
+         見出しナビゲーションから消える環境があるため） -->
+    <section class="legend" aria-labelledby="legend-heading">
+      <h2 id="legend-heading">判定の見方</h2>
       <details class="legend-details">
-        <summary>
-          <h2>判定の見方</h2>
-          <span class="summary-hint">クリックで開閉</span>
-        </summary>
+        <summary>説明を開閉</summary>
       <p class="hint">
         段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
         低温側の判定には温度計マークが付きます。

@@ -74,13 +74,14 @@
   </header>
 
   <main id="main">
-    <nav class="breadcrumb" aria-label="ページ内リンク">
+    <nav class="breadcrumb" aria-label="目次と戻るリンク">
       <p>
-        <a href="/">← 予報トップへ戻る</a> ｜
-        <a href="#mechanism">判定の仕組み</a> ｜
-        <a href="#api">API</a> ｜
-        <a href="#cache">エッジ配信とキャッシュ</a> ｜
-        <a href="#disclaimer">免責事項</a> ｜
+        <!-- 「←」や区切りの「｜」は視覚上の装飾のため、読み上げ対象から外す -->
+        <a href="/"><span aria-hidden="true">← </span>予報トップへ戻る</a><span aria-hidden="true"> ｜</span>
+        <a href="#mechanism">判定の仕組み</a><span aria-hidden="true"> ｜</span>
+        <a href="#api">API</a><span aria-hidden="true"> ｜</span>
+        <a href="#cache">エッジ配信とキャッシュ</a><span aria-hidden="true"> ｜</span>
+        <a href="#disclaimer">免責事項</a><span aria-hidden="true"> ｜</span>
         <a href="#sources">データ出典</a>
       </p>
     </nav>
@@ -92,11 +93,18 @@
       <p>
         環境省の熱中症予防情報サイトと同じ推定式（小野ら2014）で暑さ指数（WBGT）を計算しています。
       </p>
-      <pre class="formula">WBGT = 0.735×Ta + 0.0374×RH + 0.00292×Ta×RH
+      <!-- 数式は記号（×・²など）が読み上げに向かないため、視覚表示とは別に読み下し文を用意する -->
+      <pre class="formula" aria-hidden="true">WBGT = 0.735×Ta + 0.0374×RH + 0.00292×Ta×RH
        + 7.619×SR − 4.557×SR² − 0.0572×WS − 4.064
 
 Ta: 気温（℃）  RH: 相対湿度（%）
 SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
+      <p class="sr-only">
+        式の読み下し: WBGTは、0.735 かける気温、たす 0.0374 かける相対湿度、
+        たす 0.00292 かける気温かける相対湿度、たす 7.619 かける日射量、
+        ひく 4.557 かける日射量の2乗、ひく 0.0572 かける風速、ひく 4.064 で求めます。
+        気温の単位は摂氏度、相対湿度はパーセント、日射量はキロワット毎平方メートル、風速はメートル毎秒です。
+      </p>
       <p>
         着ぐるみの熱負荷は、厚生労働省「職場における熱中症予防基本対策要綱」のWBGT着衣補正値
         （フード付き蒸気不透過つなぎ服 = <strong>+11℃</strong>）で補正し、
@@ -114,17 +122,18 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             </tr>
           </thead>
           <tbody>
-            <tr><td>21℃未満</td><td>◎ ほぼ安全</td><td>45分</td></tr>
-            <tr><td>21〜25℃</td><td>○ 注意</td><td>30分</td></tr>
-            <tr><td>25〜28℃</td><td>△ 警戒</td><td>20分</td></tr>
-            <tr><td>28〜31℃</td><td>✕ 厳重警戒</td><td>10分</td></tr>
-            <tr><td>31℃以上</td><td>危険</td><td>着用中止</td></tr>
+            <!-- 記号（◎○△✕）は色弱対応の視覚補助のため、読み上げはラベルのみとする -->
+            <tr><th scope="row">21℃未満</th><td><span aria-hidden="true">◎ </span>ほぼ安全</td><td>45分</td></tr>
+            <tr><th scope="row">21<span aria-hidden="true">〜</span><span class="sr-only">から</span>25℃</th><td><span aria-hidden="true">○ </span>注意</td><td>30分</td></tr>
+            <tr><th scope="row">25<span aria-hidden="true">〜</span><span class="sr-only">から</span>28℃</th><td><span aria-hidden="true">△ </span>警戒</td><td>20分</td></tr>
+            <tr><th scope="row">28<span aria-hidden="true">〜</span><span class="sr-only">から</span>31℃</th><td><span aria-hidden="true">✕ </span>厳重警戒</td><td>10分</td></tr>
+            <tr><th scope="row">31℃以上</th><td>危険</td><td>着用中止</td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        連続活動時間は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
-        ファースーツコミュニティの推奨（30〜45分で休憩）の範囲内で段階化した上限の目安です。
+        連続活動時間は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10<span aria-hidden="true">〜</span><span class="sr-only">から</span>20分）と
+        ファースーツコミュニティの推奨（30<span aria-hidden="true">〜</span><span class="sr-only">から</span>45分で休憩）の範囲内で段階化した上限の目安です。
         基本は「30分着たら30分休む」を推奨します。
       </p>
 
@@ -144,11 +153,11 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       <h3>洗濯乾燥指数</h3>
       <p>
         Tetensの式による飽和水蒸気圧から飽差（VPD: 空気の乾きやすさ）を求め、
-        風速関数を掛けた乾燥スピードを干し時間帯（9〜15時）で積算して0〜100に指数化します。
+        風速関数を掛けた乾燥スピードを干し時間帯（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>15時）で積算して0<span aria-hidden="true">〜</span><span class="sr-only">から</span>100に指数化します。
         降水時は「外干しNG」、平均気温5℃未満は「乾きにくい（低温）」となります。
       </p>
       <p>
-        ファースーツの全身洗いは扇風機併用で24〜48時間の乾燥目安を表示し、
+        ファースーツの全身洗いは扇風機併用で24<span aria-hidden="true">〜</span><span class="sr-only">から</span>48時間の乾燥目安を表示し、
         乾きにくい日はカビ警告を出します。乾燥機は熱でファーが傷むため使用禁止です。
       </p>
     </section>
@@ -171,10 +180,11 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             </tr>
           </thead>
           <tbody>
-            <tr><td>lat</td><td>○</td><td>緯度（-90〜90）</td></tr>
-            <tr><td>lon</td><td>○</td><td>経度（-180〜180）</td></tr>
-            <tr><td>days</td><td>-</td><td>予報日数（1〜4、デフォルト4）</td></tr>
-            <tr><td>demo</td><td>-</td><td><code>1</code>でデモデータを返す</td></tr>
+            <!-- 必須欄は「○」「-」だと読み上げで意味が伝わらないため、言葉で記載する -->
+            <tr><th scope="row">lat</th><td>必須</td><td>緯度（-90<span aria-hidden="true">〜</span><span class="sr-only">から</span>90）</td></tr>
+            <tr><th scope="row">lon</th><td>必須</td><td>経度（-180<span aria-hidden="true">〜</span><span class="sr-only">から</span>180）</td></tr>
+            <tr><th scope="row">days</th><td>任意</td><td>予報日数（1<span aria-hidden="true">〜</span><span class="sr-only">から</span>4、デフォルト4）</td></tr>
+            <tr><th scope="row">demo</th><td>任意</td><td><code>1</code>でデモデータを返す</td></tr>
           </tbody>
         </table>
       </div>
@@ -191,13 +201,13 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>location</code></td><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
-            <tr><td><code>generatedAt</code></td><td>string</td><td>レスポンス生成時刻（ISO 8601）</td></tr>
-            <tr><td><code>model</code></td><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
-            <tr><td><code>attribution</code></td><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
-            <tr><td><code>notices</code></td><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
-            <tr><td><code>hours</code></td><td>array</td><td>1時間ごとの予報（下表）</td></tr>
-            <tr><td><code>days</code></td><td>array</td><td>日別サマリー（下表）</td></tr>
+            <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
+            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601）</td></tr>
+            <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
+            <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
+            <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
+            <tr><th scope="row"><code>hours</code></th><td>array</td><td>1時間ごとの予報（下表）</td></tr>
+            <tr><th scope="row"><code>days</code></th><td>array</td><td>日別サマリー（下表）</td></tr>
           </tbody>
         </table>
       </div>
@@ -210,11 +220,11 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>time</code></td><td>string</td><td>ローカル時刻（Asia/Tokyo、例: <code>2026-08-15T09:00</code>）</td></tr>
-            <tr><td><code>weather</code></td><td>object</td><td>気象値: <code>temperature</code>（℃）・<code>humidity</code>（%）・<code>apparentTemperature</code>（℃）・<code>precipitation</code>（mm）・<code>weatherCode</code>（WMOコード）・<code>solarRadiation</code>（W/m²）・<code>windSpeed</code>（m/s）</td></tr>
-            <tr><td><code>weatherLabel</code></td><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
-            <tr><td><code>outdoor</code></td><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
-            <tr><td><code>indoor</code></td><td>object</td><td>屋内の判定。判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
+            <tr><th scope="row"><code>time</code></th><td>string</td><td>ローカル時刻（Asia/Tokyo、例: <code>2026-08-15T09:00</code>）</td></tr>
+            <tr><th scope="row"><code>weather</code></th><td>object</td><td>気象値: <code>temperature</code>（℃）・<code>humidity</code>（%）・<code>apparentTemperature</code>（℃）・<code>precipitation</code>（mm）・<code>weatherCode</code>（WMOコード）・<code>solarRadiation</code>（W/m²）・<code>windSpeed</code>（m/s）</td></tr>
+            <tr><th scope="row"><code>weatherLabel</code></th><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
+            <tr><th scope="row"><code>outdoor</code></th><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
+            <tr><th scope="row"><code>indoor</code></th><td>object</td><td>屋内の判定。判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
           </tbody>
         </table>
       </div>
@@ -227,13 +237,13 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>wbgt</code></td><td>number</td><td>素のWBGT推定値（℃）</td></tr>
-            <tr><td><code>suitWbgt</code></td><td>number</td><td>着ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
-            <tr><td><code>level</code></td><td>string</td><td>レベルID。暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code>、低温側: <code>optimal</code>／<code>coldCaution</code>／<code>coldWarning</code>／<code>coldDanger</code></td></tr>
-            <tr><td><code>label</code></td><td>string</td><td>日本語ラベル（ほぼ安全・注意など）</td></tr>
-            <tr><td><code>grade</code></td><td>number</td><td>深刻度（0=快適〜4=危険。色分け用）</td></tr>
-            <tr><td><code>activityMinutes</code></td><td>number</td><td>連続活動時間の上限目安（分、0は着用中止）</td></tr>
-            <tr><td><code>advice</code></td><td>string</td><td>注意文</td></tr>
+            <tr><th scope="row"><code>wbgt</code></th><td>number</td><td>素のWBGT推定値（℃）</td></tr>
+            <tr><th scope="row"><code>suitWbgt</code></th><td>number</td><td>着ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
+            <tr><th scope="row"><code>level</code></th><td>string</td><td>レベルID。暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code>、低温側: <code>optimal</code>／<code>coldCaution</code>／<code>coldWarning</code>／<code>coldDanger</code></td></tr>
+            <tr><th scope="row"><code>label</code></th><td>string</td><td>日本語ラベル（ほぼ安全・注意など）</td></tr>
+            <tr><th scope="row"><code>grade</code></th><td>number</td><td>深刻度（0=快適<span aria-hidden="true">〜</span><span class="sr-only">から</span>4=危険。色分け用）</td></tr>
+            <tr><th scope="row"><code>activityMinutes</code></th><td>number</td><td>連続活動時間の上限目安（分、0は着用中止）</td></tr>
+            <tr><th scope="row"><code>advice</code></th><td>string</td><td>注意文</td></tr>
           </tbody>
         </table>
       </div>
@@ -246,13 +256,13 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>date</code></td><td>string</td><td>日付（YYYY-MM-DD）</td></tr>
-            <tr><td><code>temperatureMin</code>・<code>temperatureMax</code></td><td>number</td><td>最低・最高気温（℃）</td></tr>
-            <tr><td><code>weatherCode</code>・<code>weatherLabel</code></td><td>number・string</td><td>日中の代表天気</td></tr>
-            <tr><td><code>outdoorWorst</code>・<code>outdoorBest</code></td><td>object</td><td>日中（9〜18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
-            <tr><td><code>recommendedHours</code></td><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式。深刻度1以下かつ降水なし）</td></tr>
-            <tr><td><code>coolingRequired</code></td><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
-            <tr><td><code>laundry</code></td><td>object</td><td>洗濯乾燥判定: <code>score</code>（0〜100）・<code>level</code>（<code>noDryRain</code>／<code>noDryCold</code>／<code>indoorDry</code>／<code>fair</code>／<code>good</code>／<code>veryGood</code>／<code>excellent</code>）・<code>label</code>・<code>fursuitDryingHours</code>（時間）・<code>moldWarning</code>（boolean）・<code>advice</code></td></tr>
+            <tr><th scope="row"><code>date</code></th><td>string</td><td>日付（YYYY-MM-DD）</td></tr>
+            <tr><th scope="row"><code>temperatureMin</code>・<code>temperatureMax</code></th><td>number</td><td>最低・最高気温（℃）</td></tr>
+            <tr><th scope="row"><code>weatherCode</code>・<code>weatherLabel</code></th><td>number・string</td><td>日中の代表天気</td></tr>
+            <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
+            <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式。深刻度1以下かつ降水なし）</td></tr>
+            <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
+            <tr><th scope="row"><code>laundry</code></th><td>object</td><td>洗濯乾燥判定: <code>score</code>（0<span aria-hidden="true">〜</span><span class="sr-only">から</span>100）・<code>level</code>（<code>noDryRain</code>／<code>noDryCold</code>／<code>indoorDry</code>／<code>fair</code>／<code>good</code>／<code>veryGood</code>／<code>excellent</code>）・<code>label</code>・<code>fursuitDryingHours</code>（時間）・<code>moldWarning</code>（boolean）・<code>advice</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -352,7 +362,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       </ul>
     </section>
 
-    <p><a href="/">← 予報トップへ戻る</a></p>
+    <p><a href="/"><span aria-hidden="true">← </span>予報トップへ戻る</a></p>
   </main>
 
   <footer class="site-footer">
