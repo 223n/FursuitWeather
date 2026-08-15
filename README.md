@@ -118,7 +118,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 | フィールド | 型 | 説明 |
 |--------------|----------|------------------------------------------|
 | location | object | 予報地点（latitude・longitude・timezone） |
-| generatedAt | string | レスポンス生成時刻（ISO 8601） |
+| generatedAt | string | レスポンス生成時刻（ISO 8601・UTC、例: `2026-08-15T09:00:00.000Z`） |
 | model | string | 使用した気象モデル |
 | attribution | object | データ出典表記（表示時は明記が必要） |
 | notices | string[] | 通年の注意事項 |

@@ -231,7 +231,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
-            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601）</td></tr>
+            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601・UTC、例: <code>2026-08-15T09:00:00.000Z</code>）</td></tr>
             <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
             <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
             <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
