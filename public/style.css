@@ -523,6 +523,12 @@ th {
   color: var(--color-text-muted);
 }
 
+/* ヘッダーセルのアイコン（項目名テキストを併記した装飾アイコン） */
+.th-icon {
+  color: var(--color-blue);
+  margin-right: 0.3em;
+}
+
 tbody tr.night {
   background-color: #F2F2F2;
 }
