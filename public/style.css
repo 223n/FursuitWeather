@@ -355,6 +355,16 @@ button:focus {
   color: var(--level-1-accent);
 }
 
+/* 補足情報の囲み（指数など）。注意書きと同じ形状の中立色版 */
+.info-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+}
+
 /* 凡例のアコーディオン（初期状態は閉じる） */
 .legend-details summary {
   cursor: pointer;

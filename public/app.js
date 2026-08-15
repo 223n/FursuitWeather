@@ -197,6 +197,14 @@
     return wrapper;
   }
 
+  /** 補足情報（指数など）の囲み表示を作る */
+  function createInfoChip(text) {
+    const chip = document.createElement('span');
+    chip.className = 'info-chip';
+    chip.textContent = text;
+    return chip;
+  }
+
   /** 注意書き（黄色の囲み+注意アイコン）を作る
    * アイコンは装飾のため読み上げ対象外とし、代わりに「注意:」を読み上げさせる */
   function createWarningNote(text) {
@@ -347,13 +355,12 @@
           : { grade: 0, label: '冷房なしでも可の時間帯あり' },
       ),
     );
-    addRow(
-      '洗濯・乾燥',
-      badgeWithText(
-        { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
-        `指数${day.laundry.score}`,
-      ),
+    const laundryValue = badgeWithText(
+      { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
+      null,
     );
+    laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
+    addRow('洗濯・乾燥', laundryValue);
     addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
 
     card.appendChild(list);
