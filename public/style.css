@@ -35,6 +35,40 @@
   box-sizing: border-box;
 }
 
+/* Font AwesomeのSVGアイコン（自前配信スプライト）
+ * フォント読み込みや絵文字と違い、どの環境でも同一の見た目で表示される */
+.fa-icon {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+}
+
+/* 天気アイコンの色（隣に天気名のテキストを必ず併記するため、色は補助情報） */
+.weather-sun,
+.weather-cloud-sun,
+.weather-cloud-bolt {
+  color: #A66E00;
+}
+
+.weather-cloud,
+.weather-smog,
+.weather-circle-question {
+  color: #555555;
+}
+
+.weather-cloud-rain,
+.weather-snowflake {
+  color: #0072B2;
+}
+
+.weather-line-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
 body {
   margin: 0;
   font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
@@ -235,8 +269,11 @@ button:focus {
   white-space: nowrap;
 }
 
-/* 記号（◎○△✕🚫/❄付き）は文字より大きく表示して形で判別しやすくする */
+/* 記号（◎○△✕とアイコン）は文字より大きく表示して形で判別しやすくする */
 .badge .symbol {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1em;
   font-size: 1.35em;
   font-weight: 900;
   line-height: 1;

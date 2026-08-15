@@ -20,20 +20,55 @@
     { name: '那覇', lat: 26.2124, lon: 127.6809 },
   ];
 
-  /** 深刻度（grade）に対応する記号。色覚に依存しないよう必ずラベルと併記する */
-  const GRADE_SYMBOLS = ['◎', '○', '△', '✕', '🚫'];
+  /** 深刻度（grade）に対応する記号（テキストまたはSVGアイコン名の配列）
+   * ◎○△✕は通常のテキスト文字なのでどの環境でも同一表示。
+   * 絵文字は環境依存のため、絵柄はFont AwesomeのSVGアイコン（自前配信）で表示する */
+  const GRADE_SYMBOLS = [['◎'], ['○'], ['△'], ['✕'], [{ icon: 'ban' }]];
 
-  /** WMO天気コードに対応する絵文字 */
-  function weatherEmoji(code) {
-    if (code === 0 || code === 1) return '☀️';
-    if (code === 2) return '⛅';
-    if (code === 3) return '☁️';
-    if (code === 45 || code === 48) return '🌫️';
-    if (code >= 51 && code <= 67) return '🌧️';
-    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return '❄️';
-    if (code >= 80 && code <= 82) return '🌧️';
-    if (code >= 95) return '⛈️';
-    return '❓';
+  /** SVGスプライト（index.html内で定義）からアイコン要素を作る */
+  function faIcon(name, extraClass) {
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNs, 'svg');
+    svg.setAttribute('class', `fa-icon${extraClass ? ` ${extraClass}` : ''}`);
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(svgNs, 'use');
+    use.setAttribute('href', `#fa-${name}`);
+    svg.appendChild(use);
+    return svg;
+  }
+
+  /** 記号設定（テキストと{icon}の混在配列）から表示要素群を作る */
+  function renderSymbolParts(parts, container) {
+    for (const part of parts) {
+      if (typeof part === 'string') {
+        container.appendChild(document.createTextNode(part));
+      } else {
+        container.appendChild(faIcon(part.icon));
+      }
+    }
+  }
+
+  /** WMO天気コードに対応するアイコン名 */
+  function weatherIconName(code) {
+    if (code === 0 || code === 1) return 'sun';
+    if (code === 2) return 'cloud-sun';
+    if (code === 3) return 'cloud';
+    if (code === 45 || code === 48) return 'smog';
+    if (code >= 51 && code <= 67) return 'cloud-rain';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snowflake';
+    if (code >= 80 && code <= 82) return 'cloud-rain';
+    if (code >= 95) return 'cloud-bolt';
+    return 'circle-question';
+  }
+
+  /** 天気アイコン+ラベルの要素を作る */
+  function weatherWithLabel(code, label) {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'weather-line-content';
+    const iconName = weatherIconName(code);
+    wrapper.appendChild(faIcon(iconName, `weather-${iconName}`));
+    wrapper.appendChild(document.createTextNode(` ${label}`));
+    return wrapper;
   }
 
   const statusElement = document.getElementById('status');
@@ -82,7 +117,14 @@
   /** 表示中の地点ラベルを更新する */
   function setLocationLabel(name) {
     lastLocationName = name;
-    locationLabel.textContent = name ? `📍 ${name}の予報を表示中` : '';
+    if (!name) {
+      locationLabel.replaceChildren();
+      return;
+    }
+    locationLabel.replaceChildren(
+      faIcon('location-dot'),
+      document.createTextNode(` ${name}の予報を表示中`),
+    );
   }
 
   /** ステータスメッセージを表示する */
@@ -93,8 +135,8 @@
 
   /** バッジ要素を作る
    * 色弱の方にも判別できるよう、色+記号（形）+文字の3要素で段階を表す
-   * 低温側の判定には❄マークを付けて暑熱側と形で区別する
-   * summary.symbolで記号、summary.cold=trueで青系配色を明示的に指定できる */
+   * 低温側の判定には温度計アイコンを付けて暑熱側と形で区別する
+   * summary.symbol（テキストと{icon}の混在配列）で記号、summary.cold=trueで青系配色を明示的に指定できる */
   function createBadge(summary, large) {
     const badge = document.createElement('span');
     const isCold = summary.cold === true || String(summary.level || '').startsWith('cold');
@@ -103,8 +145,10 @@
     const symbol = document.createElement('span');
     symbol.className = 'symbol';
     symbol.setAttribute('aria-hidden', 'true');
-    symbol.textContent =
-      summary.symbol ?? `${isCold ? '❄' : ''}${GRADE_SYMBOLS[summary.grade] ?? '?'}`;
+    const parts =
+      summary.symbol ??
+      (isCold ? [{ icon: 'temperature-low' }] : []).concat(GRADE_SYMBOLS[summary.grade] ?? ['?']);
+    renderSymbolParts(parts, symbol);
     badge.appendChild(symbol);
     badge.appendChild(document.createTextNode(summary.label));
     return badge;
@@ -122,30 +166,30 @@
   }
 
   /** 洗濯乾燥レベルごとのバッジ設定（色+記号）
-   * 雨・低温は青系（❄🌧付き）、乾きにくいほど暖色に近づける */
+   * 雨・低温は青系（雨雲・温度計アイコン付き）、乾きにくいほど暖色に近づける */
   const LAUNDRY_BADGES = {
-    excellent: { grade: 0, symbol: '◎' },
-    veryGood: { grade: 0, symbol: '○' },
-    good: { grade: 1, symbol: '○' },
-    fair: { grade: 2, symbol: '△' },
-    indoorDry: { grade: 3, symbol: '✕' },
-    noDryRain: { grade: 3, symbol: '🌧✕', cold: true },
-    noDryCold: { grade: 3, symbol: '❄✕', cold: true },
+    excellent: { grade: 0, symbol: ['◎'] },
+    veryGood: { grade: 0, symbol: ['○'] },
+    good: { grade: 1, symbol: ['○'] },
+    fair: { grade: 2, symbol: ['△'] },
+    indoorDry: { grade: 3, symbol: ['✕'] },
+    noDryRain: { grade: 3, symbol: [{ icon: 'cloud-rain' }, '✕'], cold: true },
+    noDryCold: { grade: 3, symbol: [{ icon: 'temperature-low' }, '✕'], cold: true },
   };
 
   /** ファースーツ乾燥目安のバッジ設定を組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
     if (laundry.moldWarning) {
-      return { grade: 3, symbol: '✕', label: `約${hours}時間・カビ注意` };
+      return { grade: 3, symbol: ['✕'], label: `約${hours}時間・カビ注意` };
     }
     if (hours <= 30) {
-      return { grade: 0, symbol: '◎', label: `約${hours}時間` };
+      return { grade: 0, symbol: ['◎'], label: `約${hours}時間` };
     }
     if (hours <= 40) {
-      return { grade: 1, symbol: '○', label: `約${hours}時間` };
+      return { grade: 1, symbol: ['○'], label: `約${hours}時間` };
     }
-    return { grade: 2, symbol: '△', label: `約${hours}時間` };
+    return { grade: 2, symbol: ['△'], label: `約${hours}時間` };
   }
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
@@ -189,9 +233,12 @@
 
       const weatherLine = document.createElement('p');
       weatherLine.className = 'weather-line';
-      weatherLine.textContent =
-        `${weatherEmoji(day.weatherCode)} ${day.weatherLabel} ` +
-        `${Math.round(day.temperatureMin)}〜${Math.round(day.temperatureMax)}℃`;
+      weatherLine.appendChild(
+        weatherWithLabel(
+          day.weatherCode,
+          `${day.weatherLabel} ${Math.round(day.temperatureMin)}〜${Math.round(day.temperatureMax)}℃`,
+        ),
+      );
       card.appendChild(weatherLine);
 
       // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
@@ -225,8 +272,8 @@
         '活動しやすい時間帯',
         badgeWithText(
           hasRecommended
-            ? { grade: 0, symbol: '◎', label: 'あり' }
-            : { grade: 3, symbol: '✕', label: 'なし' },
+            ? { grade: 0, symbol: ['◎'], label: 'あり' }
+            : { grade: 3, symbol: ['✕'], label: 'なし' },
           hasRecommended ? day.recommendedHours.join('、') : '休憩と冷却を最優先に',
         ),
       );
@@ -234,8 +281,8 @@
         '屋内（空調なしの場合）',
         createBadge(
           day.coolingRequired
-            ? { grade: 3, symbol: '🧊✕', label: '冷房必須' }
-            : { grade: 0, symbol: '◎', label: '冷房なしでも可の時間帯あり' },
+            ? { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' }
+            : { grade: 0, symbol: ['◎'], label: '冷房なしでも可の時間帯あり' },
         ),
       );
       addRow(
@@ -291,7 +338,7 @@
       };
 
       addCell(`${String(hourNumber).padStart(2, '0')}:00`);
-      addCell(`${weatherEmoji(hour.weather.weatherCode)} ${hour.weatherLabel}`);
+      addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
       addCell(`${Math.round(hour.weather.humidity)}%`);
       addCell(`${hour.outdoor.suitWbgt.toFixed(1)}℃`);
@@ -305,11 +352,11 @@
         }),
       );
 
-      // 屋内判定はレベルバッジ+冷房要否バッジ（🧊アイコン付き）で表示する
+      // 屋内判定はレベルバッジ+冷房要否バッジ（雪の結晶アイコン付き）で表示する
       const COOLING_BADGES = {
-        required: { grade: 3, symbol: '🧊✕', label: '冷房必須' },
-        recommended: { grade: 1, symbol: '🧊○', label: '冷房推奨' },
-        none: { grade: 0, symbol: '◎', label: '冷房なしでも可' },
+        required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' },
+        recommended: { grade: 1, symbol: [{ icon: 'snowflake' }, '○'], label: '冷房推奨' },
+        none: { grade: 0, symbol: ['◎'], label: '冷房なしでも可' },
       };
       const indoorCell = document.createElement('span');
       indoorCell.className = 'badge-line';
