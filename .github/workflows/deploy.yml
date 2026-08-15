@@ -1,11 +1,16 @@
 name: Deploy
 
 # Cloudflare Workersへのデプロイ
-# リポジトリのSecretsにCLOUDFLARE_API_TOKENとCLOUDFLARE_ACCOUNT_IDを設定したうえで、
-# Actionsタブから手動実行する（Secrets未設定のまま自動実行して失敗しないよう手動トリガーにしている）
+# リポジトリのSecretsにCLOUDFLARE_API_TOKENとCLOUDFLARE_ACCOUNT_IDの設定が必要
+# mainへのpushで自動デプロイし、Actionsタブからの手動実行にも対応する
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      # PRマージまでのプレビューデプロイ用（マージ後はこの行を削除してよい）
+      - claude/fursuit-weather-service-509a55
 
 jobs:
   deploy:

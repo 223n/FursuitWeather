@@ -114,7 +114,8 @@ npm run deploy
    APIトークンを作成する
 1. リポジトリのSecretsに `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を
    設定する
-1. Actionsタブから `Deploy` ワークフローを手動実行する
+1. mainブランチへのpushで自動デプロイされる（Actionsタブの `Deploy`
+   ワークフローから手動実行も可能）
 
 ## アーキテクチャ
 

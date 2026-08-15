@@ -88,6 +88,16 @@ h2 {
   font-size: 0.85rem;
 }
 
+/* 表示中の地点ラベル */
+.location-label {
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.location-label:empty {
+  display: none;
+}
+
 /* 操作列 */
 .control-row {
   display: flex;
@@ -251,6 +261,57 @@ button:focus {
 
 .main-judgement {
   margin: 0 0 0.6rem;
+}
+
+/* 凡例のアコーディオン（初期状態は閉じる） */
+.legend-details summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.legend-details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 開閉状態を矢印の向き（形）で示す */
+.legend-details summary::before {
+  content: '▶';
+  color: var(--color-blue);
+  font-size: 0.8rem;
+}
+
+.legend-details[open] summary::before {
+  content: '▼';
+}
+
+.legend-details summary h2 {
+  margin: 0;
+  display: inline;
+}
+
+.legend-details summary:focus {
+  outline: 3px solid #A66E00;
+  outline-offset: 2px;
+}
+
+.summary-hint {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.legend-details[open] .hint {
+  margin-top: 0.75rem;
+}
+
+/* バッジ+補足テキストの行 */
+.badge-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
 }
 
 /* 凡例 */

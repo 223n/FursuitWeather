@@ -37,6 +37,7 @@
   }
 
   const statusElement = document.getElementById('status');
+  const locationLabel = document.getElementById('location-label');
   const citySelect = document.getElementById('city-select');
   const dayCardsElement = document.getElementById('day-cards');
   const hoursBody = document.getElementById('hours-body');
@@ -47,6 +48,42 @@
   let selectedDate = null;
   /** 最後に予報を取得したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
   let lastQuery = null;
+  /** 最後に表示した地点の名前（「予報を更新」でラベルを維持するために保持） */
+  let lastLocationName = null;
+
+  /** 2地点間の距離（km）をハーバーサイン公式で求める */
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
+  }
+
+  /** 座標から「現在地」の説明文を作る（最寄りのプリセット都市からの距離で表現） */
+  function describeCurrentLocation(lat, lon) {
+    let nearest = null;
+    let nearestKm = Number.POSITIVE_INFINITY;
+    for (const city of CITIES) {
+      const km = distanceKm(lat, lon, city.lat, city.lon);
+      if (km < nearestKm) {
+        nearest = city;
+        nearestKm = km;
+      }
+    }
+    const rounded = Math.round(nearestKm);
+    const relative = rounded < 5 ? `${nearest.name}付近` : `${nearest.name}から約${rounded}km`;
+    return `現在地（緯度${lat.toFixed(2)}・経度${lon.toFixed(2)}、${relative}）`;
+  }
+
+  /** 表示中の地点ラベルを更新する */
+  function setLocationLabel(name) {
+    lastLocationName = name;
+    locationLabel.textContent = name ? `📍 ${name}の予報を表示中` : '';
+  }
 
   /** ステータスメッセージを表示する */
   function setStatus(message, isError) {
@@ -56,19 +93,59 @@
 
   /** バッジ要素を作る
    * 色弱の方にも判別できるよう、色+記号（形）+文字の3要素で段階を表す
-   * 低温側の判定には❄マークを付けて暑熱側と形で区別する */
+   * 低温側の判定には❄マークを付けて暑熱側と形で区別する
+   * summary.symbolで記号、summary.cold=trueで青系配色を明示的に指定できる */
   function createBadge(summary, large) {
     const badge = document.createElement('span');
-    const isCold = String(summary.level).startsWith('cold');
+    const isCold = summary.cold === true || String(summary.level || '').startsWith('cold');
     badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}${large ? ' badge-large' : ''}`;
 
     const symbol = document.createElement('span');
     symbol.className = 'symbol';
     symbol.setAttribute('aria-hidden', 'true');
-    symbol.textContent = `${isCold ? '❄' : ''}${GRADE_SYMBOLS[summary.grade] ?? '?'}`;
+    symbol.textContent =
+      summary.symbol ?? `${isCold ? '❄' : ''}${GRADE_SYMBOLS[summary.grade] ?? '?'}`;
     badge.appendChild(symbol);
     badge.appendChild(document.createTextNode(summary.label));
     return badge;
+  }
+
+  /** バッジ+補足テキストを横に並べた要素を作る */
+  function badgeWithText(badgeConfig, text) {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'badge-line';
+    wrapper.appendChild(createBadge(badgeConfig));
+    if (text) {
+      wrapper.appendChild(document.createTextNode(` ${text}`));
+    }
+    return wrapper;
+  }
+
+  /** 洗濯乾燥レベルごとのバッジ設定（色+記号）
+   * 雨・低温は青系（❄🌧付き）、乾きにくいほど暖色に近づける */
+  const LAUNDRY_BADGES = {
+    excellent: { grade: 0, symbol: '◎' },
+    veryGood: { grade: 0, symbol: '○' },
+    good: { grade: 1, symbol: '○' },
+    fair: { grade: 2, symbol: '△' },
+    indoorDry: { grade: 3, symbol: '✕' },
+    noDryRain: { grade: 3, symbol: '🌧✕', cold: true },
+    noDryCold: { grade: 3, symbol: '❄✕', cold: true },
+  };
+
+  /** ファースーツ乾燥目安のバッジ設定を組み立てる */
+  function fursuitDryingBadge(laundry) {
+    const hours = laundry.fursuitDryingHours;
+    if (laundry.moldWarning) {
+      return { grade: 3, symbol: '✕', label: `約${hours}時間・カビ注意` };
+    }
+    if (hours <= 30) {
+      return { grade: 0, symbol: '◎', label: `約${hours}時間` };
+    }
+    if (hours <= 40) {
+      return { grade: 1, symbol: '○', label: `約${hours}時間` };
+    }
+    return { grade: 2, symbol: '△', label: `約${hours}時間` };
   }
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
@@ -143,13 +220,32 @@
         list.appendChild(dd);
       };
 
+      const hasRecommended = day.recommendedHours.length > 0;
       addRow(
         '活動しやすい時間帯',
-        day.recommendedHours.length > 0 ? day.recommendedHours.join('、') : 'なし（休憩と冷却を最優先に）',
+        badgeWithText(
+          hasRecommended
+            ? { grade: 0, symbol: '◎', label: 'あり' }
+            : { grade: 3, symbol: '✕', label: 'なし' },
+          hasRecommended ? day.recommendedHours.join('、') : '休憩と冷却を最優先に',
+        ),
       );
-      addRow('屋内（空調なしの場合）', day.coolingRequired ? '冷房必須' : '冷房なしでも活動可の時間帯あり');
-      addRow('洗濯・乾燥', `${day.laundry.label}（指数${day.laundry.score}）`);
-      addRow('ファースーツ乾燥目安', `約${day.laundry.fursuitDryingHours}時間${day.laundry.moldWarning ? '（カビ注意）' : ''}`);
+      addRow(
+        '屋内（空調なしの場合）',
+        createBadge(
+          day.coolingRequired
+            ? { grade: 3, symbol: '🧊✕', label: '冷房必須' }
+            : { grade: 0, symbol: '◎', label: '冷房なしでも可の時間帯あり' },
+        ),
+      );
+      addRow(
+        '洗濯・乾燥',
+        badgeWithText(
+          { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2, symbol: '△' }), label: day.laundry.label },
+          `指数${day.laundry.score}`,
+        ),
+      );
+      addRow('ファースーツ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
 
       card.appendChild(list);
 
@@ -209,9 +305,16 @@
         }),
       );
 
+      // 屋内判定はレベルバッジ+冷房要否バッジ（🧊アイコン付き）で表示する
+      const COOLING_BADGES = {
+        required: { grade: 3, symbol: '🧊✕', label: '冷房必須' },
+        recommended: { grade: 1, symbol: '🧊○', label: '冷房推奨' },
+        none: { grade: 0, symbol: '◎', label: '冷房なしでも可' },
+      };
       const indoorCell = document.createElement('span');
+      indoorCell.className = 'badge-line';
       indoorCell.appendChild(createBadge(hour.indoor));
-      indoorCell.appendChild(document.createTextNode(` ${hour.indoor.coolingLabel}`));
+      indoorCell.appendChild(createBadge(COOLING_BADGES[hour.indoor.cooling] ?? COOLING_BADGES.none));
       addCell(indoorCell);
 
       hoursBody.appendChild(row);
@@ -228,8 +331,10 @@
     }
   }
 
-  /** 予報を取得して描画する */
-  async function loadForecast(query) {
+  /** 予報を取得して描画する
+   * @param {string} query APIへのクエリ文字列
+   * @param {string} locationName 表示する地点名（成功時にラベルへ反映） */
+  async function loadForecast(query, locationName) {
     lastQuery = query;
     setStatus('予報を取得しています…', false);
     try {
@@ -250,6 +355,7 @@
       selectedDate = body.days.length > 0 ? body.days[0].date : null;
 
       setStatus('', false);
+      setLocationLabel(locationName);
       document.getElementById('days-section').classList.remove('hidden');
       document.getElementById('notices-section').classList.remove('hidden');
       renderDayCards(body);
@@ -270,7 +376,7 @@
     if (!city) {
       return;
     }
-    loadForecast(`lat=${city.lat}&lon=${city.lon}`);
+    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name);
   }
 
   // 地点セレクトの初期化
@@ -289,7 +395,7 @@
   // 「予報を更新」は表示中の予報（現在地・デモを含む）と同じ条件で再取得する
   document.getElementById('reload-button').addEventListener('click', () => {
     if (lastQuery) {
-      loadForecast(lastQuery);
+      loadForecast(lastQuery, lastLocationName);
     } else {
       loadSelectedCity();
     }
@@ -303,8 +409,11 @@
     setStatus('現在地を取得しています…', false);
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
         loadForecast(
-          `lat=${position.coords.latitude.toFixed(4)}&lon=${position.coords.longitude.toFixed(4)}`,
+          `lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
+          describeCurrentLocation(lat, lon),
         );
       },
       () => {
@@ -316,7 +425,7 @@
   // 初期表示: ?demo=1 のときはデモデータ、それ以外は選択中の都市
   const pageParams = new URLSearchParams(window.location.search);
   if (pageParams.get('demo') === '1') {
-    loadForecast('demo=1');
+    loadForecast('demo=1', 'デモデータ（架空の気象データ）');
   } else {
     loadSelectedCity();
   }
