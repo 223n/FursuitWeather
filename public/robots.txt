@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# APIエンドポイントはクロール不要
+Disallow: /api/
+
+Sitemap: https://fursuit-weather.223n.tech/sitemap.xml
