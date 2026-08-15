@@ -596,6 +596,17 @@ main a {
   line-height: 1.5;
 }
 
+/* 表のセル内でフィールドを1行ずつ列挙するリスト（長い並列列挙の読みやすさ向上） */
+.field-list {
+  margin: 0.2rem 0 0;
+  padding-left: 1em;
+  list-style: none;
+}
+
+.field-list li {
+  margin: 0.2rem 0;
+}
+
 /* インラインコード（APIフィールド名など）。Markdownの`コード`表記と同様に
  * 背景色+文字色で「要素名・コード値」であることを視覚的に区別する */
 code {

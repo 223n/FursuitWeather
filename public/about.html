@@ -253,7 +253,17 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <tr><th scope="row"><code>time</code></th><td>string</td><td>ローカル時刻（Asia/Tokyo、例: <code>2026-08-15T09:00</code>）</td></tr>
-            <tr><th scope="row"><code>weather</code></th><td>object</td><td>気象値: <code>temperature</code>（℃）・<code>humidity</code>（%）・<code>apparentTemperature</code>（℃）・<code>precipitation</code>（mm）・<code>weatherCode</code>（WMOコード）・<code>solarRadiation</code>（W/m²）・<code>windSpeed</code>（m/s）</td></tr>
+            <tr><th scope="row"><code>weather</code></th><td>object</td><td>気象値:
+              <ul class="field-list">
+                <li><code>temperature</code>（℃）</li>
+                <li><code>humidity</code>（%）</li>
+                <li><code>apparentTemperature</code>（℃）</li>
+                <li><code>precipitation</code>（mm）</li>
+                <li><code>weatherCode</code>（WMOコード）</li>
+                <li><code>solarRadiation</code>（W/m²）</li>
+                <li><code>windSpeed</code>（m/s）</li>
+              </ul>
+            </td></tr>
             <tr><th scope="row"><code>weatherLabel</code></th><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
             <tr><th scope="row"><code>outdoor</code></th><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
             <tr><th scope="row"><code>indoor</code></th><td>object</td><td>屋内の判定。判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
@@ -294,7 +304,16 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
             <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式。深刻度1以下かつ降水なし）</td></tr>
             <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
-            <tr><th scope="row"><code>laundry</code></th><td>object</td><td>洗濯乾燥判定: <code>score</code>（0<span aria-hidden="true">〜</span><span class="sr-only">から</span>100）・<code>level</code>（<code>noDryRain</code>／<code>noDryCold</code>／<code>indoorDry</code>／<code>fair</code>／<code>good</code>／<code>veryGood</code>／<code>excellent</code>）・<code>label</code>・<code>fursuitDryingHours</code>（時間）・<code>moldWarning</code>（boolean）・<code>advice</code></td></tr>
+            <tr><th scope="row"><code>laundry</code></th><td>object</td><td>洗濯乾燥判定:
+              <ul class="field-list">
+                <li><code>score</code>（<code>0</code><span aria-hidden="true">〜</span><span class="sr-only">から</span><code>100</code>）</li>
+                <li><code>level</code>（<code>noDryRain</code>／<code>noDryCold</code>／<code>indoorDry</code>／<code>fair</code>／<code>good</code>／<code>veryGood</code>／<code>excellent</code>）</li>
+                <li><code>label</code></li>
+                <li><code>fursuitDryingHours</code>（時間）</li>
+                <li><code>moldWarning</code>（boolean）</li>
+                <li><code>advice</code></li>
+              </ul>
+            </td></tr>
           </tbody>
         </table>
       </div>
