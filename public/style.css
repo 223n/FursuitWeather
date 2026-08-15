@@ -602,6 +602,29 @@ main a {
   height: auto;
 }
 
+/* 平易な補足説明の情報ボックス（青枠+左上に情報アイコン） */
+.info-box {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  border: 2px solid var(--color-blue);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.info-box > .fa-icon {
+  color: var(--color-blue);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.info-box p {
+  margin: 0;
+}
+
 section h3 {
   font-size: 1.05rem;
   margin: 1.25rem 0 0.5rem;
