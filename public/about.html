@@ -234,7 +234,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。<br>気象モデルの格子点に丸められた座標</td></tr>
-            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601・UTC、例: <code>2026-08-15T09:00:00.000Z</code>）</td></tr>
+            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻<br>（ISO 8601・UTC、<br>例: <code>2026-08-15T09:00:00.000Z</code>）</td></tr>
             <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
             <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。<br>表示時は出典の明記が必要</td></tr>
             <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
@@ -252,7 +252,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><th scope="row"><code>time</code></th><td>string</td><td>ローカル時刻（Asia/Tokyo、例: <code>2026-08-15T09:00</code>）</td></tr>
+            <tr><th scope="row"><code>time</code></th><td>string</td><td>ローカル時刻<br>（Asia/Tokyo、<br>例: <code>2026-08-15T09:00</code>）</td></tr>
             <tr><th scope="row"><code>weather</code></th><td>object</td><td>気象値:
               <ul class="field-list">
                 <li><code>temperature</code>（℃）</li>
