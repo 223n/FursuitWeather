@@ -197,16 +197,29 @@ export interface LaundryBand {
   /** この値以下なら該当 */
   upperBound: number;
   id: LaundryLevelId;
-  label: string;
 }
 
 export const LAUNDRY_BANDS: readonly LaundryBand[] = [
-  { upperBound: 30, id: 'indoorDry', label: '部屋干し推奨' },
-  { upperBound: 50, id: 'fair', label: 'やや乾く' },
-  { upperBound: 70, id: 'good', label: '乾く' },
-  { upperBound: 85, id: 'veryGood', label: 'よく乾く' },
-  { upperBound: 100, id: 'excellent', label: '大変よく乾く' },
+  { upperBound: 30, id: 'indoorDry' },
+  { upperBound: 50, id: 'fair' },
+  { upperBound: 70, id: 'good' },
+  { upperBound: 85, id: 'veryGood' },
+  { upperBound: 100, id: 'excellent' },
 ] as const;
+
+/**
+ * 洗濯乾燥レベルの表示ラベル
+ * スコア由来の5段階に加え、例外レベル（降雨・低温）を含む全レベル分を一元管理する
+ */
+export const LAUNDRY_LEVEL_LABELS: Record<LaundryLevelId, string> = {
+  noDryRain: '外干しNG（雨）',
+  noDryCold: '乾きにくい（低温）',
+  indoorDry: '部屋干し推奨',
+  fair: 'やや乾く',
+  good: '乾く',
+  veryGood: 'よく乾く',
+  excellent: '大変よく乾く',
+};
 
 /** 日別サマリーで「日中」とみなす時間帯（時、開始を含み終了を含まない） */
 export const DAYTIME_START_HOUR = 9;

@@ -11,7 +11,7 @@ import { demoWeather } from '../weather/demoData';
 import { fetchWeather, UpstreamError, type WeatherResult } from '../weather/openMeteo';
 
 /** JSONレスポンスを生成する */
-function json(body: unknown, status = 200, cacheable = false): Response {
+export function json(body: unknown, status = 200, cacheable = false): Response {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=utf-8',
     // 個人開発の公開APIとして他サイトからの利用も許可する
@@ -26,7 +26,7 @@ function json(body: unknown, status = 200, cacheable = false): Response {
 }
 
 /** エラーレスポンスを生成する */
-function jsonError(status: number, message: string): Response {
+export function jsonError(status: number, message: string): Response {
   return json({ error: message }, status);
 }
 

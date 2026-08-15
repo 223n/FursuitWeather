@@ -3,7 +3,7 @@
 // 毎時の乾燥スピードを干し時間帯（9〜15時）で積算して0〜100に指数化する
 // 段階分けはtenki.jp洗濯指数の5段階に準拠し、降雨・低温の例外処理を重ねる
 
-import { LAUNDRY, LAUNDRY_BANDS } from '../constants';
+import { LAUNDRY, LAUNDRY_BANDS, LAUNDRY_LEVEL_LABELS } from '../constants';
 import type { HourlyWeather, LaundryAssessment, LaundryLevelId } from '../types';
 
 /**
@@ -35,16 +35,6 @@ function classifyScore(score: number): LaundryLevelId {
   return band?.id ?? 'excellent';
 }
 
-const LEVEL_LABELS: Record<LaundryLevelId, string> = {
-  noDryRain: '外干しNG（雨）',
-  noDryCold: '乾きにくい（低温）',
-  indoorDry: '部屋干し推奨',
-  fair: 'やや乾く',
-  good: '乾く',
-  veryGood: 'よく乾く',
-  excellent: '大変よく乾く',
-};
-
 /** ファースーツ全身洗いの乾燥目安時間（扇風機併用前提）を指数から線形補間する */
 export function fursuitDryingHours(score: number): number {
   const { fursuitMinDryingHours, fursuitMaxDryingHours } = LAUNDRY;
@@ -69,7 +59,7 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
     return {
       score: 0,
       level: 'indoorDry',
-      label: LEVEL_LABELS.indoorDry,
+      label: LAUNDRY_LEVEL_LABELS.indoorDry,
       fursuitDryingHours: fursuitDryingHours(0),
       moldWarning: true,
       advice: '干し時間帯（9〜15時）の予報データがないため判定できません。',
@@ -120,7 +110,7 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
   return {
     score: effectiveScore,
     level,
-    label: LEVEL_LABELS[level],
+    label: LAUNDRY_LEVEL_LABELS[level],
     fursuitDryingHours: dryingHours,
     moldWarning,
     advice: adviceParts.join(''),
