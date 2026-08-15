@@ -125,12 +125,13 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             </tr>
           </thead>
           <tbody>
-            <!-- 記号（◎○△✕）は色弱対応の視覚補助のため、読み上げはラベルのみとする -->
-            <tr><th scope="row">21℃未満</th><td><span aria-hidden="true">◎ </span>ほぼ安全</td><td>45分</td></tr>
-            <tr><th scope="row">21<span aria-hidden="true">〜</span><span class="sr-only">から</span>25℃</th><td><span aria-hidden="true">○ </span>注意</td><td>30分</td></tr>
-            <tr><th scope="row">25<span aria-hidden="true">〜</span><span class="sr-only">から</span>28℃</th><td><span aria-hidden="true">△ </span>警戒</td><td>20分</td></tr>
-            <tr><th scope="row">28<span aria-hidden="true">〜</span><span class="sr-only">から</span>31℃</th><td><span aria-hidden="true">✕ </span>厳重警戒</td><td>10分</td></tr>
-            <tr><th scope="row">31℃以上</th><td>危険</td><td>着用中止</td></tr>
+            <!-- 判定は予報画面と同じバッジ表示（色+記号+文字）で示す。
+                 記号・アイコンは色弱対応の視覚補助のため、読み上げはラベルのみとする -->
+            <tr><th scope="row">21℃未満</th><td><span class="badge grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span></td><td>45分</td></tr>
+            <tr><th scope="row">21<span aria-hidden="true">〜</span><span class="sr-only">から</span>25℃</th><td><span class="badge grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span></td><td>30分</td></tr>
+            <tr><th scope="row">25<span aria-hidden="true">〜</span><span class="sr-only">から</span>28℃</th><td><span class="badge grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span></td><td>20分</td></tr>
+            <tr><th scope="row">28<span aria-hidden="true">〜</span><span class="sr-only">から</span>31℃</th><td><span class="badge grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span></td><td>10分</td></tr>
+            <tr><th scope="row">31℃以上</th><td><span class="badge grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M367.2 412.5L99.5 144.8c-22.4 31.4-35.5 69.8-35.5 111.2 0 106 86 192 192 192 41.5 0 79.9-13.1 111.2-35.5zm45.3-45.3c22.4-31.4 35.5-69.8 35.5-111.2 0-106-86-192-192-192-41.5 0-79.9 13.1-111.2 35.5L412.5 367.2zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"/></svg></span>危険</span></td><td>着用中止</td></tr>
           </tbody>
         </table>
       </div>
