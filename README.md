@@ -99,10 +99,10 @@ npm run lint
 
 | パラメータ | 必須 | 説明 |
 |-----------|------|--------------------------------|
-| lat | ○ | 緯度（-90〜90） |
-| lon | ○ | 経度（-180〜180） |
-| days | - | 予報日数（1〜4、デフォルト4） |
-| demo | - | `1`でデモデータを返す |
+| `lat` | 必須 | 緯度（-90〜90） |
+| `lon` | 必須 | 経度（-180〜180） |
+| `days` | 任意 | 予報日数（1〜4、デフォルト4） |
+| `demo` | 任意 | `1`でデモデータを返す |
 
 予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データが
 なくWBGTを計算できないため）。
@@ -114,6 +114,8 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 ### レスポンスJSONの仕様
 
 トップレベルのフィールドは以下のとおりです。
+要素名の区切りは、並列のフィールドを「・」、いずれか1つを取る値を
+「／」で表記しています。
 
 | フィールド | 型 | 説明 |
 |--------------|----------|------------------------------------------|
@@ -125,18 +127,18 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 | hours | array | 1時間ごとの予報 |
 | days | array | 日別サマリー |
 
-`hours[]`の各要素は`time`、`weather`（temperature・humidity・
-apparentTemperature・precipitation・weatherCode・solarRadiation・
-windSpeed）、`weatherLabel`、`outdoor`・`indoor`（判定オブジェクト）を
+`hours[]`の各要素は`time`・`weather`（`temperature`・`humidity`・
+`apparentTemperature`・`precipitation`・`weatherCode`・`solarRadiation`・
+`windSpeed`）・`weatherLabel`・`outdoor`・`indoor`（判定オブジェクト）を
 持ちます。判定オブジェクトは`wbgt`・`suitWbgt`（補正後WBGT）・`level`・
 `label`・`grade`（0〜4）・`activityMinutes`・`advice`で構成され、
-`indoor`にはさらに`cooling`（none/recommended/required）と
+`indoor`にはさらに`cooling`（`none`／`recommended`／`required`）と
 `coolingLabel`が加わります。
 
-`days[]`の各要素は`date`、`temperatureMin`/`temperatureMax`、
-`weatherCode`/`weatherLabel`、`outdoorWorst`/`outdoorBest`、
-`recommendedHours`、`coolingRequired`、`laundry`（score・level・label・
-fursuitDryingHours・moldWarning・advice）を持ちます。
+`days[]`の各要素は`date`・`temperatureMin`・`temperatureMax`・
+`weatherCode`・`weatherLabel`・`outdoorWorst`・`outdoorBest`・
+`recommendedHours`・`coolingRequired`・`laundry`（`score`・`level`・`label`・
+`fursuitDryingHours`・`moldWarning`・`advice`）を持ちます。
 
 詳細な仕様とレスポンス例は
 [公開サイトの説明ページ](https://fursuit-weather.223n.tech/about)を
