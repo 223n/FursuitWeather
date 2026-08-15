@@ -1,0 +1,93 @@
+// 着ぐるみ活動判定のテスト
+
+import { describe, expect, it } from 'vitest';
+import { assessCooling, assessIndoor, assessOutdoor } from '../src/logic/fursuit';
+import type { HourlyWeather } from '../src/types';
+
+/** テスト用の気象データを作る */
+function weather(overrides: Partial<HourlyWeather>): HourlyWeather {
+  return {
+    time: '2026-08-15T12:00',
+    temperature: 25,
+    humidity: 60,
+    apparentTemperature: 26,
+    precipitation: 0,
+    weatherCode: 1,
+    solarRadiation: 500,
+    windSpeed: 2,
+    ...overrides,
+  };
+}
+
+describe('assessOutdoor（暑熱側）', () => {
+  it('真夏の炎天下は「危険」で活動中止になる', () => {
+    const result = assessOutdoor(
+      weather({ temperature: 35, humidity: 65, solarRadiation: 900, windSpeed: 1 }),
+    );
+    expect(result.level).toBe('danger');
+    expect(result.activityMinutes).toBe(0);
+    expect(result.grade).toBe(4);
+  });
+
+  it('着ぐるみ補正で素のWBGTより11℃高い値で判定する', () => {
+    const result = assessOutdoor(weather({}));
+    expect(result.suitWbgt).toBeCloseTo(result.wbgt + 11, 5);
+  });
+
+  it('穏やかな気温でも着ぐるみ補正により「注意」以上になる', () => {
+    // Ta=16℃, RH=40%: 素のWBGT約11℃ → 補正後約22℃で「注意」帯
+    const result = assessOutdoor(
+      weather({ temperature: 16, humidity: 40, solarRadiation: 0, windSpeed: 1 }),
+    );
+    expect(result.level).toBe('caution');
+    expect(result.activityMinutes).toBe(45);
+  });
+});
+
+describe('assessOutdoor（低温側）', () => {
+  it('気温15℃未満は体感温度による低温判定に切り替わる', () => {
+    const result = assessOutdoor(weather({ temperature: 8, apparentTemperature: 5 }));
+    expect(result.level).toBe('optimal');
+    expect(result.activityMinutes).toBe(60);
+  });
+
+  it('体感温度0℃以下は低温注意', () => {
+    const result = assessOutdoor(weather({ temperature: 2, apparentTemperature: -3 }));
+    expect(result.level).toBe('coldCaution');
+  });
+
+  it('体感温度-10℃以下は低温警戒で活動30分', () => {
+    const result = assessOutdoor(weather({ temperature: -5, apparentTemperature: -14 }));
+    expect(result.level).toBe('coldWarning');
+    expect(result.activityMinutes).toBe(30);
+  });
+
+  it('体感温度-20℃以下は屋外活動を推奨しない', () => {
+    const result = assessOutdoor(weather({ temperature: -15, apparentTemperature: -25 }));
+    expect(result.level).toBe('coldDanger');
+    expect(result.activityMinutes).toBe(0);
+  });
+});
+
+describe('assessIndoor', () => {
+  it('真夏日相当の屋内は「危険」かつ冷房必須', () => {
+    const result = assessIndoor(weather({ temperature: 30, humidity: 60 }));
+    expect(result.level).toBe('danger');
+    expect(result.cooling).toBe('required');
+    expect(result.coolingLabel).toBe('冷房必須');
+  });
+
+  it('涼しい屋内は冷房なしでも可', () => {
+    const result = assessIndoor(weather({ temperature: 12, humidity: 40 }));
+    expect(result.cooling).toBe('none');
+  });
+});
+
+describe('assessCooling', () => {
+  it('しきい値どおりに冷房要否を返す', () => {
+    expect(assessCooling(20.9)).toBe('none');
+    expect(assessCooling(21)).toBe('recommended');
+    expect(assessCooling(24.9)).toBe('recommended');
+    expect(assessCooling(25)).toBe('required');
+  });
+});

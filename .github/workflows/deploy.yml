@@ -1,0 +1,34 @@
+name: Deploy
+
+# Cloudflare Workersへのデプロイ
+# リポジトリのSecretsにCLOUDFLARE_API_TOKENとCLOUDFLARE_ACCOUNT_IDを設定したうえで、
+# Actionsタブから手動実行する（Secrets未設定のまま自動実行して失敗しないよう手動トリガーにしている）
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Cloudflare Workersへデプロイ
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: テストを実行
+        run: npm test
+
+      - name: デプロイ
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

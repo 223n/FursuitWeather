@@ -1,0 +1,266 @@
+// FursuitWeather 定数定義
+// 係数・しきい値はすべて本ファイルに集約し、出典を明記する
+
+import type { ColdLevelId, HeatLevelId, LaundryLevelId } from './types';
+
+/**
+ * 小野ら（2014）によるWBGT推定式の係数
+ * WBGT = 0.735×Ta + 0.0374×RH + 0.00292×Ta×RH + 7.619×SR − 4.557×SR² − 0.0572×WS − 4.064
+ *   Ta: 気温（℃）、RH: 相対湿度（%）、SR: 全天日射量（kW/m²）、WS: 風速（m/s）
+ * 環境省「熱中症予防情報サイト」の実況推定値・予測値と同一の手法
+ * 出典: https://www.wbgt.env.go.jp/doc_observation.php
+ * 出典: https://www.jstage.jst.go.jp/article/seikisho/50/4/50_147/_pdf
+ */
+export const ONO_2014 = {
+  ta: 0.735,
+  rh: 0.0374,
+  taRh: 0.00292,
+  sr: 7.619,
+  srSquared: -4.557,
+  ws: -0.0572,
+  intercept: -4.064,
+} as const;
+
+/**
+ * 着ぐるみ（フルスーツ）の着衣補正値（℃）
+ * 厚生労働省「職場における熱中症予防基本対策要綱」（ISO 7243:2017準拠）の
+ * WBGT着衣補正値で「フード付き蒸気不透過つなぎ服」= +11℃に相当
+ * 出典: https://www.jaish.gr.jp/horei/hor1-56/hor1-56-12-1-3.pdf
+ */
+export const SUIT_WBGT_ADJUSTMENT = 11;
+
+/**
+ * 屋内WBGT計算時の想定風速（m/s）
+ * 日本生気象学会「室内用WBGT簡易推定図」が想定する室内風速に準拠
+ * 出典: https://seikishou.jp/cms/wp-content/uploads/20220523-v4.pdf
+ */
+export const INDOOR_WIND_SPEED = 0.5;
+
+/**
+ * WBGT評価を低温ロジックへ切り替える気温（℃）
+ * 小野式は夏季日中の観測データへの回帰式のため、低温域では適用しない
+ */
+export const COLD_SWITCH_TEMPERATURE = 15;
+
+/** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
+export interface HeatBand {
+  /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */
+  upperBound: number;
+  id: HeatLevelId;
+  label: string;
+  grade: number;
+  /** 1回あたりの連続活動時間の目安（分） */
+  activityMinutes: number;
+  advice: string;
+}
+
+/**
+ * WBGTしきい値（21/25/28/31℃）と運動指針
+ * 出典: https://www.wbgt.env.go.jp/wbgt.php
+ * 出典: https://www.japan-sports.or.jp/medicine/tabid/922/Default.aspx
+ * 活動時間の目安は自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
+ * ファースーツコミュニティの推奨（30〜45分で休憩）を基に段階化
+ */
+export const HEAT_BANDS: readonly HeatBand[] = [
+  {
+    upperBound: 21,
+    id: 'safe',
+    label: 'ほぼ安全',
+    grade: 0,
+    activityMinutes: 60,
+    advice: '快適に活動できます。それでもスーツ内は蒸れるため、適宜水分補給をしてください。',
+  },
+  {
+    upperBound: 25,
+    id: 'caution',
+    label: '注意',
+    grade: 1,
+    activityMinutes: 45,
+    advice: '積極的に水分補給をしてください。45分をめどに休憩を入れましょう。',
+  },
+  {
+    upperBound: 28,
+    id: 'warning',
+    label: '警戒',
+    grade: 2,
+    activityMinutes: 30,
+    advice: '30分ごとに必ず休憩し、ヘッドを外して冷却してください。冷却ベストの着用を推奨します。',
+  },
+  {
+    upperBound: 31,
+    id: 'severe',
+    label: '厳重警戒',
+    grade: 3,
+    activityMinutes: 15,
+    advice: '連続15分以内にとどめ、屋内の冷房環境へ退避してください。電解質補給も必須です。',
+  },
+  {
+    upperBound: Number.POSITIVE_INFINITY,
+    id: 'danger',
+    label: '危険',
+    grade: 4,
+    activityMinutes: 0,
+    advice: '着ぐるみの着用は中止してください。熱中症の危険が非常に高い状態です。',
+  },
+] as const;
+
+/** 低温側レベル定義 */
+export interface ColdBand {
+  /** この値より大きければ該当（℃、体感温度と比較） */
+  lowerBound: number;
+  id: ColdLevelId;
+  label: string;
+  grade: number;
+  activityMinutes: number;
+  advice: string;
+}
+
+/**
+ * 低温側のしきい値（体感温度0/-10/-20℃）
+ * 汗冷えによる低体温・凍結路面・末端の凍傷リスクを段階化
+ * 0〜10℃程度は着ぐるみ着用に適した環境とされる（ファースーツコミュニティの知見）
+ */
+export const COLD_BANDS: readonly ColdBand[] = [
+  {
+    lowerBound: 0,
+    id: 'optimal',
+    label: '快適',
+    grade: 0,
+    activityMinutes: 60,
+    advice: '着ぐるみ活動に適した気温です。脱いだ後の汗冷えに注意してください。',
+  },
+  {
+    lowerBound: -10,
+    id: 'coldCaution',
+    label: '低温注意',
+    grade: 1,
+    activityMinutes: 60,
+    advice: '凍結した路面での転倒に注意してください。ヘッド着用時は視界が狭くなります。休憩時の汗冷え対策も必要です。',
+  },
+  {
+    lowerBound: -20,
+    id: 'coldWarning',
+    label: '低温警戒',
+    grade: 2,
+    activityMinutes: 30,
+    advice: '手足など末端の防寒を徹底し、活動は30分以内にとどめてください。濡れたファーは断熱性を失います。',
+  },
+  {
+    lowerBound: Number.NEGATIVE_INFINITY,
+    id: 'coldDanger',
+    label: '低温危険',
+    grade: 4,
+    activityMinutes: 0,
+    advice: '屋外での着ぐるみ活動は推奨できません。凍傷やスーツ素材の低温劣化の恐れがあります。',
+  },
+] as const;
+
+/**
+ * 冷房要否のしきい値（℃、屋内の着ぐるみ補正後WBGTと比較）
+ * 補正後WBGTが「警戒」帯に入るなら冷房必須、「注意」帯なら冷房推奨
+ */
+export const COOLING_REQUIRED_WBGT = 25;
+export const COOLING_RECOMMENDED_WBGT = 21;
+
+/**
+ * 洗濯乾燥指数の計算パラメータ
+ * 乾燥スピード D = VPD（hPa）×（1 + 0.225×風速（m/s））を干し時間帯で積算して指数化
+ * VPD（飽差）はTetensの式による飽和水蒸気圧から算出
+ * 風速関数はMeyer式（小さい濡れ面の蒸発量推定）のm/s換算形
+ * 出典: https://en.wikipedia.org/wiki/Tetens_equation
+ * 段階分けはtenki.jp洗濯指数の5段階に準拠: https://tenki.jp/indexes/cloth_dried/
+ */
+export const LAUNDRY = {
+  /** 干し時間帯の開始時刻（時、この時刻を含む） */
+  windowStartHour: 9,
+  /** 干し時間帯の終了時刻（時、この時刻を含まない） */
+  windowEndHour: 15,
+  /** Meyer式の風速係数（m/s換算） */
+  windFactor: 0.225,
+  /** 積算乾燥スピードを0〜100に正規化する除数（経験的調整値） */
+  normalizeDivisor: 1.8,
+  /** この気温（℃）未満は「寒くて乾きにくい」扱い（ウェザーニューズの段階設計に準拠） */
+  coldLimit: 5,
+  /** ファースーツ全身洗いの最短乾燥時間（時間、扇風機併用前提） */
+  fursuitMinDryingHours: 24,
+  /** ファースーツ全身洗いの最長目安時間（時間、これを超えるとカビリスク大） */
+  fursuitMaxDryingHours: 48,
+  /** この指数未満はカビ警告を出す */
+  moldWarningScore: 30,
+} as const;
+
+/** 洗濯乾燥レベル定義（スコアしきい値はtenki.jp互換） */
+export interface LaundryBand {
+  /** この値以下なら該当 */
+  upperBound: number;
+  id: LaundryLevelId;
+  label: string;
+}
+
+export const LAUNDRY_BANDS: readonly LaundryBand[] = [
+  { upperBound: 30, id: 'indoorDry', label: '部屋干し推奨' },
+  { upperBound: 50, id: 'fair', label: 'やや乾く' },
+  { upperBound: 70, id: 'good', label: '乾く' },
+  { upperBound: 85, id: 'veryGood', label: 'よく乾く' },
+  { upperBound: 100, id: 'excellent', label: '大変よく乾く' },
+] as const;
+
+/** 日別サマリーで「日中」とみなす時間帯（時、開始を含み終了を含まない） */
+export const DAYTIME_START_HOUR = 9;
+export const DAYTIME_END_HOUR = 18;
+
+/** 活動推奨時間帯とみなすgradeの上限（これ以下を推奨） */
+export const RECOMMENDED_MAX_GRADE = 1;
+
+/** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
+export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
+
+/** 上流APIレスポンスのキャッシュ時間（秒）。MSMの更新は3時間ごとのため30分で十分 */
+export const UPSTREAM_CACHE_TTL_SECONDS = 1800;
+
+/** 自APIレスポンスのブラウザキャッシュ時間（秒） */
+export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
+
+/** 取得する予報日数のデフォルトと上限（JMA MSMは4日先まで、以降はGSMに接続） */
+export const DEFAULT_FORECAST_DAYS = 4;
+export const MAX_FORECAST_DAYS = 7;
+
+/** 通年で表示する注意事項 */
+export const YEAR_ROUND_NOTICES: readonly string[] = [
+  '着ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。',
+  '必ず2人以上で行動し、着用者以外の付き添い（ハンドラー）を付けてください。',
+  '「30分着て30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。',
+  '本予報は目安です。体調や装備により安全な活動時間は変わります。最終判断はご自身で行ってください。',
+] as const;
+
+/** WMO天気コードの日本語ラベル */
+export function weatherCodeLabel(code: number): string {
+  if (code === 0) {
+    return '快晴';
+  }
+  if (code === 1) {
+    return '晴れ';
+  }
+  if (code === 2) {
+    return '一部曇り';
+  }
+  if (code === 3) {
+    return '曇り';
+  }
+  if (code === 45 || code === 48) {
+    return '霧';
+  }
+  if (code >= 51 && code <= 57) {
+    return '霧雨';
+  }
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) {
+    return '雨';
+  }
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+    return '雪';
+  }
+  if (code >= 95) {
+    return '雷雨';
+  }
+  return '不明';
+}

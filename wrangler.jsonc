@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fursuit-weather",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    // 静的アセット（UI）は無料・無制限で配信され、無料枠のリクエスト数を消費しない
+    "directory": "./public",
+    "binding": "ASSETS",
+    // /api/* のみWorkerを起動し、それ以外はアセット配信を優先する
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
