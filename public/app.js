@@ -72,6 +72,7 @@
   }
 
   const statusElement = document.getElementById('status');
+  const statusErrorElement = document.getElementById('status-error');
   const srAnnounce = document.getElementById('sr-announce');
   const locationLabel = document.getElementById('location-label');
   const citySelect = document.getElementById('city-select');
@@ -128,7 +129,8 @@
         `気温は${Math.round(today.temperatureMin)}度から${Math.round(today.temperatureMax)}度です。`,
       `屋外の着ぐるみ判定は「${today.outdoorWorst.label}」。`,
       today.recommendedHours.length > 0
-        ? `活動しやすい時間帯は${today.recommendedHours.join('、')}です。`
+        ? // 「09:00」のままだと日本語音声合成で時刻として読まれないため「9時」形式にする
+          `活動しやすい時間帯は${today.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
       `洗濯指数は「${today.laundry.label}」、ファースーツの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
@@ -152,8 +154,10 @@
 
   /** ステータスメッセージを表示する */
   function setStatus(message, isError) {
-    statusElement.textContent = message;
-    statusElement.classList.toggle('error', Boolean(isError));
+    // エラーはrole=alert領域に書き、スクリーンリーダーへ即時に通知する
+    // （politeの#statusだと他の読み上げ待ちで遅延・埋没するため）
+    statusElement.textContent = isError ? '' : message;
+    statusErrorElement.textContent = isError ? message : '';
   }
 
   /** バッジ要素を作る
@@ -261,12 +265,24 @@
 
       const weatherLine = document.createElement('p');
       weatherLine.className = 'weather-line';
-      weatherLine.appendChild(
-        weatherWithLabel(
-          day.weatherCode,
-          `${day.weatherLabel} ${Math.round(day.temperatureMin)}〜${Math.round(day.temperatureMax)}℃`,
-        ),
+      const weatherContent = weatherWithLabel(day.weatherCode, day.weatherLabel);
+      // 「〜」は音声合成で読まれ方が環境依存（無音になることもある）ため、
+      // 見た目は「〜」のままスクリーンリーダーには「から」と読ませる
+      const tilde = document.createElement('span');
+      tilde.setAttribute('aria-hidden', 'true');
+      tilde.textContent = '〜';
+      const tildeReading = document.createElement('span');
+      tildeReading.className = 'sr-only';
+      tildeReading.textContent = 'から';
+      const temperatureRange = document.createElement('span');
+      temperatureRange.append(
+        `${Math.round(day.temperatureMin)}`,
+        tilde,
+        tildeReading,
+        `${Math.round(day.temperatureMax)}℃`,
       );
+      weatherContent.appendChild(temperatureRange);
+      weatherLine.appendChild(weatherContent);
       card.appendChild(weatherLine);
 
       // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
@@ -411,17 +427,25 @@
     }
   }
 
+  /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
+  let requestSeq = 0;
+
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
    * @param {string} locationName 表示する地点名（成功時にラベルへ反映） */
   async function loadForecast(query, locationName) {
     lastQuery = query;
+    const seq = ++requestSeq;
     setStatus('予報を取得しています…', false);
     try {
       const response = await fetch(`/api/forecast?${query}`);
       // 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを出さないよう、
       // パース失敗はnullに落としてからステータスを判定する
       const body = await response.json().catch(() => null);
+      if (seq !== requestSeq) {
+        // より新しいリクエストが始まっているので、この応答は破棄する
+        return;
+      }
       if (!response.ok) {
         throw new Error(
           (body && body.error) || `予報の取得に失敗しました（HTTP ${response.status}）`,
@@ -432,7 +456,10 @@
       }
 
       currentForecast = body;
-      selectedDate = body.days.length > 0 ? body.days[0].date : null;
+      // 再取得時は選択中の日が新しいデータにも存在すれば維持する
+      // （「予報を更新」のたびに初日へ戻ると、読んでいる表と利用者の認識がずれるため）
+      const dates = body.days.map((d) => d.date);
+      selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
 
       setStatus('', false);
       setLocationLabel(locationName);
@@ -446,6 +473,9 @@
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
     } catch (error) {
+      if (seq !== requestSeq) {
+        return;
+      }
       setStatus(`エラー: ${error.message}`, true);
       // 予報を表示できないときは読み込み中のプレースホルダーを消す
       if (!currentForecast) {
@@ -466,7 +496,13 @@
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
   // （valueはCITIES配列のインデックスに対応）
-  citySelect.addEventListener('change', loadSelectedCity);
+  // changeは矢印キーでの選択肢探索でも発火するため、デバウンスして
+  // 連続操作中の取得と読み上げ通知の洪水を防ぐ（確定は600ms静止後）
+  let cityChangeTimer = null;
+  citySelect.addEventListener('change', () => {
+    clearTimeout(cityChangeTimer);
+    cityChangeTimer = setTimeout(loadSelectedCity, 600);
+  });
 
   // 「この地点を使う」: 現在地やデモの表示中でも、セレクトで選んだ地点にいつでも戻れる
   // （セレクトの値が変わらないとchangeイベントが発火しないため、明示的なボタンを用意）
