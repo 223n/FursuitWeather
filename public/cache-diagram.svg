@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 320" role="img" aria-labelledby="cache-diagram-title cache-diagram-desc">
+  <title id="cache-diagram-title">予報データの二段階キャッシュ</title>
+  <desc id="cache-diagram-desc">ブラウザとCloudflareエッジの間はブラウザキャッシュ（10分）、CloudflareエッジとOpen-Meteo APIの間はエッジキャッシュ（30分）が使われる構成図</desc>
+
+  <style>
+    .box { fill: #E1EFF8; stroke: #0072B2; stroke-width: 2.5; }
+    .box-external { fill: #F6F4F1; stroke: #767676; }
+    .cache { fill: #E5F5EF; stroke: #009E73; stroke-width: 2; }
+    .title { font: 700 19px sans-serif; fill: #1A1A1A; text-anchor: middle; }
+    .sub { font: 400 14px sans-serif; fill: #555555; text-anchor: middle; }
+    .sub-small { font: 400 12px sans-serif; fill: #555555; text-anchor: middle; }
+    .cache-title { font: 700 16px sans-serif; fill: #006147; text-anchor: middle; }
+    .cache-note { font: 400 13px sans-serif; fill: #1A1A1A; text-anchor: middle; }
+    .arrow-label { font: 400 14px sans-serif; fill: #555555; text-anchor: middle; }
+    .arrow-label-small { font: 400 12px sans-serif; fill: #555555; text-anchor: middle; }
+    .flow { stroke: #0072B2; stroke-width: 2.5; fill: none; }
+    .link { stroke: #009E73; stroke-width: 2; stroke-dasharray: 5 4; fill: none; }
+  </style>
+
+  <defs>
+    <marker id="arrow-right" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0072B2"/>
+    </marker>
+  </defs>
+
+  <!-- 登場する3つの要素 -->
+  <rect class="box" x="20" y="46" width="180" height="96" rx="10"/>
+  <text class="title" x="110" y="90">ブラウザ</text>
+  <text class="sub" x="110" y="118">利用者の端末</text>
+
+  <rect class="box" x="355" y="46" width="225" height="96" rx="10"/>
+  <text class="title" x="467" y="90">Cloudflareエッジ</text>
+  <text class="sub" x="467" y="118">Workerを実行</text>
+
+  <rect class="box box-external" x="730" y="46" width="190" height="96" rx="10"/>
+  <text class="title" x="825" y="84">Open-Meteo API</text>
+  <text class="sub" x="825" y="108">気象庁MSM/GSM</text>
+  <text class="sub-small" x="825" y="128">（3時間ごと更新）</text>
+
+  <!-- リクエスト・応答の流れ -->
+  <line class="flow" x1="208" y1="72" x2="347" y2="72" marker-end="url(#arrow-right)"/>
+  <text class="arrow-label" x="278" y="64">リクエスト</text>
+  <line class="flow" x1="347" y1="118" x2="208" y2="118" marker-end="url(#arrow-right)"/>
+  <text class="arrow-label" x="278" y="140">応答</text>
+
+  <line class="flow" x1="588" y1="72" x2="722" y2="72" marker-end="url(#arrow-right)"/>
+  <text class="arrow-label-small" x="655" y="64">キャッシュにない時のみ</text>
+  <line class="flow" x1="722" y1="118" x2="588" y2="118" marker-end="url(#arrow-right)"/>
+  <text class="arrow-label" x="655" y="140">応答</text>
+
+  <!-- キャッシュの保存場所（点線でつなぐ） -->
+  <line class="link" x1="110" y1="142" x2="110" y2="200"/>
+  <rect class="cache" x="20" y="200" width="280" height="100" rx="10"/>
+  <text class="cache-title" x="160" y="230">(1) ブラウザキャッシュ（10分）</text>
+  <text class="cache-note" x="160" y="256">Cache-Control: public, max-age=600</text>
+  <text class="cache-note" x="160" y="280">同じブラウザの再リクエストに再利用</text>
+
+  <line class="link" x1="467" y1="142" x2="467" y2="200"/>
+  <rect class="cache" x="330" y="200" width="300" height="100" rx="10"/>
+  <text class="cache-title" x="480" y="230">(2) エッジキャッシュ（30分）</text>
+  <text class="cache-note" x="480" y="256">fetchのcf.cacheTtl: 1800</text>
+  <text class="cache-note" x="480" y="280">同じ地点・日数のリクエストはここから応答</text>
+</svg>
