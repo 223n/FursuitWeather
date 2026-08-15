@@ -3,6 +3,14 @@
   "name": "fursuit-weather",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
+  // カスタムドメイン: 223n.techゾーン（同一Cloudflareアカウント）に
+  // DNSレコードと証明書が自動作成される
+  "routes": [
+    {
+      "pattern": "fursuit-weather.223n.tech",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     // 静的アセット（UI）は無料・無制限で配信され、無料枠のリクエスト数を消費しない
     "directory": "./public",
