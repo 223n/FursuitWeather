@@ -476,7 +476,9 @@
       const dates = body.days.map((d) => d.date);
       selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
 
-      setStatus('', false);
+      // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
+      // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
+      setStatus('予報を取得しました', false);
       setLocationLabel(locationName);
       renderDayCards();
       renderNotices();
