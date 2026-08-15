@@ -11,6 +11,10 @@
       "custom_domain": true
     }
   ],
+  // workers.devサブドメイン（fursuit-weather.223n.workers.dev）も有効を維持する。
+  // 223n.techゾーンの設定（セキュリティ機能など）を経由しない検証用URLとして使える。
+  // 重複コンテンツ対策は各ページのcanonicalタグ（カスタムドメイン指定）で担保済み
+  "workers_dev": true,
   "assets": {
     // 静的アセット（UI）は無料・無制限で配信され、無料枠のリクエスト数を消費しない
     "directory": "./public",
