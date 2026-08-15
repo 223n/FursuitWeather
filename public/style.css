@@ -122,14 +122,18 @@ h2 {
   font-size: 0.85rem;
 }
 
-/* 表示中の地点ラベル */
+/* 表示中の地点ラベル（後から出現してもシフトしないよう高さを常に確保する） */
 .location-label {
   margin: 0.5rem 0 0;
+  min-height: 1.6rem;
   font-weight: 700;
 }
 
-.location-label:empty {
-  display: none;
+/* 狭い画面では現在地ラベルが2行になるため、2行分の高さを確保する */
+@media (max-width: 48rem) {
+  .location-label {
+    min-height: 3.2rem;
+  }
 }
 
 /* 操作列 */
@@ -174,16 +178,22 @@ button:focus {
   outline-offset: 2px;
 }
 
-/* ステータス表示 */
-#status:not(:empty) {
+/* ステータス表示
+ * 出現・消滅でレイアウトシフト（CLS）が発生しないよう、高さは常に確保しておく */
+#status {
+  min-height: 3.4rem;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
   border-radius: 6px;
-  background-color: #E1EFF8;
-  border-left: 4px solid var(--color-blue);
+  border-left: 4px solid transparent;
 }
 
-#status.error {
+#status:not(:empty) {
+  background-color: #E1EFF8;
+  border-left-color: var(--color-blue);
+}
+
+#status.error:not(:empty) {
   background-color: #FBE3DD;
   border-left-color: var(--color-red);
 }
@@ -406,9 +416,56 @@ button:focus {
   border-color: var(--level-cold-accent);
 }
 
-/* 時間別テーブル */
+/* 時間別テーブル（データ到着前から領域を確保してシフトを抑える） */
 .table-wrapper {
   overflow-x: auto;
+  min-height: 24rem;
+}
+
+/* 読み込み中のプレースホルダー（スケルトン） */
+.skeleton-card {
+  min-height: 22rem;
+}
+
+.skeleton-line {
+  height: 1rem;
+  border-radius: 4px;
+  background-color: #E5E2DE;
+  margin: 1rem 0;
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-line.w40 {
+  width: 40%;
+}
+
+.skeleton-line.w50 {
+  width: 50%;
+}
+
+.skeleton-line.w60 {
+  width: 60%;
+}
+
+.skeleton-line.w80 {
+  width: 80%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+  }
 }
 
 table {

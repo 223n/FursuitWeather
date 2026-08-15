@@ -403,17 +403,19 @@
 
       setStatus('', false);
       setLocationLabel(locationName);
-      document.getElementById('days-section').classList.remove('hidden');
-      document.getElementById('notices-section').classList.remove('hidden');
       renderDayCards(body);
       renderNotices(body);
 
       if (selectedDate) {
-        document.getElementById('hours-section').classList.remove('hidden');
         renderHours(body);
       }
     } catch (error) {
       setStatus(`エラー: ${error.message}`, true);
+      // 予報を表示できないときは読み込み中のプレースホルダーを消す
+      if (!currentForecast) {
+        dayCardsElement.replaceChildren();
+        hoursBody.replaceChildren();
+      }
     }
   }
 
@@ -426,17 +428,8 @@
     loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name);
   }
 
-  // 地点セレクトの初期化
-  CITIES.forEach((city, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = city.name;
-    if (city.name === '東京') {
-      option.selected = true;
-    }
-    citySelect.appendChild(option);
-  });
-
+  // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
+  // （valueはCITIES配列のインデックスに対応）
   citySelect.addEventListener('change', loadSelectedCity);
 
   // 「予報を更新」は表示中の予報（現在地・デモを含む）と同じ条件で再取得する
