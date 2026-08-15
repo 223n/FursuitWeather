@@ -9,9 +9,48 @@
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
   <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch">
   <script src="/app.js" defer></script>
+  <!-- 構造化データ（JSON-LD）: 検索エンジンにサイト名とアプリの性質を伝える -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "name": "FursuitWeather",
+        "alternateName": "着ぐるみ天気予報",
+        "url": "https://fursuit-weather.223n.workers.dev/",
+        "inLanguage": "ja"
+      },
+      {
+        "@type": "WebApplication",
+        "name": "FursuitWeather",
+        "description": "気象庁モデルの気象データから、着ぐるみ（ファースーツ）で活動するのに適切かどうかを予報するWebアプリです。暑さ指数（WBGT）ベースの活動判定、冷房要否、洗濯乾燥指数、活動可能時間の目安を表示します。",
+        "url": "https://fursuit-weather.223n.workers.dev/",
+        "applicationCategory": "Weather",
+        "operatingSystem": "Web",
+        "isAccessibleForFree": true,
+        "inLanguage": "ja",
+        "accessibilityFeature": [
+          "highContrastDisplay",
+          "structuralNavigation",
+          "ARIA"
+        ],
+        "accessibilityHazard": "none",
+        "creator": {
+          "@type": "Person",
+          "name": "223n",
+          "url": "https://github.com/223n"
+        }
+      }
+    ]
+  }
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='%230072B2' d='M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z'/></svg>">
 </head>
 <body>
+  <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
+  <a class="skip-link" href="#main">本文へスキップ</a>
+
   <!-- Font Awesome Free 7.3.1 のアイコン定義（SVGスプライト・自前配信でどの環境でも同一表示） -->
   <!-- Icons: Font Awesome Free https://fontawesome.com/ - License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ -->
   <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" aria-hidden="true">
@@ -34,7 +73,11 @@
     <p class="tagline">着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報します</p>
   </header>
 
-  <main>
+  <main id="main">
+    <!-- スクリーンリーダー向けの読み上げ用サマリー。予報読み込み時にJSが
+         その日の判定を文章で設定し、支援技術に自動で通知される -->
+    <p id="sr-announce" class="sr-only" role="status" aria-live="polite"></p>
+
     <section class="controls" aria-label="地点の選択">
       <div class="control-row">
         <label for="city-select">地点</label>
@@ -153,6 +196,10 @@
       <h2 id="hours-title">時間別予報</h2>
       <div class="table-wrapper">
         <table id="hours-table">
+          <caption class="sr-only">
+            選択した日の時間別予報。行ごとに時刻、天気、気温、湿度、着ぐるみ補正後の暑さ指数、
+            屋外判定、連続活動時間の上限目安、空調なしの場合の屋内判定と冷房要否を示します。
+          </caption>
           <thead>
             <tr>
               <th scope="col">時刻</th>

@@ -72,6 +72,7 @@
   }
 
   const statusElement = document.getElementById('status');
+  const srAnnounce = document.getElementById('sr-announce');
   const locationLabel = document.getElementById('location-label');
   const citySelect = document.getElementById('city-select');
   const dayCardsElement = document.getElementById('day-cards');
@@ -112,6 +113,28 @@
     const rounded = Math.round(nearestKm);
     const relative = rounded < 5 ? `${nearest.name}付近` : `${nearest.name}から約${rounded}km`;
     return `現在地（緯度${lat.toFixed(2)}・経度${lon.toFixed(2)}、${relative}）`;
+  }
+
+  /** スクリーンリーダー向けに、その日の予報を文章で組み立てる
+   * 表やバッジを順に辿らなくても、読み込み直後に要点が音声で伝わるようにする */
+  function buildSpokenSummary(forecast, locationName) {
+    const today = forecast.days[0];
+    if (!today) {
+      return `${locationName}の予報を読み込みました。`;
+    }
+    const parts = [
+      `${locationName}の予報を読み込みました。`,
+      `${formatDate(today.date)}の天気は${today.weatherLabel}、` +
+        `気温は${Math.round(today.temperatureMin)}度から${Math.round(today.temperatureMax)}度です。`,
+      `屋外の着ぐるみ判定は「${today.outdoorWorst.label}」。`,
+      today.recommendedHours.length > 0
+        ? `活動しやすい時間帯は${today.recommendedHours.join('、')}です。`
+        : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
+      `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
+      `洗濯指数は「${today.laundry.label}」、ファースーツの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
+      '詳しくは日別サマリーと時間別予報の表をご確認ください。',
+    ];
+    return parts.join('');
   }
 
   /** 表示中の地点ラベルを更新する */
@@ -228,6 +251,11 @@
       titleButton.type = 'button';
       titleButton.className = 'day-card-button';
       titleButton.textContent = formatDate(day.date);
+      // スクリーンリーダーにはボタンの目的（時間別予報の切り替え）も読み上げる
+      const srPurpose = document.createElement('span');
+      srPurpose.className = 'sr-only';
+      srPurpose.textContent = 'の時間別予報を表示';
+      titleButton.appendChild(srPurpose);
       title.appendChild(titleButton);
       card.appendChild(title);
 
@@ -337,7 +365,12 @@
         row.appendChild(cell);
       };
 
-      addCell(`${String(hourNumber).padStart(2, '0')}:00`);
+      // 時刻セルは行見出し（th scope=row）にして、スクリーンリーダーが
+      // 各セルを読むときに対応する時刻を伝えられるようにする
+      const timeHeader = document.createElement('th');
+      timeHeader.scope = 'row';
+      timeHeader.textContent = `${String(hourNumber).padStart(2, '0')}:00`;
+      row.appendChild(timeHeader);
       addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
       addCell(`${Math.round(hour.weather.humidity)}%`);
@@ -409,6 +442,9 @@
       if (selectedDate) {
         renderHours(body);
       }
+
+      // スクリーンリーダーへ読み込み完了とその日の要点を通知する
+      srAnnounce.textContent = buildSpokenSummary(body, locationName);
     } catch (error) {
       setStatus(`エラー: ${error.message}`, true);
       // 予報を表示できないときは読み込み中のプレースホルダーを消す
