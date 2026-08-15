@@ -61,7 +61,7 @@ export interface HeatBand {
  * 出典: https://www.wbgt.env.go.jp/wbgt.php
  * 出典: https://www.japan-sports.or.jp/medicine/tabid/922/Default.aspx
  * 活動時間の上限目安は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
- * ファースーツコミュニティの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
+ * 着ぐるみコミュニティの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
  * 最も涼しい帯でも45分を上限とし、常時表示の「30分着たら30分休む」を基本とする
  */
 export const HEAT_BANDS: readonly HeatBand[] = [
@@ -121,7 +121,7 @@ export interface ColdBand {
 /**
  * 低温側のしきい値（体感温度0/-10/-20℃）
  * 汗冷えによる低体温・凍結路面・末端の凍傷リスクを段階化
- * 0〜10℃程度は着ぐるみ着用に適した環境とされる（ファースーツコミュニティの知見）
+ * 0〜10℃程度は着ぐるみ着用に適した環境とされる（着ぐるみコミュニティの知見）
  */
 export const COLD_BANDS: readonly ColdBand[] = [
   {
@@ -184,9 +184,9 @@ export const LAUNDRY = {
   normalizeDivisor: 1.8,
   /** この気温（℃）未満は「寒くて乾きにくい」扱い（ウェザーニューズの段階設計に準拠） */
   coldLimit: 5,
-  /** ファースーツ全身洗いの最短乾燥時間（時間、扇風機併用前提） */
+  /** 着ぐるみ全身洗いの最短乾燥時間（時間、扇風機併用前提） */
   fursuitMinDryingHours: 24,
-  /** ファースーツ全身洗いの最長目安時間（時間、これを超えるとカビリスク大） */
+  /** 着ぐるみ全身洗いの最長目安時間（時間、これを超えるとカビリスク大） */
   fursuitMaxDryingHours: 48,
   /** この指数未満はカビ警告を出す */
   moldWarningScore: 30,

@@ -35,7 +35,7 @@ function classifyScore(score: number): LaundryLevelId {
   return band?.id ?? 'excellent';
 }
 
-/** ファースーツ全身洗いの乾燥目安時間（扇風機併用前提）を指数から線形補間する */
+/** 着ぐるみ全身洗いの乾燥目安時間（扇風機併用前提）を指数から線形補間する */
 export function fursuitDryingHours(score: number): number {
   const { fursuitMinDryingHours, fursuitMaxDryingHours } = LAUNDRY;
   const range = fursuitMaxDryingHours - fursuitMinDryingHours;
@@ -100,7 +100,7 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
     adviceParts.push('気温が低く乾きにくい日です。室内での乾燥をおすすめします。');
   }
   adviceParts.push(
-    `ファースーツの全身洗いは扇風機併用で約${dryingHours}時間の乾燥が目安です。`,
+    `着ぐるみの全身洗いは扇風機併用で約${dryingHours}時間の乾燥が目安です。`,
   );
   if (moldWarning) {
     adviceParts.push('48時間以内に乾き切らないとカビの恐れがあります。除湿機の併用を推奨します。');

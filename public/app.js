@@ -138,7 +138,7 @@
           `活動しやすい時間帯は${today.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
-      `洗濯指数は「${today.laundry.label}」、ファースーツの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
+      `洗濯指数は「${today.laundry.label}」、着ぐるみの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
       '詳しくは日別サマリーと時間別予報の表をご確認ください。',
     ];
     return parts.join('');
@@ -217,7 +217,7 @@
     none: { grade: 0 },
   };
 
-  /** ファースーツ乾燥目安のバッジ設定を組み立てる */
+  /** 着ぐるみ乾燥目安のバッジ設定を組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
     if (laundry.moldWarning) {
@@ -346,7 +346,7 @@
         `指数${day.laundry.score}`,
       ),
     );
-    addRow('ファースーツ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
+    addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
 
     card.appendChild(list);
 

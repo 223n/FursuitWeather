@@ -81,7 +81,7 @@ export interface LaundryAssessment {
   score: number;
   level: LaundryLevelId;
   label: string;
-  /** ファースーツ全身洗いの乾燥目安時間（扇風機併用前提） */
+  /** 着ぐるみ全身洗いの乾燥目安時間（扇風機併用前提） */
   fursuitDryingHours: number;
   /** カビ発生リスク警告（48時間以内に乾かない恐れ） */
   moldWarning: boolean;
