@@ -34,6 +34,10 @@ function classifyCold(apparentTemperature: number): (typeof COLD_BANDS)[number] 
 
 /**
  * 屋外の着ぐるみ活動を判定する
+ *
+ * 気温15℃以上は暑熱判定のみ。15℃未満では低温判定を併用し、深刻な方を採用する。
+ * 着衣補正+11℃があるため、日射の強い10℃台でも暑熱側が警戒帯に入ることがあり、
+ * 低温判定だけに切り替えると危険側の誤判定（快適・長時間OK）になるため
  */
 export function assessOutdoor(weather: HourlyWeather): ActivityAssessment {
   const wbgt = roundWbgt(
@@ -45,21 +49,25 @@ export function assessOutdoor(weather: HourlyWeather): ActivityAssessment {
     ),
   );
   const suitWbgt = roundWbgt(wbgt + SUIT_WBGT_ADJUSTMENT);
+  const heatBand = classifyHeat(suitWbgt);
+
+  let band: Pick<
+    (typeof HEAT_BANDS)[number],
+    'label' | 'grade' | 'activityMinutes' | 'advice'
+  > & { id: ActivityAssessment['level'] } = heatBand;
 
   if (weather.temperature < COLD_SWITCH_TEMPERATURE) {
-    const band = classifyCold(weather.apparentTemperature);
-    return {
-      wbgt,
-      suitWbgt,
-      level: band.id,
-      label: band.label,
-      grade: band.grade,
-      activityMinutes: band.activityMinutes,
-      advice: band.advice,
-    };
+    const coldBand = classifyCold(weather.apparentTemperature);
+    // gradeが大きい方（同gradeなら活動時間が短い方、それも同じなら低温側）を採用する
+    const coldIsWorse =
+      coldBand.grade > heatBand.grade ||
+      (coldBand.grade === heatBand.grade &&
+        coldBand.activityMinutes <= heatBand.activityMinutes);
+    if (coldIsWorse) {
+      band = coldBand;
+    }
   }
 
-  const band = classifyHeat(suitWbgt);
   return {
     wbgt,
     suitWbgt,

@@ -73,11 +73,27 @@ describe('handleForecast', () => {
     expect(response.status).toBe(400);
   });
 
+  it('daysが非数値の場合もサイレントに既定値へ落とさず400を返す', async () => {
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35&lon=139&days=abc'),
+    );
+    expect(response.status).toBe(400);
+  });
+
   it('GET以外のメソッドは405を返す', async () => {
     const response = await handleForecast(
       new Request('https://example.com/api/forecast?lat=35&lon=139', { method: 'POST' }),
     );
     expect(response.status).toBe(405);
+  });
+
+  it('OPTIONSプリフライトには204とCORSヘッダーを返す', async () => {
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast', { method: 'OPTIONS' }),
+    );
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
   });
 
   it('上流APIのエラーは502として返す', async () => {
@@ -89,6 +105,51 @@ describe('handleForecast', () => {
     expect(response.status).toBe(502);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('気象データ');
+  });
+
+  it('上流APIが非JSONを返した場合は502を返す', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('<html>maintenance</html>', { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(502);
+  });
+
+  it('上流APIのレスポンスに必要な配列が欠けている場合は502を返す', async () => {
+    const broken = openMeteoBody() as { hourly: Record<string, unknown> };
+    delete broken.hourly['temperature_2m'];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(broken), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(502);
+  });
+
+  it('日射量が欠測の時間は結果から除外される（0補完で危険側に誤らない）', async () => {
+    const body = openMeteoBody() as {
+      hourly: { shortwave_radiation: (number | null)[] };
+    };
+    body.hourly.shortwave_radiation[12] = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(200);
+    const forecast = (await response.json()) as { hours: { time: string }[] };
+    expect(forecast.hours).toHaveLength(23);
+    expect(forecast.hours.some((h) => h.time === '2026-08-15T12:00')).toBe(false);
   });
 
   it('demo=1は上流APIを呼ばずにデモ予報を返す', async () => {

@@ -63,6 +63,8 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
   const solarRadiation = hourly.shortwave_radiation[index];
   const windSpeed = hourly.wind_speed_10m[index];
 
+  // WBGT計算に必要な項目（気温・湿度・体感温度・風速・日射量）の欠測はその時間を破棄する。
+  // 特に日射量を0で補うと日中のWBGTが最大約3℃低く（危険側に）出るため、既定値では補わない
   if (
     time === undefined ||
     temperature === null ||
@@ -72,7 +74,9 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
     apparentTemperature === null ||
     apparentTemperature === undefined ||
     windSpeed === null ||
-    windSpeed === undefined
+    windSpeed === undefined ||
+    solarRadiation === null ||
+    solarRadiation === undefined
   ) {
     return null;
   }
@@ -82,10 +86,10 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
     temperature,
     humidity,
     apparentTemperature,
-    // 降水量・天気コード・日射量は欠測でも予報自体は成立するため既定値で補う
+    // 降水量・天気コードは表示用のため、欠測でも既定値で補って時間を残す
     precipitation: precipitation ?? 0,
     weatherCode: weatherCode ?? -1,
-    solarRadiation: solarRadiation ?? 0,
+    solarRadiation,
     windSpeed,
   };
 }
@@ -131,8 +135,31 @@ export async function fetchWeather(
     throw new UpstreamError(`気象データAPIがエラーを返しました（HTTP ${response.status}）`);
   }
 
-  const data = (await response.json()) as OpenMeteoResponse;
-  if (!data.hourly || !Array.isArray(data.hourly.time)) {
+  let data: OpenMeteoResponse;
+  try {
+    data = (await response.json()) as OpenMeteoResponse;
+  } catch {
+    throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
+  }
+
+  // 使用する並列配列がすべて揃っているか検証する（上流の仕様変更・異常応答への防御）
+  const requiredArrays = [
+    'time',
+    'temperature_2m',
+    'relative_humidity_2m',
+    'apparent_temperature',
+    'precipitation',
+    'weather_code',
+    'shortwave_radiation',
+    'wind_speed_10m',
+  ] as const;
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    typeof data.hourly !== 'object' ||
+    data.hourly === null ||
+    requiredArrays.some((key) => !Array.isArray(data.hourly[key]))
+  ) {
     throw new UpstreamError('気象データAPIのレスポンス形式が想定と異なります');
   }
 

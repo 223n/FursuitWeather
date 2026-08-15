@@ -45,6 +45,8 @@
 
   let currentForecast = null;
   let selectedDate = null;
+  /** 最後に予報を取得したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
+  let lastQuery = null;
 
   /** ステータスメッセージを表示する */
   function setStatus(message, isError) {
@@ -52,13 +54,20 @@
     statusElement.classList.toggle('error', Boolean(isError));
   }
 
-  /** バッジ要素を作る */
-  function createBadge(summary) {
+  /** バッジ要素を作る
+   * 色弱の方にも判別できるよう、色+記号（形）+文字の3要素で段階を表す
+   * 低温側の判定には❄マークを付けて暑熱側と形で区別する */
+  function createBadge(summary, large) {
     const badge = document.createElement('span');
     const isCold = String(summary.level).startsWith('cold');
-    badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}`;
-    const symbol = GRADE_SYMBOLS[summary.grade] ?? '?';
-    badge.textContent = `${symbol} ${summary.label}`;
+    badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}${large ? ' badge-large' : ''}`;
+
+    const symbol = document.createElement('span');
+    symbol.className = 'symbol';
+    symbol.setAttribute('aria-hidden', 'true');
+    symbol.textContent = `${isCold ? '❄' : ''}${GRADE_SYMBOLS[summary.grade] ?? '?'}`;
+    badge.appendChild(symbol);
+    badge.appendChild(document.createTextNode(summary.label));
     return badge;
   }
 
@@ -71,20 +80,34 @@
     return `${month}月${day}日（${weekdays[date.getUTCDay()]}）`;
   }
 
-  /** 日別カードを描画する */
+  /** 選択状態の見た目とARIA属性を更新する（カードは再生成せずフォーカスを保つ） */
+  function updateSelectedCard() {
+    for (const card of dayCardsElement.querySelectorAll('.day-card')) {
+      const isSelected = card.dataset.date === selectedDate;
+      card.classList.toggle('selected', isSelected);
+      const button = card.querySelector('.day-card-button');
+      if (button) {
+        button.setAttribute('aria-pressed', String(isSelected));
+      }
+    }
+  }
+
+  /** 日別カードを描画する
+   * カード本体はarticleにし、選択操作は見出し内のbutton（aria-pressed付き）が担う。
+   * button内に見出しやリストを入れるとスクリーンリーダーで平坦化されるため */
   function renderDayCards(forecast) {
     dayCardsElement.replaceChildren();
     for (const day of forecast.days) {
-      const card = document.createElement('button');
-      card.type = 'button';
+      const card = document.createElement('article');
       card.className = 'day-card';
       card.dataset.date = day.date;
-      if (day.date === selectedDate) {
-        card.classList.add('selected');
-      }
 
       const title = document.createElement('h3');
-      title.textContent = formatDate(day.date);
+      const titleButton = document.createElement('button');
+      titleButton.type = 'button';
+      titleButton.className = 'day-card-button';
+      titleButton.textContent = formatDate(day.date);
+      title.appendChild(titleButton);
       card.appendChild(title);
 
       const weatherLine = document.createElement('p');
@@ -93,6 +116,17 @@
         `${weatherEmoji(day.weatherCode)} ${day.weatherLabel} ` +
         `${Math.round(day.temperatureMin)}〜${Math.round(day.temperatureMax)}℃`;
       card.appendChild(weatherLine);
+
+      // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
+      const mainCaption = document.createElement('p');
+      mainCaption.className = 'main-judgement-caption';
+      mainCaption.textContent = '屋外判定（日中の最も厳しい時間帯）';
+      card.appendChild(mainCaption);
+
+      const mainJudgement = document.createElement('p');
+      mainJudgement.className = 'main-judgement';
+      mainJudgement.appendChild(createBadge(day.outdoorWorst, true));
+      card.appendChild(mainJudgement);
 
       const list = document.createElement('dl');
 
@@ -109,7 +143,6 @@
         list.appendChild(dd);
       };
 
-      addRow('屋外（日中の最も厳しい時間帯）', createBadge(day.outdoorWorst));
       addRow(
         '活動しやすい時間帯',
         day.recommendedHours.length > 0 ? day.recommendedHours.join('、') : 'なし（休憩と冷却を最優先に）',
@@ -119,13 +152,23 @@
       addRow('ファースーツ乾燥目安', `約${day.laundry.fursuitDryingHours}時間${day.laundry.moldWarning ? '（カビ注意）' : ''}`);
 
       card.appendChild(list);
-      card.addEventListener('click', () => {
+
+      const selectDay = () => {
         selectedDate = day.date;
-        renderDayCards(currentForecast);
+        updateSelectedCard();
         renderHours(currentForecast);
+      };
+      titleButton.addEventListener('click', selectDay);
+      // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
+      card.addEventListener('click', (event) => {
+        if (!titleButton.contains(event.target)) {
+          selectDay();
+        }
       });
+
       dayCardsElement.appendChild(card);
     }
+    updateSelectedCard();
   }
 
   /** 時間別テーブルを描画する */
@@ -157,7 +200,14 @@
       addCell(`${Math.round(hour.weather.humidity)}%`);
       addCell(`${hour.outdoor.suitWbgt.toFixed(1)}℃`);
       addCell(createBadge(hour.outdoor));
-      addCell(hour.outdoor.activityMinutes > 0 ? `${hour.outdoor.activityMinutes}分` : '中止');
+      // 連続活動目安も判定と同じ記号+色のバッジで表示する（色弱対応の記号併記）
+      addCell(
+        createBadge({
+          level: hour.outdoor.level,
+          grade: hour.outdoor.grade,
+          label: hour.outdoor.activityMinutes > 0 ? `${hour.outdoor.activityMinutes}分` : '中止',
+        }),
+      );
 
       const indoorCell = document.createElement('span');
       indoorCell.appendChild(createBadge(hour.indoor));
@@ -180,12 +230,20 @@
 
   /** 予報を取得して描画する */
   async function loadForecast(query) {
+    lastQuery = query;
     setStatus('予報を取得しています…', false);
     try {
       const response = await fetch(`/api/forecast?${query}`);
-      const body = await response.json();
+      // 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを出さないよう、
+      // パース失敗はnullに落としてからステータスを判定する
+      const body = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(body.error || `予報の取得に失敗しました（HTTP ${response.status}）`);
+        throw new Error(
+          (body && body.error) || `予報の取得に失敗しました（HTTP ${response.status}）`,
+        );
+      }
+      if (!body) {
+        throw new Error('予報データの形式が不正です');
       }
 
       currentForecast = body;
@@ -227,7 +285,15 @@
   });
 
   citySelect.addEventListener('change', loadSelectedCity);
-  document.getElementById('reload-button').addEventListener('click', loadSelectedCity);
+
+  // 「予報を更新」は表示中の予報（現在地・デモを含む）と同じ条件で再取得する
+  document.getElementById('reload-button').addEventListener('click', () => {
+    if (lastQuery) {
+      loadForecast(lastQuery);
+    } else {
+      loadSelectedCity();
+    }
+  });
 
   document.getElementById('geolocation-button').addEventListener('click', () => {
     if (!navigator.geolocation) {

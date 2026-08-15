@@ -76,11 +76,15 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
     };
   }
 
+  // 欠測で干し時間帯のデータが6時間に満たない場合も指数が偏らないよう、
+  // 時間平均をフル時間帯（6時間）換算してから正規化する
+  const windowHours = LAUNDRY.windowEndHour - LAUNDRY.windowStartHour;
   const total = window.reduce(
     (sum, h) => sum + hourlyDryingSpeed(h.temperature, h.humidity, h.windSpeed),
     0,
   );
-  const score = Math.min(100, Math.round(total / LAUNDRY.normalizeDivisor));
+  const average = total / window.length;
+  const score = Math.min(100, Math.round((average * windowHours) / LAUNDRY.normalizeDivisor));
 
   const hasRain = window.some((h) => h.precipitation > 0);
   const averageTemperature =

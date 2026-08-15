@@ -122,10 +122,11 @@ button:hover {
   color: #FFFFFF;
 }
 
+/* フォーカスリングは白背景に対して3:1以上のコントラストを確保した濃色を使う
+ * （#E69F00は2.25:1でWCAG 2.1 SC 1.4.11を満たさないため濃い#A66E00にしている） */
 select:focus,
-button:focus,
-.day-card:focus {
-  outline: 3px solid var(--color-orange);
+button:focus {
+  outline: 3px solid #A66E00;
   outline-offset: 2px;
 }
 
@@ -175,6 +176,24 @@ button:focus,
   font-size: 1rem;
 }
 
+/* 日付ボタンは見出しの見た目のまま、選択操作とARIA状態を担う */
+.day-card-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--color-blue);
+}
+
+.day-card-button:hover {
+  background: none;
+  color: var(--color-blue);
+}
+
 .day-card .weather-line {
   margin: 0 0 0.5rem;
 }
@@ -193,15 +212,64 @@ button:focus,
   margin: 0 0 0.4rem;
 }
 
-/* レベルバッジ: 薄色背景+濃色文字+記号で、色覚に依存しない表示にする */
+/* レベルバッジ: 薄色背景+濃色文字+記号（形）の3要素で、色覚に依存しない表示にする */
 .badge {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 0.9rem;
-  border: 1.5px solid;
+  font-size: 0.95rem;
+  border: 2px solid;
   white-space: nowrap;
+}
+
+/* 記号（◎○△✕🚫/❄付き）は文字より大きく表示して形で判別しやすくする */
+.badge .symbol {
+  font-size: 1.35em;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* 日別カードや凡例で使う大型バッジ */
+.badge-large {
+  font-size: 1.15rem;
+  padding: 0.35rem 0.9rem;
+}
+
+.badge-large .symbol {
+  font-size: 1.6em;
+}
+
+/* 日別カードのメイン判定表示 */
+.main-judgement-caption {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.main-judgement {
+  margin: 0 0 0.6rem;
+}
+
+/* 凡例 */
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.legend-item {
+  border: 1px solid #DDDDDD;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.legend-item p {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 .badge.grade-0 {

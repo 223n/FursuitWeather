@@ -29,6 +29,40 @@
 
     <div id="status" role="status" aria-live="polite"></div>
 
+    <section class="legend" aria-label="判定の見方">
+      <h2>判定の見方</h2>
+      <p class="hint">
+        段階は色だけでなく、記号（◎○△✕🚫）と文字の組み合わせで表しています。
+        低温側の判定には❄マークが付きます。
+      </p>
+      <div class="legend-grid">
+        <div class="legend-item">
+          <span class="badge badge-large grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span>
+          <p>連続45分まで。適宜水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span>
+          <p>連続30分まで。積極的に水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span>
+          <p>連続20分まで。ヘッドを外して冷却を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span>
+          <p>連続10分以内。冷房環境へ退避を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-4"><span class="symbol" aria-hidden="true">🚫</span>危険</span>
+          <p>着用中止。熱中症の危険が非常に高い状態。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large cold grade-1"><span class="symbol" aria-hidden="true">❄○</span>低温注意</span>
+          <p>低温側は❄付き。凍結・汗冷えに注意。</p>
+        </div>
+      </div>
+    </section>
+
     <section id="days-section" class="hidden" aria-label="日別の予報">
       <h2>日別サマリー</h2>
       <p class="hint">カードを選択すると、その日の時間別予報を表示します。</p>

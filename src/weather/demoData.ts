@@ -61,10 +61,11 @@ export function demoWeather(startDate: string): WeatherResult {
   const next = new Date(Date.UTC(year ?? 2026, (month ?? 1) - 1, day ?? 1) + 24 * 60 * 60 * 1000);
   const nextDate = next.toISOString().slice(0, 10);
 
+  // 朝晩は警戒レベル、日中は危険レベルと段階が変化する晴天日を再現する
   const sunnyDay = buildDay(startDate, {
-    minTemperature: 26,
-    maxTemperature: 35,
-    baseHumidity: 70,
+    minTemperature: 18,
+    maxTemperature: 34,
+    baseHumidity: 65,
     peakSolar: 850,
     rainHours: [],
     weatherCode: 1,

@@ -37,8 +37,10 @@ export const SUIT_WBGT_ADJUSTMENT = 11;
 export const INDOOR_WIND_SPEED = 0.5;
 
 /**
- * WBGT評価を低温ロジックへ切り替える気温（℃）
- * 小野式は夏季日中の観測データへの回帰式のため、低温域では適用しない
+ * 低温判定を併用し始める気温（℃）
+ * 小野式は夏季日中の観測データへの回帰式のため低温域では精度が落ちるが、
+ * 着ぐるみの着衣補正+11℃により15℃未満でも暑熱リスクは残る。
+ * そのため低温域では暑熱判定と低温判定の両方を計算し、深刻な方を採用する
  */
 export const COLD_SWITCH_TEMPERATURE = 15;
 
@@ -58,8 +60,9 @@ export interface HeatBand {
  * WBGTしきい値（21/25/28/31℃）と運動指針
  * 出典: https://www.wbgt.env.go.jp/wbgt.php
  * 出典: https://www.japan-sports.or.jp/medicine/tabid/922/Default.aspx
- * 活動時間の目安は自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
- * ファースーツコミュニティの推奨（30〜45分で休憩）を基に段階化
+ * 活動時間の上限目安は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
+ * ファースーツコミュニティの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
+ * 最も涼しい帯でも45分を上限とし、常時表示の「30分着たら30分休む」を基本とする
  */
 export const HEAT_BANDS: readonly HeatBand[] = [
   {
@@ -67,32 +70,32 @@ export const HEAT_BANDS: readonly HeatBand[] = [
     id: 'safe',
     label: 'ほぼ安全',
     grade: 0,
-    activityMinutes: 60,
-    advice: '快適に活動できます。それでもスーツ内は蒸れるため、適宜水分補給をしてください。',
+    activityMinutes: 45,
+    advice: '快適に活動できます。それでもスーツ内は蒸れるため、45分をめどに休憩し、適宜水分補給をしてください。',
   },
   {
     upperBound: 25,
     id: 'caution',
     label: '注意',
     grade: 1,
-    activityMinutes: 45,
-    advice: '積極的に水分補給をしてください。45分をめどに休憩を入れましょう。',
+    activityMinutes: 30,
+    advice: '積極的に水分補給をし、30分をめどに休憩を入れましょう。',
   },
   {
     upperBound: 28,
     id: 'warning',
     label: '警戒',
     grade: 2,
-    activityMinutes: 30,
-    advice: '30分ごとに必ず休憩し、ヘッドを外して冷却してください。冷却ベストの着用を推奨します。',
+    activityMinutes: 20,
+    advice: '20分ごとに必ず休憩し、ヘッドを外して冷却してください。冷却ベストの着用を推奨します。',
   },
   {
     upperBound: 31,
     id: 'severe',
     label: '厳重警戒',
     grade: 3,
-    activityMinutes: 15,
-    advice: '連続15分以内にとどめ、屋内の冷房環境へ退避してください。電解質補給も必須です。',
+    activityMinutes: 10,
+    advice: '連続10分以内にとどめ、屋内の冷房環境へ退避してください。電解質補給も必須です。',
   },
   {
     upperBound: Number.POSITIVE_INFINITY,
@@ -126,15 +129,15 @@ export const COLD_BANDS: readonly ColdBand[] = [
     id: 'optimal',
     label: '快適',
     grade: 0,
-    activityMinutes: 60,
-    advice: '着ぐるみ活動に適した気温です。脱いだ後の汗冷えに注意してください。',
+    activityMinutes: 45,
+    advice: '着ぐるみ活動に適した気温です。45分をめどに休憩し、脱いだ後の汗冷えに注意してください。',
   },
   {
     lowerBound: -10,
     id: 'coldCaution',
     label: '低温注意',
     grade: 1,
-    activityMinutes: 60,
+    activityMinutes: 45,
     advice: '凍結した路面での転倒に注意してください。ヘッド着用時は視界が狭くなります。休憩時の汗冷え対策も必要です。',
   },
   {
@@ -177,7 +180,7 @@ export const LAUNDRY = {
   windowEndHour: 15,
   /** Meyer式の風速係数（m/s換算） */
   windFactor: 0.225,
-  /** 積算乾燥スピードを0〜100に正規化する除数（経験的調整値） */
+  /** 干し時間帯フル（6時間）換算の積算乾燥スピードを0〜100に正規化する除数（経験的調整値） */
   normalizeDivisor: 1.8,
   /** この気温（℃）未満は「寒くて乾きにくい」扱い（ウェザーニューズの段階設計に準拠） */
   coldLimit: 5,
@@ -221,15 +224,19 @@ export const UPSTREAM_CACHE_TTL_SECONDS = 1800;
 /** 自APIレスポンスのブラウザキャッシュ時間（秒） */
 export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
 
-/** 取得する予報日数のデフォルトと上限（JMA MSMは4日先まで、以降はGSMに接続） */
+/**
+ * 取得する予報日数のデフォルトと上限
+ * 気象庁MSMの予報範囲は4日先までで、それ以降のGSMには日射量データがなく
+ * WBGT計算ができないため、上限を4日とする
+ */
 export const DEFAULT_FORECAST_DAYS = 4;
-export const MAX_FORECAST_DAYS = 7;
+export const MAX_FORECAST_DAYS = 4;
 
 /** 通年で表示する注意事項 */
 export const YEAR_ROUND_NOTICES: readonly string[] = [
   '着ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。',
   '必ず2人以上で行動し、着用者以外の付き添い（ハンドラー）を付けてください。',
-  '「30分着て30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。',
+  '表示の連続活動時間は気象条件から見た上限の目安です。「30分着たら30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。',
   '本予報は目安です。体調や装備により安全な活動時間は変わります。最終判断はご自身で行ってください。',
 ] as const;
 

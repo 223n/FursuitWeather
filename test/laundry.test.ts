@@ -98,6 +98,13 @@ describe('assessLaundry', () => {
     const result = assessLaundry(dryingWindow({}));
     expect(result.advice).toContain('乾燥機');
   });
+
+  it('欠測で干し時間帯が部分的でも、同条件のフル時間帯と同じ指数になる', () => {
+    const full = assessLaundry(dryingWindow({}));
+    // 6時間のうち3時間分が欠測したケース
+    const partial = assessLaundry(dryingWindow({}).slice(0, 3));
+    expect(partial.score).toBe(full.score);
+  });
 });
 
 describe('fursuitDryingHours', () => {

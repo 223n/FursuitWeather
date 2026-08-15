@@ -51,6 +51,19 @@ function todayInJst(now: Date): string {
  * GET /api/forecast?demo=1 （デモデータで応答）
  */
 export async function handleForecast(request: Request): Promise<Response> {
+  // 他サイトからのAPI利用（CORS）のため、プリフライトリクエストに応答する
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   if (request.method !== 'GET') {
     return jsonError(405, 'GETメソッドのみ対応しています');
   }
@@ -75,8 +88,11 @@ export async function handleForecast(request: Request): Promise<Response> {
       return jsonError(400, '緯度は-90〜90、経度は-180〜180の範囲で指定してください');
     }
 
-    const days = parseNumberParam(params, 'days') ?? DEFAULT_FORECAST_DAYS;
-    if (!Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
+    // daysは省略時のみ既定値とし、指定されていて解析できない場合は明示的にエラーを返す
+    const daysRaw = params.get('days');
+    const daysSpecified = daysRaw !== null && daysRaw.trim() !== '';
+    const days = daysSpecified ? parseNumberParam(params, 'days') : DEFAULT_FORECAST_DAYS;
+    if (days === null || !Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
       return jsonError(400, `daysは1〜${MAX_FORECAST_DAYS}の整数で指定してください`);
     }
 

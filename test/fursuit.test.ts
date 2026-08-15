@@ -40,15 +40,31 @@ describe('assessOutdoor（暑熱側）', () => {
       weather({ temperature: 16, humidity: 40, solarRadiation: 0, windSpeed: 1 }),
     );
     expect(result.level).toBe('caution');
-    expect(result.activityMinutes).toBe(45);
+    expect(result.activityMinutes).toBe(30);
+  });
+
+  it('気温15℃未満でも日射が強く補正後WBGTが高い場合は暑熱判定を優先する', () => {
+    // Ta=14.9℃, RH=70%, SR=700W/m²: 素のWBGT約15.6℃ → 補正後約26.6℃で「警戒」帯。
+    // 低温判定（快適）に切り替えると危険側の誤判定になるため、暑熱側を採用する
+    const result = assessOutdoor(
+      weather({
+        temperature: 14.9,
+        apparentTemperature: 13,
+        humidity: 70,
+        solarRadiation: 700,
+        windSpeed: 1,
+      }),
+    );
+    expect(result.level).toBe('warning');
+    expect(result.activityMinutes).toBe(20);
   });
 });
 
 describe('assessOutdoor（低温側）', () => {
-  it('気温15℃未満は体感温度による低温判定に切り替わる', () => {
+  it('気温15℃未満で暑熱リスクが低ければ体感温度による低温判定になる', () => {
     const result = assessOutdoor(weather({ temperature: 8, apparentTemperature: 5 }));
     expect(result.level).toBe('optimal');
-    expect(result.activityMinutes).toBe(60);
+    expect(result.activityMinutes).toBe(45);
   });
 
   it('体感温度0℃以下は低温注意', () => {
