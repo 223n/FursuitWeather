@@ -577,6 +577,12 @@ main a {
   line-height: 1.5;
 }
 
+/* 図（SVG）はコンテナ幅に合わせて縮小する */
+.diagram {
+  max-width: 100%;
+  height: auto;
+}
+
 section h3 {
   font-size: 1.05rem;
   margin: 1.25rem 0 0.5rem;

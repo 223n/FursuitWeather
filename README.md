@@ -181,9 +181,10 @@ flowchart LR
 Workerは世界中に分散したCloudflareのデータセンター網（エッジ）のうち、
 利用者に最も近い拠点で実行されます。予報データは2段階でキャッシュされます。
 
-```text
-ブラウザ ──(1)── Cloudflareエッジ（Worker） ──(2)── Open-Meteo API
-        10分キャッシュ                30分キャッシュ
+```mermaid
+flowchart LR
+    B[ブラウザ] <-->|"(1) ブラウザキャッシュ 10分<br>Cache-Control: max-age=600"| E["Cloudflareエッジ（Worker）"]
+    E <-->|"(2) エッジキャッシュ 30分<br>cf.cacheTtl: 1800"| O["Open-Meteo API<br>（気象庁MSM/GSM）"]
 ```
 
 1. **エッジでの気象データキャッシュ（30分）**: 同じ地点・同じ日数の
