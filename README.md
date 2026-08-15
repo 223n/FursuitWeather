@@ -3,6 +3,8 @@
 着ぐるみ天気予報 - 気象データから着ぐるみ（ファースーツ）で活動するのに
 適切かどうかを予報するWebサービスです。
 
+公開URL: <https://fursuit-weather.223n.tech/>
+
 ## 概要
 
 気象庁MSM/GSMモデル由来の気象データ（気温・湿度・日射量・風速）をもとに、
@@ -96,7 +98,7 @@ npm run lint
 レスポンスは時間別予報（`hours`）と日別サマリー（`days`）を含むJSONです。
 
 ```bash
-curl "https://<your-worker>/api/forecast?lat=35.6785&lon=139.6823"
+curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 ```
 
 ## デプロイ
@@ -116,6 +118,17 @@ npm run deploy
    設定する
 1. mainブランチへのpushで自動デプロイされる（Actionsタブの `Deploy`
    ワークフローから手動実行も可能）
+
+### カスタムドメイン
+
+`wrangler.jsonc` の `routes` でカスタムドメイン
+（`fursuit-weather.223n.tech`）を設定しています。デプロイ時に223n.techゾーンへ
+DNSレコードとTLS証明書が自動作成されます。前提条件は以下のとおりです。
+
+- 223n.techゾーンがデプロイ先と同じCloudflareアカウントにあること
+- APIトークンにゾーン権限（「Edit Cloudflare Workers」テンプレートの
+  「Workers Routes: 編集」）があること。最小権限トークンを使っている場合は
+  「Zone > Workers Routes > 編集」（対象: 223n.tech）の追加が必要
 
 ## アーキテクチャ
 

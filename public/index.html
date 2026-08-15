@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="気象庁モデルの気象データから、着ぐるみで活動するのに適切かどうかを予報するサービスです。">
   <title>FursuitWeather - 着ぐるみ天気予報</title>
+  <!-- 正規URL（カスタムドメイン。workers.devのURLはroutes設定により無効化されている） -->
+  <link rel="canonical" href="https://fursuit-weather.223n.tech/">
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
   <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch">
@@ -18,14 +20,14 @@
         "@type": "WebSite",
         "name": "FursuitWeather",
         "alternateName": "着ぐるみ天気予報",
-        "url": "https://fursuit-weather.223n.workers.dev/",
+        "url": "https://fursuit-weather.223n.tech/",
         "inLanguage": "ja"
       },
       {
         "@type": "WebApplication",
         "name": "FursuitWeather",
         "description": "気象庁モデルの気象データから、着ぐるみ（ファースーツ）で活動するのに適切かどうかを予報するWebアプリです。暑さ指数（WBGT）ベースの活動判定、冷房要否、洗濯乾燥指数、活動可能時間の目安を表示します。",
-        "url": "https://fursuit-weather.223n.workers.dev/",
+        "url": "https://fursuit-weather.223n.tech/",
         "applicationCategory": "Weather",
         "operatingSystem": "Web",
         "isAccessibleForFree": true,
