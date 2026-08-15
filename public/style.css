@@ -106,6 +106,10 @@ body {
   color: var(--color-text);
   background-color: var(--color-surface);
   line-height: 1.6;
+  /* モバイルブラウザによるテキストの自動拡大（フォントブースト）を無効化し、
+   * 指定どおりのフォントサイズで表示する */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .site-header {
@@ -509,10 +513,17 @@ table {
   font-size: 0.9rem;
 }
 
+/* 表のセル（既定は折り返しあり・左揃え。長い説明文が横長セルにならないようにする） */
 th,
 td {
   border: 1px solid #CCCCCC;
   padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+
+/* 時間別予報テーブルは値が短いため、中央揃え+折り返しなしで整える */
+#hours-table th,
+#hours-table td {
   text-align: center;
   white-space: nowrap;
 }
