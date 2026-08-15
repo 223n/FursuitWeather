@@ -61,8 +61,10 @@ export interface HeatBand {
  * 出典: https://www.wbgt.env.go.jp/wbgt.php
  * 出典: https://www.japan-sports.or.jp/medicine/tabid/922/Default.aspx
  * 活動時間の上限目安は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10〜20分）と
- * 着ぐるみコミュニティの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
+ * イベントガイドなどの推奨（30〜45分で休憩）の範囲内に収まるよう段階化している。
  * 最も涼しい帯でも45分を上限とし、常時表示の「30分着たら30分休む」を基本とする
+ * 出典: https://www.city.saitama.lg.jp/006/012/001/004/004/p010212_d/fil/kigurumi-m.pdf （さいたま市 着ぐるみ使用マニュアル）
+ * 出典: https://www.anthrocon.org/guides/fursuiting-in-the-summer/ （Anthrocon公式ガイド）
  */
 export const HEAT_BANDS: readonly HeatBand[] = [
   {
@@ -121,7 +123,6 @@ export interface ColdBand {
 /**
  * 低温側のしきい値（体感温度0/-10/-20℃）
  * 汗冷えによる低体温・凍結路面・末端の凍傷リスクを段階化
- * 0〜10℃程度は着ぐるみ着用に適した環境とされる（着ぐるみコミュニティの知見）
  */
 export const COLD_BANDS: readonly ColdBand[] = [
   {

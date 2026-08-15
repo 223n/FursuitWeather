@@ -40,8 +40,15 @@ WBGT着衣補正値（フード付き蒸気不透過つなぎ服 = +11℃）で�
 | 31℃以上 | 危険 | 着用中止 |
 
 連続活動時間は、自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は
-10〜20分）と着ぐるみコミュニティの推奨（30〜45分で休憩）の範囲内で
-段階化した上限の目安です。基本は「30分着たら30分休む」を推奨します。
+10〜20分）やイベントガイドなど（30〜45分で休憩）を参考に段階化した
+上限の目安です。基本は「30分着たら30分休む」を推奨します。
+
+参考資料:
+
+- [さいたま市「着ぐるみ使用マニュアル」（PDF）](https://www.city.saitama.lg.jp/006/012/001/004/004/p010212_d/fil/kigurumi-m.pdf)
+- [三原市「公式マスコットキャラクター使用に関するマニュアル」（PDF）](https://www.city.mihara.hiroshima.jp/uploaded/life/150268_522697_misc.pdf)
+- [Anthrocon「Fursuiting in the Summer」](https://www.anthrocon.org/guides/fursuiting-in-the-summer/)
+- [Melbourne Fur Con「Fursuiting Guidelines」](https://melbfurcon.com/fursuiting-guidelines/)
 
 気温15℃未満では体感温度による低温判定（0/-10/-20℃境界）を併用し、
 汗冷え・凍結路面・凍傷などの注意を表示します。着ぐるみは低温でも
