@@ -1,0 +1,427 @@
+/* FursuitWeather スタイル
+ * カラーユニバーサルデザイン（CUD）推奨色を使用し、WCAG AAのコントラスト比を満たす。
+ * レベル表示は色だけに依存せず、記号（◎○△✕）とテキストを必ず併記する */
+
+:root {
+  /* CUD推奨のメインカラー */
+  --color-blue: #0072B2;
+  --color-orange: #E69F00;
+  --color-green: #009E73;
+  --color-red: #CC3311;
+
+  /* ニュートラル */
+  --color-text: #1A1A1A;
+  --color-text-muted: #555555;
+  --color-background: #FFFFFF;
+  --color-surface: #F6F4F1;
+  --color-border: #767676;
+
+  /* レベル別（背景は薄色+濃色の縁と文字でコントラストを確保） */
+  --level-0-accent: #009E73;
+  --level-0-surface: #E5F5EF;
+  --level-1-accent: #A66E00;
+  --level-1-surface: #FCF0D8;
+  --level-2-accent: #B34700;
+  --level-2-surface: #FDE8D7;
+  --level-3-accent: #CC3311;
+  --level-3-surface: #FBE3DD;
+  --level-4-accent: #8A1500;
+  --level-4-surface: #F6D7D0;
+  --level-cold-accent: #0072B2;
+  --level-cold-surface: #E1EFF8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  line-height: 1.6;
+}
+
+.site-header {
+  background-color: var(--color-blue);
+  color: #FFFFFF;
+  padding: 1.25rem 1rem;
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+}
+
+main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+section {
+  background-color: var(--color-background);
+  border: 1px solid #DDDDDD;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+
+.hidden {
+  display: none;
+}
+
+.hint,
+.control-note {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* 表示中の地点ラベル */
+.location-label {
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.location-label:empty {
+  display: none;
+}
+
+/* 操作列 */
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+label {
+  font-weight: 700;
+}
+
+select,
+button {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+button {
+  cursor: pointer;
+  border-color: var(--color-blue);
+  color: var(--color-blue);
+  font-weight: 700;
+}
+
+button:hover {
+  background-color: var(--color-blue);
+  color: #FFFFFF;
+}
+
+/* フォーカスリングは白背景に対して3:1以上のコントラストを確保した濃色を使う
+ * （#E69F00は2.25:1でWCAG 2.1 SC 1.4.11を満たさないため濃い#A66E00にしている） */
+select:focus,
+button:focus {
+  outline: 3px solid #A66E00;
+  outline-offset: 2px;
+}
+
+/* ステータス表示 */
+#status:not(:empty) {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  background-color: #E1EFF8;
+  border-left: 4px solid var(--color-blue);
+}
+
+#status.error {
+  background-color: #FBE3DD;
+  border-left-color: var(--color-red);
+}
+
+/* 日別カード */
+.day-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.day-card {
+  border: 2px solid #DDDDDD;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background-color: var(--color-background);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.day-card:hover {
+  border-color: var(--color-blue);
+}
+
+.day-card.selected {
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 2px var(--color-blue);
+}
+
+.day-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+/* 日付ボタンは見出しの見た目のまま、選択操作とARIA状態を担う */
+.day-card-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--color-blue);
+}
+
+.day-card-button:hover {
+  background: none;
+  color: var(--color-blue);
+}
+
+.day-card .weather-line {
+  margin: 0 0 0.5rem;
+}
+
+.day-card dl {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.day-card dt {
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.day-card dd {
+  margin: 0 0 0.4rem;
+}
+
+/* レベルバッジ: 薄色背景+濃色文字+記号（形）の3要素で、色覚に依存しない表示にする */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 2px solid;
+  white-space: nowrap;
+}
+
+/* 記号（◎○△✕🚫/❄付き）は文字より大きく表示して形で判別しやすくする */
+.badge .symbol {
+  font-size: 1.35em;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* 日別カードや凡例で使う大型バッジ */
+.badge-large {
+  font-size: 1.15rem;
+  padding: 0.35rem 0.9rem;
+}
+
+.badge-large .symbol {
+  font-size: 1.6em;
+}
+
+/* 日別カードのメイン判定表示 */
+.main-judgement-caption {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.main-judgement {
+  margin: 0 0 0.6rem;
+}
+
+/* 凡例のアコーディオン（初期状態は閉じる） */
+.legend-details summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.legend-details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 開閉状態を矢印の向き（形）で示す */
+.legend-details summary::before {
+  content: '▶';
+  color: var(--color-blue);
+  font-size: 0.8rem;
+}
+
+.legend-details[open] summary::before {
+  content: '▼';
+}
+
+.legend-details summary h2 {
+  margin: 0;
+  display: inline;
+}
+
+.legend-details summary:focus {
+  outline: 3px solid #A66E00;
+  outline-offset: 2px;
+}
+
+.summary-hint {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.legend-details[open] .hint {
+  margin-top: 0.75rem;
+}
+
+/* バッジ+補足テキストの行 */
+.badge-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+/* 凡例 */
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.legend-item {
+  border: 1px solid #DDDDDD;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.legend-item p {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.badge.grade-0 {
+  background-color: var(--level-0-surface);
+  color: #006147;
+  border-color: var(--level-0-accent);
+}
+
+.badge.grade-1 {
+  background-color: var(--level-1-surface);
+  color: #6B4700;
+  border-color: var(--level-1-accent);
+}
+
+.badge.grade-2 {
+  background-color: var(--level-2-surface);
+  color: #7A3100;
+  border-color: var(--level-2-accent);
+}
+
+.badge.grade-3 {
+  background-color: var(--level-3-surface);
+  color: #99260C;
+  border-color: var(--level-3-accent);
+}
+
+.badge.grade-4 {
+  background-color: var(--level-4-surface);
+  color: #6E1100;
+  border-color: var(--level-4-accent);
+}
+
+.badge.cold {
+  background-color: var(--level-cold-surface);
+  color: #005180;
+  border-color: var(--level-cold-accent);
+}
+
+/* 時間別テーブル */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  border: 1px solid #CCCCCC;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+th {
+  background-color: var(--color-surface);
+}
+
+.th-note {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+tbody tr.night {
+  background-color: #F2F2F2;
+}
+
+/* 注意事項・フッター */
+#notices-list li {
+  margin-bottom: 0.4rem;
+}
+
+.about ul {
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.site-footer {
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.site-footer a,
+main a {
+  color: var(--color-blue);
+  text-decoration: underline;
+}

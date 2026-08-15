@@ -1,0 +1,23 @@
+{
+  "name": "fursuit-weather",
+  "version": "0.1.0",
+  "private": true,
+  "description": "着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報するサービス",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && npm run typecheck"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "eslint": "^10.8.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.123.0"
+  }
+}

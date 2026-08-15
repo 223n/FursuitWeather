@@ -1,0 +1,39 @@
+name: Deploy
+
+# Cloudflare Workersへのデプロイ
+# リポジトリのSecretsにCLOUDFLARE_API_TOKENとCLOUDFLARE_ACCOUNT_IDの設定が必要
+# mainへのpushで自動デプロイし、Actionsタブからの手動実行にも対応する
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      # PRマージまでのプレビューデプロイ用（マージ後はこの行を削除してよい）
+      - claude/fursuit-weather-service-509a55
+
+jobs:
+  deploy:
+    name: Cloudflare Workersへデプロイ
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: テストを実行
+        run: npm test
+
+      - name: デプロイ
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
