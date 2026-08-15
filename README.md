@@ -95,11 +95,41 @@ npm run lint
 予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データが
 なくWBGTを計算できないため）。
 
-レスポンスは時間別予報（`hours`）と日別サマリー（`days`）を含むJSONです。
-
 ```bash
 curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 ```
+
+### レスポンスJSONの仕様
+
+トップレベルのフィールドは以下のとおりです。
+
+| フィールド | 型 | 説明 |
+|--------------|----------|------------------------------------------|
+| location | object | 予報地点（latitude・longitude・timezone） |
+| generatedAt | string | レスポンス生成時刻（ISO 8601） |
+| model | string | 使用した気象モデル |
+| attribution | object | データ出典表記（表示時は明記が必要） |
+| notices | string[] | 通年の注意事項 |
+| hours | array | 1時間ごとの予報 |
+| days | array | 日別サマリー |
+
+`hours[]`の各要素は`time`、`weather`（temperature・humidity・
+apparentTemperature・precipitation・weatherCode・solarRadiation・
+windSpeed）、`weatherLabel`、`outdoor`・`indoor`（判定オブジェクト）を
+持ちます。判定オブジェクトは`wbgt`・`suitWbgt`（補正後WBGT）・`level`・
+`label`・`grade`（0〜4）・`activityMinutes`・`advice`で構成され、
+`indoor`にはさらに`cooling`（none/recommended/required）と
+`coolingLabel`が加わります。
+
+`days[]`の各要素は`date`、`temperatureMin`/`temperatureMax`、
+`weatherCode`/`weatherLabel`、`outdoorWorst`/`outdoorBest`、
+`recommendedHours`、`coolingRequired`、`laundry`（score・level・label・
+fursuitDryingHours・moldWarning・advice）を持ちます。
+
+詳細な仕様とレスポンス例は
+[公開サイトの説明ページ](https://fursuit-weather.223n.tech/about)を
+参照してください。フィールドの追加は後方互換として行うことがあるため、
+未知のフィールドは無視してください。
 
 ## デプロイ
 
@@ -145,6 +175,29 @@ flowchart LR
 - 静的アセットは無料・無制限で配信され、Workerは `/api/*` のみ起動します
 - 上流APIレスポンスはエッジで30分キャッシュし、Open-Meteoの
   無料枠レート制限（1万コール/日）を守ります
+
+### エッジ配信とキャッシュ
+
+Workerは世界中に分散したCloudflareのデータセンター網（エッジ）のうち、
+利用者に最も近い拠点で実行されます。予報データは2段階でキャッシュされます。
+
+```text
+ブラウザ ──(1)── Cloudflareエッジ（Worker） ──(2)── Open-Meteo API
+        10分キャッシュ                30分キャッシュ
+```
+
+1. **エッジでの気象データキャッシュ（30分）**: 同じ地点・同じ日数の
+   リクエストが30分以内に来た場合、Open-Meteoへは問い合わせず保存済みの
+   コピーから応答します（`fetch`の`cf.cacheTtl`による。URL単位・
+   データセンター単位で独立）
+1. **ブラウザキャッシュ（10分）**: APIレスポンスの
+   `Cache-Control: public, max-age=600`により、同じブラウザからの
+   再リクエストは10分間キャッシュが再利用されます
+
+表示される予報は最大で約40分前に取得されたものの可能性がありますが、
+元データの気象庁MSMの更新は3時間ごとのため、実用上の影響はありません。
+キャッシュ時間は`src/constants.ts`の`UPSTREAM_CACHE_TTL_SECONDS`と
+`RESPONSE_CACHE_MAX_AGE_SECONDS`で調整できます。
 
 ## データ出典・利用条件
 
