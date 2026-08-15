@@ -447,9 +447,13 @@ button:focus {
   border-color: var(--level-cold-accent);
 }
 
-/* 時間別テーブル（データ到着前から領域を確保してシフトを抑える） */
+/* 表の横スクロールコンテナ */
 .table-wrapper {
   overflow-x: auto;
+}
+
+/* 時間別テーブルはデータ到着前から領域を確保してレイアウトシフトを抑える */
+#hours-section .table-wrapper {
   min-height: 24rem;
 }
 
@@ -555,4 +559,25 @@ tbody tr.night {
 main a {
   color: var(--color-blue);
   text-decoration: underline;
+}
+
+/* このサービスについてページ */
+.breadcrumb p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.formula {
+  background-color: var(--color-surface);
+  border: 1px solid #DDDDDD;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+section h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
 }
