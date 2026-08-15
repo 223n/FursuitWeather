@@ -25,6 +25,7 @@
         <a href="/">← 予報トップへ戻る</a> ｜
         <a href="#mechanism">判定の仕組み</a> ｜
         <a href="#api">API</a> ｜
+        <a href="#cache">エッジ配信とキャッシュ</a> ｜
         <a href="#disclaimer">免責事項</a> ｜
         <a href="#sources">データ出典</a>
       </p>
@@ -127,15 +128,151 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       <p>リクエスト例:</p>
       <pre class="formula">curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&amp;lon=139.6823"</pre>
 
-      <p>
-        レスポンスは時間別予報（<code>hours</code>: 気象値と屋外・屋内判定）と
-        日別サマリー（<code>days</code>: 最高最低気温・最悪判定・活動しやすい時間帯・洗濯指数など）を含むJSONです。
-      </p>
+      <h3>レスポンスJSONの仕様</h3>
+      <p>レスポンスのトップレベルは以下のフィールドで構成されます。</p>
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">レスポンスのトップレベルフィールド</caption>
+          <thead>
+            <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>location</code></td><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
+            <tr><td><code>generatedAt</code></td><td>string</td><td>レスポンス生成時刻（ISO 8601）</td></tr>
+            <tr><td><code>model</code></td><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
+            <tr><td><code>attribution</code></td><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
+            <tr><td><code>notices</code></td><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
+            <tr><td><code>hours</code></td><td>array</td><td>1時間ごとの予報（下表）</td></tr>
+            <tr><td><code>days</code></td><td>array</td><td>日別サマリー（下表）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><code>hours[]</code>の各要素:</p>
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">時間別予報のフィールド</caption>
+          <thead>
+            <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>time</code></td><td>string</td><td>ローカル時刻（Asia/Tokyo、例: <code>2026-08-15T09:00</code>）</td></tr>
+            <tr><td><code>weather</code></td><td>object</td><td>気象値: <code>temperature</code>（℃）・<code>humidity</code>（%）・<code>apparentTemperature</code>（℃）・<code>precipitation</code>（mm）・<code>weatherCode</code>（WMOコード）・<code>solarRadiation</code>（W/m²）・<code>windSpeed</code>（m/s）</td></tr>
+            <tr><td><code>weatherLabel</code></td><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
+            <tr><td><code>outdoor</code></td><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
+            <tr><td><code>indoor</code></td><td>object</td><td>屋内の判定。判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>判定オブジェクト（<code>outdoor</code>・<code>indoor</code>共通）:</p>
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">判定オブジェクトのフィールド</caption>
+          <thead>
+            <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>wbgt</code></td><td>number</td><td>素のWBGT推定値（℃）</td></tr>
+            <tr><td><code>suitWbgt</code></td><td>number</td><td>着ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
+            <tr><td><code>level</code></td><td>string</td><td>レベルID。暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code>、低温側: <code>optimal</code>／<code>coldCaution</code>／<code>coldWarning</code>／<code>coldDanger</code></td></tr>
+            <tr><td><code>label</code></td><td>string</td><td>日本語ラベル（ほぼ安全・注意など）</td></tr>
+            <tr><td><code>grade</code></td><td>number</td><td>深刻度（0=快適〜4=危険。色分け用）</td></tr>
+            <tr><td><code>activityMinutes</code></td><td>number</td><td>連続活動時間の上限目安（分、0は着用中止）</td></tr>
+            <tr><td><code>advice</code></td><td>string</td><td>注意文</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><code>days[]</code>の各要素:</p>
+      <div class="table-wrapper">
+        <table>
+          <caption class="sr-only">日別サマリーのフィールド</caption>
+          <thead>
+            <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>date</code></td><td>string</td><td>日付（YYYY-MM-DD）</td></tr>
+            <tr><td><code>temperatureMin</code>・<code>temperatureMax</code></td><td>number</td><td>最低・最高気温（℃）</td></tr>
+            <tr><td><code>weatherCode</code>・<code>weatherLabel</code></td><td>number・string</td><td>日中の代表天気</td></tr>
+            <tr><td><code>outdoorWorst</code>・<code>outdoorBest</code></td><td>object</td><td>日中（9〜18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
+            <tr><td><code>recommendedHours</code></td><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式。深刻度1以下かつ降水なし）</td></tr>
+            <tr><td><code>coolingRequired</code></td><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
+            <tr><td><code>laundry</code></td><td>object</td><td>洗濯乾燥判定: <code>score</code>（0〜100）・<code>level</code>（<code>noDryRain</code>／<code>noDryCold</code>／<code>indoorDry</code>／<code>fair</code>／<code>good</code>／<code>veryGood</code>／<code>excellent</code>）・<code>label</code>・<code>fursuitDryingHours</code>（時間）・<code>moldWarning</code>（boolean）・<code>advice</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>レスポンス例（抜粋）:</p>
+      <pre class="formula">{
+  "location": { "latitude": 35.7, "longitude": 139.6875, "timezone": "Asia/Tokyo" },
+  "generatedAt": "2026-08-15T09:00:00.000Z",
+  "model": "jma_seamless（気象庁MSM/GSM）",
+  "attribution": { "weatherData": "Weather data by Open-Meteo.com（気象庁MSM/GSMモデル）", ... },
+  "notices": ["着ぐるみ内は冬でも数分で発汗する高温多湿環境です。…", ...],
+  "hours": [
+    {
+      "time": "2026-08-15T09:00",
+      "weather": { "temperature": 28.1, "humidity": 54, "windSpeed": 2.5, ... },
+      "weatherLabel": "晴れ",
+      "outdoor": { "wbgt": 25.8, "suitWbgt": 36.8, "level": "danger",
+                   "label": "危険", "grade": 4, "activityMinutes": 0, "advice": "…" },
+      "indoor":  { "wbgt": 23.9, "suitWbgt": 34.9, "level": "danger", "grade": 4,
+                   "cooling": "required", "coolingLabel": "冷房必須", ... }
+    }, ...
+  ],
+  "days": [
+    {
+      "date": "2026-08-15", "temperatureMin": 18.3, "temperatureMax": 34.0,
+      "weatherLabel": "晴れ",
+      "outdoorWorst": { "level": "danger", "label": "危険", "grade": 4 },
+      "recommendedHours": [], "coolingRequired": true,
+      "laundry": { "score": 100, "level": "excellent", "label": "大変よく乾く",
+                   "fursuitDryingHours": 24, "moldWarning": false, "advice": "…" }
+    }, ...
+  ]
+}</pre>
+
+      <h3>利用上の注意</h3>
       <ul>
         <li>予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データがなくWBGTを計算できないため）</li>
-        <li>気象データはエッジで30分キャッシュされます（気象庁MSMの更新は3時間ごと）</li>
+        <li>気象データはエッジで30分キャッシュされます（詳細は次のセクション）</li>
         <li>大量アクセスはデータ提供元（Open-Meteo）の無料枠を圧迫するためお控えください</li>
+        <li>フィールドの追加は後方互換として予告なく行うことがあります。未知のフィールドは無視してください</li>
       </ul>
+    </section>
+
+    <section id="cache" aria-label="エッジ配信とキャッシュ">
+      <h2>エッジ配信とキャッシュ</h2>
+      <p>
+        本サービスはCloudflare Workersで動作しており、世界中に分散したCloudflareの
+        データセンター網（<strong>エッジ</strong>）のうち、利用者に最も近い拠点でプログラムが実行されます。
+        特定のサーバー1台に集中しないため、高速で障害にも強い構成です。
+      </p>
+      <p>予報データは2段階でキャッシュされます。</p>
+      <pre class="formula">ブラウザ ──(1)── Cloudflareエッジ（Worker） ──(2)── Open-Meteo API
+        10分キャッシュ                30分キャッシュ</pre>
+      <h3>(1) エッジでの気象データキャッシュ（30分）</h3>
+      <p>
+        WorkerがOpen-Meteoから取得した気象データは、そのデータセンター内に30分保存されます。
+        同じ地点・同じ日数のリクエストが30分以内に来た場合、Open-Meteoへは問い合わせず
+        保存済みのコピーから即座に応答します。これにより、データ提供元の無料枠
+        （1日1万コール）を守りながら応答を高速化しています。キャッシュはURL単位・
+        データセンター単位で独立しており、地点（座標）が異なれば別のキャッシュになります。
+      </p>
+      <h3>(2) ブラウザキャッシュ（10分）</h3>
+      <p>
+        APIレスポンスには<code>Cache-Control: public, max-age=600</code>を付けているため、
+        同じブラウザからの再リクエストは10分間キャッシュが再利用されます。
+        「予報を更新」を押しても10分以内は同じ内容が表示されることがあります。
+      </p>
+      <h3>データの鮮度について</h3>
+      <p>
+        表示される予報は最大で約40分前（エッジ30分+ブラウザ10分）に取得されたものの
+        可能性があります。元データの気象庁MSMの更新は3時間ごとのため、実用上の鮮度への
+        影響はありません。キャッシュされるのは公開の気象データのみで、現在地の座標などが
+        ほかの利用者と共有されることはありません。
+      </p>
     </section>
 
     <section id="disclaimer" aria-label="免責事項">
