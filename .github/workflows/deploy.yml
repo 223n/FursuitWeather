@@ -35,7 +35,7 @@ jobs:
       - name: アセットを圧縮（minify）
         run: npm run minify
 
-      - name: トップページのCSSをインライン化
+      - name: 各ページのCSSをインライン化
         run: node scripts/inline-css.mjs
 
       - name: デプロイ
