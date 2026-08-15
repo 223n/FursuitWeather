@@ -12,7 +12,7 @@
 
 - **屋外活動指数**: 暑さ指数（WBGT）ベースの5段階判定
 - **屋内活動指数**: 空調のない会場を想定した参考値と冷房要否（冷房必須/推奨/不要）
-- **活動可能時間**: 1回あたりの連続活動時間の目安（60/45/30/15分/中止）
+- **活動可能時間**: 1回あたりの連続活動時間の目安（45/30/20/10分/着用中止）
 - **洗濯乾燥指数**: 洗濯物の乾きやすさ5段階と、着ぐるみ全身洗いの乾燥時間目安
 
 ## 判定の仕組み
@@ -60,6 +60,11 @@ Tetensの式による飽和水蒸気圧から飽差（VPD）を求め、風速�
 乾燥スピードを干し時間帯（9〜15時）で積算して0〜100に指数化します。
 降水時は「外干しNG」、平均気温5℃未満は「乾きにくい（低温）」となります。
 
+> Tetensの式は「気温から、空気が抱えられる水蒸気の上限を求める式」です。
+> 上限までの残り（飽差）が大きいほど洗濯物の水分が空気へ移りやすく、
+> 「気温が高く、湿度が低く、風がある日ほどよく乾く」という経験則を
+> そのまま計算式にしたものです。
+
 着ぐるみの全身洗いは扇風機併用で24〜48時間の乾燥目安を表示し、
 乾きにくい日はカビ警告を出します。乾燥機は熱でファーが傷むため使用禁止です。
 
@@ -94,10 +99,10 @@ npm run lint
 
 | パラメータ | 必須 | 説明 |
 |-----------|------|--------------------------------|
-| lat | ○ | 緯度（-90〜90） |
-| lon | ○ | 経度（-180〜180） |
-| days | - | 予報日数（1〜4、デフォルト4） |
-| demo | - | `1`でデモデータを返す |
+| `lat` | 必須 | 緯度（-90〜90） |
+| `lon` | 必須 | 経度（-180〜180） |
+| `days` | 任意 | 予報日数（1〜4、デフォルト4） |
+| `demo` | 任意 | `1`でデモデータを返す |
 
 予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データが
 なくWBGTを計算できないため）。
@@ -109,29 +114,31 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 ### レスポンスJSONの仕様
 
 トップレベルのフィールドは以下のとおりです。
+要素名の区切りは、並列のフィールドを「・」、いずれか1つを取る値を
+「／」で表記しています。
 
 | フィールド | 型 | 説明 |
 |--------------|----------|------------------------------------------|
 | location | object | 予報地点（latitude・longitude・timezone） |
-| generatedAt | string | レスポンス生成時刻（ISO 8601） |
+| generatedAt | string | レスポンス生成時刻（ISO 8601・UTC、例: `2026-08-15T09:00:00.000Z`） |
 | model | string | 使用した気象モデル |
 | attribution | object | データ出典表記（表示時は明記が必要） |
 | notices | string[] | 通年の注意事項 |
 | hours | array | 1時間ごとの予報 |
 | days | array | 日別サマリー |
 
-`hours[]`の各要素は`time`、`weather`（temperature・humidity・
-apparentTemperature・precipitation・weatherCode・solarRadiation・
-windSpeed）、`weatherLabel`、`outdoor`・`indoor`（判定オブジェクト）を
+`hours[]`の各要素は`time`・`weather`（`temperature`・`humidity`・
+`apparentTemperature`・`precipitation`・`weatherCode`・`solarRadiation`・
+`windSpeed`）・`weatherLabel`・`outdoor`・`indoor`（判定オブジェクト）を
 持ちます。判定オブジェクトは`wbgt`・`suitWbgt`（補正後WBGT）・`level`・
 `label`・`grade`（0〜4）・`activityMinutes`・`advice`で構成され、
-`indoor`にはさらに`cooling`（none/recommended/required）と
+`indoor`にはさらに`cooling`（`none`／`recommended`／`required`）と
 `coolingLabel`が加わります。
 
-`days[]`の各要素は`date`、`temperatureMin`/`temperatureMax`、
-`weatherCode`/`weatherLabel`、`outdoorWorst`/`outdoorBest`、
-`recommendedHours`、`coolingRequired`、`laundry`（score・level・label・
-fursuitDryingHours・moldWarning・advice）を持ちます。
+`days[]`の各要素は`date`・`temperatureMin`・`temperatureMax`・
+`weatherCode`・`weatherLabel`・`outdoorWorst`・`outdoorBest`・
+`recommendedHours`・`coolingRequired`・`laundry`（`score`・`level`・`label`・
+`fursuitDryingHours`・`moldWarning`・`advice`）を持ちます。
 
 詳細な仕様とレスポンス例は
 [公開サイトの説明ページ](https://fursuit-weather.223n.tech/about)を

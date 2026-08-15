@@ -125,12 +125,13 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             </tr>
           </thead>
           <tbody>
-            <!-- 記号（◎○△✕）は色弱対応の視覚補助のため、読み上げはラベルのみとする -->
-            <tr><th scope="row">21℃未満</th><td><span aria-hidden="true">◎ </span>ほぼ安全</td><td>45分</td></tr>
-            <tr><th scope="row">21<span aria-hidden="true">〜</span><span class="sr-only">から</span>25℃</th><td><span aria-hidden="true">○ </span>注意</td><td>30分</td></tr>
-            <tr><th scope="row">25<span aria-hidden="true">〜</span><span class="sr-only">から</span>28℃</th><td><span aria-hidden="true">△ </span>警戒</td><td>20分</td></tr>
-            <tr><th scope="row">28<span aria-hidden="true">〜</span><span class="sr-only">から</span>31℃</th><td><span aria-hidden="true">✕ </span>厳重警戒</td><td>10分</td></tr>
-            <tr><th scope="row">31℃以上</th><td>危険</td><td>着用中止</td></tr>
+            <!-- 判定と上限目安は予報画面と同じバッジ表示（色+記号+文字）で示す。
+                 記号・アイコンは色弱対応の視覚補助のため、読み上げはラベルのみとする -->
+            <tr><th scope="row">21℃未満</th><td><span class="badge grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span></td><td><span class="badge grade-0"><span class="symbol" aria-hidden="true">◎</span>45分</span></td></tr>
+            <tr><th scope="row">21<span aria-hidden="true">〜</span><span class="sr-only">から</span>25℃</th><td><span class="badge grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span></td><td><span class="badge grade-1"><span class="symbol" aria-hidden="true">○</span>30分</span></td></tr>
+            <tr><th scope="row">25<span aria-hidden="true">〜</span><span class="sr-only">から</span>28℃</th><td><span class="badge grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span></td><td><span class="badge grade-2"><span class="symbol" aria-hidden="true">△</span>20分</span></td></tr>
+            <tr><th scope="row">28<span aria-hidden="true">〜</span><span class="sr-only">から</span>31℃</th><td><span class="badge grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span></td><td><span class="badge grade-3"><span class="symbol" aria-hidden="true">✕</span>10分</span></td></tr>
+            <tr><th scope="row">31℃以上</th><td><span class="badge grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M367.2 412.5L99.5 144.8c-22.4 31.4-35.5 69.8-35.5 111.2 0 106 86 192 192 192 41.5 0 79.9-13.1 111.2-35.5zm45.3-45.3c22.4-31.4 35.5-69.8 35.5-111.2 0-106-86-192-192-192-41.5 0-79.9 13.1-111.2 35.5L412.5 367.2zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"/></svg></span>危険</span></td><td><span class="badge grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M367.2 412.5L99.5 144.8c-22.4 31.4-35.5 69.8-35.5 111.2 0 106 86 192 192 192 41.5 0 79.9-13.1 111.2-35.5zm45.3-45.3c22.4-31.4 35.5-69.8 35.5-111.2 0-106-86-192-192-192-41.5 0-79.9 13.1-111.2 35.5L412.5 367.2zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"/></svg></span>中止</span><span class="sr-only">（着用中止）</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -156,15 +157,34 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       <h3>屋内判定と冷房要否</h3>
       <p>
         屋内は日射なし・微風（空調のない会場で室温が外気温と同程度になる場合）を想定した参考値です。
-        着ぐるみ補正後のWBGTが25℃以上で「冷房必須」、21℃以上で「冷房推奨」と判定します。
+        着ぐるみ補正後のWBGTが25℃以上で
+        <span class="badge grade-3"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M288.2 0c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 62.1-15-15c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l49 49 0 70.6-61.2-35.3-17.9-66.9c-3.4-12.8-16.6-20.4-29.4-17S95.3 98 98.7 110.8l5.5 20.5-53.7-31C35.2 91.5 15.6 96.7 6.8 112s-3.6 34.9 11.7 43.7l53.7 31-20.5 5.5c-12.8 3.4-20.4 16.6-17 29.4s16.6 20.4 29.4 17l66.9-17.9 61.2 35.3-61.2 35.3-66.9-17.9c-12.8-3.4-26 4.2-29.4 17s4.2 26 17 29.4l20.5 5.5-53.7 31C3.2 365.1-2 384.7 6.8 400s28.4 20.6 43.7 11.7l53.7-31-5.5 20.5c-3.4 12.8 4.2 26 17 29.4s26-4.2 29.4-17l17.9-66.9 61.2-35.3 0 70.6-49 49c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l15-15 0 62.1c0 17.7 14.3 32 32 32s32-14.3 32-32l0-62.1 15 15c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-49-49 0-70.6 61.2 35.3 17.9 66.9c3.4 12.8 16.6 20.4 29.4 17s20.4-16.6 17-29.4l-5.5-20.5 53.7 31c15.3 8.8 34.9 3.6 43.7-11.7s3.6-34.9-11.7-43.7l-53.7-31 20.5-5.5c12.8-3.4 20.4-16.6 17-29.4s-16.6-20.4-29.4-17l-66.9 17.9-61.2-35.3 61.2-35.3 66.9 17.9c12.8 3.4 26-4.2 29.4-17s-4.2-26-17-29.4l-20.5-5.5 53.7-31c15.3-8.8 20.6-28.4 11.7-43.7s-28.4-20.5-43.7-11.7l-53.7 31 5.5-20.5c3.4-12.8-4.2-26-17-29.4s-26 4.2-29.4 17l-17.9 66.9-61.2 35.3 0-70.6 49-49c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-15 15 0-62.1z"/></svg>✕</span>冷房必須</span>、
+        21℃以上で
+        <span class="badge grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M288.2 0c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 62.1-15-15c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l49 49 0 70.6-61.2-35.3-17.9-66.9c-3.4-12.8-16.6-20.4-29.4-17S95.3 98 98.7 110.8l5.5 20.5-53.7-31C35.2 91.5 15.6 96.7 6.8 112s-3.6 34.9 11.7 43.7l53.7 31-20.5 5.5c-12.8 3.4-20.4 16.6-17 29.4s16.6 20.4 29.4 17l66.9-17.9 61.2 35.3-61.2 35.3-66.9-17.9c-12.8-3.4-26 4.2-29.4 17s4.2 26 17 29.4l20.5 5.5-53.7 31C3.2 365.1-2 384.7 6.8 400s28.4 20.6 43.7 11.7l53.7-31-5.5 20.5c-3.4 12.8 4.2 26 17 29.4s26-4.2 29.4-17l17.9-66.9 61.2-35.3 0 70.6-49 49c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l15-15 0 62.1c0 17.7 14.3 32 32 32s32-14.3 32-32l0-62.1 15 15c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-49-49 0-70.6 61.2 35.3 17.9 66.9c3.4 12.8 16.6 20.4 29.4 17s20.4-16.6 17-29.4l-5.5-20.5 53.7 31c15.3 8.8 34.9 3.6 43.7-11.7s3.6-34.9-11.7-43.7l-53.7-31 20.5-5.5c12.8-3.4 20.4-16.6 17-29.4s-16.6-20.4-29.4-17l-66.9 17.9-61.2-35.3 61.2-35.3 66.9 17.9c12.8 3.4 26-4.2 29.4-17s-4.2-26-17-29.4l-20.5-5.5 53.7-31c15.3-8.8 20.6-28.4 11.7-43.7s-28.4-20.5-43.7-11.7l-53.7 31 5.5-20.5c3.4-12.8-4.2-26-17-29.4s-26 4.2-29.4 17l-17.9 66.9-61.2 35.3 0-70.6 49-49c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-15 15 0-62.1z"/></svg>○</span>冷房推奨</span>
+        と判定します。
       </p>
 
       <h3>洗濯乾燥指数</h3>
       <p>
         Tetensの式による飽和水蒸気圧から飽差（VPD: 空気の乾きやすさ）を求め、
         風速関数を掛けた乾燥スピードを干し時間帯（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>15時）で積算して0<span aria-hidden="true">〜</span><span class="sr-only">から</span>100に指数化します。
-        降水時は「外干しNG」、平均気温5℃未満は「乾きにくい（低温）」となります。
+        降水時は
+        <span class="badge grade-3 cold"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M96 320c-53 0-96-43-96-96 0-42.5 27.6-78.6 65.9-91.2-1.3-6.7-1.9-13.7-1.9-20.8 0-61.9 50.1-112 112-112 43.1 0 80.5 24.3 99.2 60 14.7-17.1 36.5-28 60.8-28 44.2 0 80 35.8 80 80 0 5.5-.6 10.8-1.6 16 .5 0 1.1 0 1.6 0 53 0 96 43 96 96s-43 96-96 96L96 320zm1.6 68.2c1.1-2.5 3.6-4.2 6.4-4.2s5.3 1.6 6.4 4.2l30.2 68.2c2.2 5.1 3.4 10.5 3.4 16 0 21.9-18.1 39.6-40 39.6s-40-17.7-40-39.6c0-5.5 1.2-11 3.4-16l30.2-68.2zm152 0c1.1-2.5 3.6-4.2 6.4-4.2s5.3 1.6 6.4 4.2l30.2 68.2c2.2 5.1 3.4 10.5 3.4 16 0 21.9-18.1 39.6-40 39.6s-40-17.7-40-39.6c0-5.5 1.2-11 3.4-16l30.2-68.2zm121.8 68.2l30.2-68.2c1.1-2.5 3.6-4.2 6.4-4.2s5.3 1.6 6.4 4.2l30.2 68.2c2.2 5.1 3.4 10.5 3.4 16 0 21.9-18.1 39.6-40 39.6s-40-17.7-40-39.6c0-5.5 1.2-11 3.4-16z"/></svg>✕</span>外干しNG（雨）</span>、
+        平均気温5℃未満は
+        <span class="badge grade-3 cold"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M96 96c0-53 43-96 96-96s96 43 96 96l0 164.7c29.5 26.4 48 64.7 48 107.3 0 79.5-64.5 144-144 144S48 447.5 48 368c0-42.6 18.5-81 48-107.3L96 96zm96 336c35.3 0 64-28.7 64-64 0-26.9-16.5-49.9-40-59.3l0-28.7c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 28.7c-23.5 9.5-40 32.5-40 59.3 0 35.3 28.7 64 64 64zM464 80a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM352 80a80 80 0 1 1 160 0 80 80 0 1 1 -160 0z"/></svg>✕</span>乾きにくい（低温）</span>
+        となります。
       </p>
+      <!-- 平易な補足説明の情報ボックス（アイコンは装飾のため読み上げ対象外） -->
+      <div class="info-box" role="note">
+        <svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM216 336l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-208a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></svg>
+        <p>
+          かんたんに言うと: Tetensの式は「気温から、空気が抱えられる水蒸気の上限を求める式」です。
+          空気は温かいほど多くの水蒸気を抱えられ、10℃上がると上限はほぼ2倍になります。
+          上限までの残り（飽差）が大きいほど、洗濯物の水分が空気へ移りやすくなります。
+          つまり「気温が高く、湿度が低く、風がある日ほどよく乾く」という経験則を、
+          そのまま計算式にしたものです。
+        </p>
+      </div>
       <p>
         着ぐるみの全身洗いは扇風機併用で24<span aria-hidden="true">〜</span><span class="sr-only">から</span>48時間の乾燥目安を表示し、
         乾きにくい日はカビ警告を出します。乾燥機は熱でファーが傷むため使用禁止です。
@@ -190,10 +210,10 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <!-- 必須欄は「○」「-」だと読み上げで意味が伝わらないため、言葉で記載する -->
-            <tr><th scope="row">lat</th><td>必須</td><td>緯度（-90<span aria-hidden="true">〜</span><span class="sr-only">から</span>90）</td></tr>
-            <tr><th scope="row">lon</th><td>必須</td><td>経度（-180<span aria-hidden="true">〜</span><span class="sr-only">から</span>180）</td></tr>
-            <tr><th scope="row">days</th><td>任意</td><td>予報日数（1<span aria-hidden="true">〜</span><span class="sr-only">から</span>4、デフォルト4）</td></tr>
-            <tr><th scope="row">demo</th><td>任意</td><td><code>1</code>でデモデータを返す</td></tr>
+            <tr><th scope="row"><code>lat</code></th><td>必須</td><td>緯度（-90<span aria-hidden="true">〜</span><span class="sr-only">から</span>90）</td></tr>
+            <tr><th scope="row"><code>lon</code></th><td>必須</td><td>経度（-180<span aria-hidden="true">〜</span><span class="sr-only">から</span>180）</td></tr>
+            <tr><th scope="row"><code>days</code></th><td>任意</td><td>予報日数（1<span aria-hidden="true">〜</span><span class="sr-only">から</span>4、デフォルト4）</td></tr>
+            <tr><th scope="row"><code>demo</code></th><td>任意</td><td><code>1</code>でデモデータを返す</td></tr>
           </tbody>
         </table>
       </div>
@@ -203,6 +223,9 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
 
       <h3>レスポンスJSONの仕様</h3>
       <p>レスポンスのトップレベルは以下のフィールドで構成されます。</p>
+      <p class="hint">
+        表内の要素名の区切りは、並列のフィールドを「・」、いずれか1つを取る値を「／」で表記しています。
+      </p>
       <div class="table-wrapper">
         <table>
           <caption class="sr-only">レスポンスのトップレベルフィールド</caption>
@@ -211,7 +234,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
-            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601）</td></tr>
+            <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601・UTC、例: <code>2026-08-15T09:00:00.000Z</code>）</td></tr>
             <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
             <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
             <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
