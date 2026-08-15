@@ -197,6 +197,28 @@
     return wrapper;
   }
 
+  /** 補足情報（指数など）の囲み表示を作る */
+  function createInfoChip(text) {
+    const chip = document.createElement('span');
+    chip.className = 'info-chip';
+    chip.textContent = text;
+    return chip;
+  }
+
+  /** 注意書き（黄色の囲み+注意アイコン）を作る
+   * アイコンは装飾のため読み上げ対象外とし、代わりに「注意:」を読み上げさせる */
+  function createWarningNote(text) {
+    const note = document.createElement('span');
+    note.className = 'warning-note';
+    note.appendChild(faIcon('triangle-exclamation'));
+    const srPrefix = document.createElement('span');
+    srPrefix.className = 'sr-only';
+    srPrefix.textContent = '注意: ';
+    note.appendChild(srPrefix);
+    note.appendChild(document.createTextNode(text));
+    return note;
+  }
+
   /** 洗濯乾燥レベルごとのバッジ設定（色+記号）
    * 雨・低温は青系（雨雲・温度計アイコン付き）、乾きにくいほど暖色に近づける。
    * gradeの既定記号（GRADE_SYMBOLS）と同じ場合はsymbolを省略する */
@@ -296,17 +318,6 @@
     weatherLine.appendChild(weatherContent);
     card.appendChild(weatherLine);
 
-    // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
-    const mainCaption = document.createElement('p');
-    mainCaption.className = 'main-judgement-caption';
-    mainCaption.textContent = '屋外判定（日中の最も厳しい時間帯）';
-    card.appendChild(mainCaption);
-
-    const mainJudgement = document.createElement('p');
-    mainJudgement.className = 'main-judgement';
-    mainJudgement.appendChild(createBadge(day.outdoorWorst, true));
-    card.appendChild(mainJudgement);
-
     const list = document.createElement('dl');
 
     const addRow = (label, valueNode) => {
@@ -322,14 +333,19 @@
       list.appendChild(dd);
     };
 
+    // その日の屋外判定（最も厳しい時間帯）を大きなアイコン+文字で表示する
+    // （項目名のフォントを他項目と揃えるため、専用の段落ではなくdlの1行にする）
+    addRow('屋外判定（日中の最も厳しい時間帯）', createBadge(day.outdoorWorst, true));
+
     const hasRecommended = day.recommendedHours.length > 0;
-    addRow(
-      '活動しやすい時間帯',
-      badgeWithText(
-        hasRecommended ? { grade: 0, label: 'あり' } : { grade: 3, label: 'なし' },
-        hasRecommended ? day.recommendedHours.join('、') : '休憩と冷却を最優先に',
-      ),
+    const activityValue = badgeWithText(
+      hasRecommended ? { grade: 0, label: 'あり' } : { grade: 3, label: 'なし' },
+      hasRecommended ? day.recommendedHours.join('、') : null,
     );
+    if (!hasRecommended) {
+      activityValue.appendChild(createWarningNote('休憩と冷却を最優先に'));
+    }
+    addRow('活動しやすい時間帯', activityValue);
     // 日別サマリーのAPIレスポンス（coolingRequired）にはラベルが無いため、ここの文言はフロントで持つ
     addRow(
       '屋内（空調なしの場合）',
@@ -339,13 +355,12 @@
           : { grade: 0, label: '冷房なしでも可の時間帯あり' },
       ),
     );
-    addRow(
-      '洗濯・乾燥',
-      badgeWithText(
-        { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
-        `指数${day.laundry.score}`,
-      ),
+    const laundryValue = badgeWithText(
+      { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
+      null,
     );
+    laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
+    addRow('洗濯・乾燥', laundryValue);
     addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
 
     card.appendChild(list);

@@ -340,15 +340,29 @@ button:focus {
   font-size: 1.6em;
 }
 
-/* 日別カードのメイン判定表示 */
-.main-judgement-caption {
-  margin: 0 0 0.2rem;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+/* 注意書き（黄色の囲み+注意アイコン）。バッジの隣にインラインで表示する */
+.warning-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border: 2px solid var(--level-1-accent);
+  border-radius: 6px;
+  background-color: var(--level-1-surface);
 }
 
-.main-judgement {
-  margin: 0 0 0.6rem;
+.warning-note > .fa-icon {
+  color: var(--level-1-accent);
+}
+
+/* 補足情報の囲み（指数など）。注意書きと同じ形状の中立色版 */
+.info-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
 }
 
 /* 凡例のアコーディオン（初期状態は閉じる） */
