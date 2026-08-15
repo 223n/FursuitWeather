@@ -233,10 +233,10 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="col">フィールド</th><th scope="col">型</th><th scope="col">説明</th></tr>
           </thead>
           <tbody>
-            <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。気象モデルの格子点に丸められた座標</td></tr>
+            <tr><th scope="row"><code>location</code></th><td>object</td><td>予報地点（<code>latitude</code>・<code>longitude</code>・<code>timezone</code>）。<br>気象モデルの格子点に丸められた座標</td></tr>
             <tr><th scope="row"><code>generatedAt</code></th><td>string</td><td>レスポンス生成時刻（ISO 8601・UTC、例: <code>2026-08-15T09:00:00.000Z</code>）</td></tr>
             <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
-            <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。表示時は出典の明記が必要</td></tr>
+            <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。<br>表示時は出典の明記が必要</td></tr>
             <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
             <tr><th scope="row"><code>hours</code></th><td>array</td><td>1時間ごとの予報（下表）</td></tr>
             <tr><th scope="row"><code>days</code></th><td>array</td><td>日別サマリー（下表）</td></tr>
@@ -266,7 +266,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             </td></tr>
             <tr><th scope="row"><code>weatherLabel</code></th><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
             <tr><th scope="row"><code>outdoor</code></th><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
-            <tr><th scope="row"><code>indoor</code></th><td>object</td><td>屋内の判定。判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
+            <tr><th scope="row"><code>indoor</code></th><td>object</td><td>屋内の判定。<br>判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
           </tbody>
         </table>
       </div>
@@ -281,9 +281,14 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           <tbody>
             <tr><th scope="row"><code>wbgt</code></th><td>number</td><td>素のWBGT推定値（℃）</td></tr>
             <tr><th scope="row"><code>suitWbgt</code></th><td>number</td><td>着ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
-            <tr><th scope="row"><code>level</code></th><td>string</td><td>レベルID。暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code>、低温側: <code>optimal</code>／<code>coldCaution</code>／<code>coldWarning</code>／<code>coldDanger</code></td></tr>
+            <tr><th scope="row"><code>level</code></th><td>string</td><td>レベルID:
+              <ul class="field-list">
+                <li>暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code></li>
+                <li>低温側: <code>optimal</code>／<code>coldCaution</code>／<code>coldWarning</code>／<code>coldDanger</code></li>
+              </ul>
+            </td></tr>
             <tr><th scope="row"><code>label</code></th><td>string</td><td>日本語ラベル（ほぼ安全・注意など）</td></tr>
-            <tr><th scope="row"><code>grade</code></th><td>number</td><td>深刻度（0=快適<span aria-hidden="true">〜</span><span class="sr-only">から</span>4=危険。色分け用）</td></tr>
+            <tr><th scope="row"><code>grade</code></th><td>number</td><td>深刻度（0=快適<span aria-hidden="true">〜</span><span class="sr-only">から</span>4=危険）。<br>色分け用</td></tr>
             <tr><th scope="row"><code>activityMinutes</code></th><td>number</td><td>連続活動時間の上限目安（分、0は着用中止）</td></tr>
             <tr><th scope="row"><code>advice</code></th><td>string</td><td>注意文</td></tr>
           </tbody>
@@ -302,7 +307,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>temperatureMin</code>・<code>temperatureMax</code></th><td>number</td><td>最低・最高気温（℃）</td></tr>
             <tr><th scope="row"><code>weatherCode</code>・<code>weatherLabel</code></th><td>number・string</td><td>日中の代表天気</td></tr>
             <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
-            <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式。深刻度1以下かつ降水なし）</td></tr>
+            <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式）。<br>深刻度1以下かつ降水なしの時間帯が対象</td></tr>
             <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
             <tr><th scope="row"><code>laundry</code></th><td>object</td><td>洗濯乾燥判定:
               <ul class="field-list">
