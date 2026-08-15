@@ -1,0 +1,24 @@
+# 依存パッケージ
+node_modules/
+
+# wrangler
+.wrangler/
+.dev.vars
+
+# 環境変数
+.env
+.env.local
+
+# ビルド成果物
+dist/
+
+# ログ
+*.log
+
+# エディタ
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
