@@ -468,6 +468,10 @@
   // （valueはCITIES配列のインデックスに対応）
   citySelect.addEventListener('change', loadSelectedCity);
 
+  // 「この地点を使う」: 現在地やデモの表示中でも、セレクトで選んだ地点にいつでも戻れる
+  // （セレクトの値が変わらないとchangeイベントが発火しないため、明示的なボタンを用意）
+  document.getElementById('city-button').addEventListener('click', loadSelectedCity);
+
   // 「予報を更新」は表示中の予報（現在地・デモを含む）と同じ条件で再取得する
   document.getElementById('reload-button').addEventListener('click', () => {
     if (lastQuery) {
