@@ -1,9 +1,12 @@
 // Open-Meteo JMAモデルAPIクライアント
 // 気象庁MSM（約5kmメッシュ・1時間粒度・4日先）を優先し、以降はGSMに自動接続する
 // jma_seamlessモデルのデータを取得する。APIキーは不要（非商用・要出典表記）
+// 降水確率のみ気象庁モデルにないため、標準予報APIから補完取得する（失敗しても
+// 予報本体は成功させるベストエフォート）
 
 import {
   OPEN_METEO_BASE_URL,
+  OPEN_METEO_FORECAST_BASE_URL,
   UPSTREAM_CACHE_TTL_SECONDS,
   UPSTREAM_TIMEOUT_MS,
 } from '../constants';
@@ -25,13 +28,6 @@ const HOURLY_FIELDS = [
   'wind_speed_10m',
 ] as const;
 
-/**
- * あれば使う任意のhourlyフィールド（表示の補助情報）
- * 上流モデルが提供しない可能性があるため、レスポンス検証では必須にせず、
- * 取得URLが400で拒否された場合は任意フィールドなしで再試行する
- */
-const OPTIONAL_HOURLY_FIELDS = ['precipitation_probability'] as const;
-
 /** Open-Meteoのレスポンスのうち本サービスが使用する部分 */
 interface OpenMeteoResponse {
   latitude: number;
@@ -46,8 +42,6 @@ interface OpenMeteoResponse {
     weather_code: (number | null)[];
     shortwave_radiation: (number | null)[];
     wind_speed_10m: (number | null)[];
-    /** 任意フィールド: 上流が提供しない場合は存在しない */
-    precipitation_probability?: (number | null)[];
   };
 }
 
@@ -59,30 +53,30 @@ export class UpstreamError extends Error {
   }
 }
 
-/**
- * 取得URLを組み立てる
- *
- * @param withOptionalFields falseなら任意フィールド（降水確率）を含めない（400時の再試行用）
- */
-export function buildForecastUrl(
-  latitude: number,
-  longitude: number,
-  days: number,
-  withOptionalFields = true,
-): string {
-  const fields: readonly string[] = withOptionalFields
-    ? [...HOURLY_FIELDS, ...OPTIONAL_HOURLY_FIELDS]
-    : HOURLY_FIELDS;
+/** 取得URLを組み立てる */
+export function buildForecastUrl(latitude: number, longitude: number, days: number): string {
   const params = new URLSearchParams({
     latitude: latitude.toFixed(4),
     longitude: longitude.toFixed(4),
-    hourly: fields.join(','),
+    hourly: HOURLY_FIELDS.join(','),
     timezone: 'Asia/Tokyo',
     // 風速はWBGT式に合わせてm/sで取得する（デフォルトはkm/h）
     wind_speed_unit: 'ms',
     forecast_days: String(days),
   });
   return `${OPEN_METEO_BASE_URL}?${params.toString()}`;
+}
+
+/** 降水確率の取得URL（標準予報API）を組み立てる */
+export function buildProbabilityUrl(latitude: number, longitude: number, days: number): string {
+  const params = new URLSearchParams({
+    latitude: latitude.toFixed(4),
+    longitude: longitude.toFixed(4),
+    hourly: 'precipitation_probability',
+    timezone: 'Asia/Tokyo',
+    forecast_days: String(days),
+  });
+  return `${OPEN_METEO_FORECAST_BASE_URL}?${params.toString()}`;
 }
 
 /**
@@ -111,7 +105,6 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
   const weatherCode = hourly.weather_code[index];
   const solarRadiation = hourly.shortwave_radiation[index];
   const windSpeed = hourly.wind_speed_10m[index];
-  const precipitationProbability = hourly.precipitation_probability?.[index];
 
   // WBGT計算に必要な項目（気温・湿度・体感温度・風速・日射量）の欠測・非数値は
   // その時間を破棄する。
@@ -135,10 +128,9 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
     apparentTemperature,
     // 降水量・天気コードは表示用のため、欠測・非数値でも既定値で補って時間を残す
     precipitation: isFiniteNumber(precipitation) ? precipitation : 0,
-    // 降水確率は任意フィールドのため、欠測・非提供はnull（フロントは「-」表示）
-    precipitationProbability: isFiniteNumber(precipitationProbability)
-      ? precipitationProbability
-      : null,
+    // 降水確率は気象庁モデルにないため、後段で標準予報APIの値を合流させる
+    // （合流できなかった時間はnullのまま。フロントは「-」表示）
+    precipitationProbability: null,
     weatherCode: isFiniteNumber(weatherCode) ? weatherCode : -1,
     solarRadiation,
     windSpeed,
@@ -192,34 +184,68 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
   };
 }
 
-/**
- * 上流が任意フィールドを拒否したことの記憶（アイソレート単位）
- * 恒常的な400のとき、400応答はエッジにキャッシュされないため、記憶しないと
- * 全リクエストが「400→再試行」の2往復になり無料枠保護が無効化される。
- * アイソレート再起動で自動リセットされるため、上流が対応すれば自然復帰する
- */
-let optionalFieldsRejected = false;
+/** 上流リクエスト共通の初期化子（UA・エッジキャッシュ・タイムアウト） */
+function upstreamInit(): RequestInit {
+  return {
+    headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
+    // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
+    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
+    cf: {
+      cacheTtl: UPSTREAM_CACHE_TTL_SECONDS,
+      cacheEverything: true,
+    },
+    // 上流の応答停滞時にユーザーリクエストを長時間待たせないための打ち切り。
+    // 中断はfetchのrejectとしてcatchに入り、既存のUpstreamError（502）分類に乗る
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  };
+}
 
-/** テスト用: 任意フィールド拒否の記憶をリセットする */
-export function resetOptionalFieldsRejected(): void {
-  optionalFieldsRejected = false;
+/**
+ * 降水確率を標準予報APIから取得し、時刻→確率のMapに変換する
+ * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
+ */
+async function fetchPrecipitationProbability(
+  latitude: number,
+  longitude: number,
+  days: number,
+  fetchImpl: typeof fetch,
+): Promise<Map<string, number>> {
+  const url = buildProbabilityUrl(latitude, longitude, days);
+  try {
+    const response = await fetchImpl(url, upstreamInit());
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).slice(0, 200);
+      console.error('降水確率APIエラー:', url, response.status, detail);
+      return new Map();
+    }
+    const data = (await response.json()) as {
+      hourly?: { time?: unknown; precipitation_probability?: unknown };
+    };
+    const times = data?.hourly?.time;
+    const probabilities = data?.hourly?.precipitation_probability;
+    if (!Array.isArray(times) || !Array.isArray(probabilities)) {
+      console.error('降水確率APIレスポンスの形式異常:', url);
+      return new Map();
+    }
+    const byTime = new Map<string, number>();
+    for (let i = 0; i < times.length; i += 1) {
+      const time = times[i];
+      const probability = probabilities[i];
+      if (typeof time === 'string' && isFiniteNumber(probability)) {
+        byTime.set(time, probability);
+      }
+    }
+    return byTime;
+  } catch (error) {
+    console.error('降水確率の取得に失敗:', url, error);
+    return new Map();
+  }
 }
 
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
 async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
-    return await fetchImpl(url, {
-      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-      // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
-      // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
-      cf: {
-        cacheTtl: UPSTREAM_CACHE_TTL_SECONDS,
-        cacheEverything: true,
-      },
-      // 上流の応答停滞時にユーザーリクエストを長時間待たせないための打ち切り。
-      // 中断はfetchのrejectとしてcatchに入り、既存のUpstreamError（502）分類に乗る
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    return await fetchImpl(url, upstreamInit());
   } catch (error) {
     // 原因（英語のランタイムメッセージ）はログにのみ残し、
     // 利用者へ返すメッセージには固定の日本語文を使う
@@ -236,7 +262,7 @@ async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Re
 /**
  * 時間別の気象データを取得する
  * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
- * 任意フィールドが原因の400は必須フィールドのみで一度だけ再試行する
+ * 降水確率は標準予報APIから並行取得して合流させる（ベストエフォート）
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
@@ -246,19 +272,11 @@ export async function fetchWeather(
   days: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<WeatherResult> {
-  let url = buildForecastUrl(latitude, longitude, days, !optionalFieldsRejected);
-  let response = await requestUpstream(url, fetchImpl);
-
-  if (response.status === 400 && !optionalFieldsRejected) {
-    // 任意フィールド（降水確率）を上流モデルが受け付けない場合に備え、
-    // 必須フィールドのみのURLで一度だけ再試行する（恒常的な400ならログで気付ける）。
-    // 以後のリクエストは最初からフォールバックURLを使い、エッジキャッシュの保護下に戻す
-    const detail = (await response.text().catch(() => '')).slice(0, 200);
-    console.error('気象データAPIが400を返したため任意フィールドなしで再試行:', url, detail);
-    optionalFieldsRejected = true;
-    url = buildForecastUrl(latitude, longitude, days, false);
-    response = await requestUpstream(url, fetchImpl);
-  }
+  const url = buildForecastUrl(latitude, longitude, days);
+  const [response, probabilities] = await Promise.all([
+    requestUpstream(url, fetchImpl),
+    fetchPrecipitationProbability(latitude, longitude, days, fetchImpl),
+  ]);
 
   if (!response.ok) {
     // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す。
@@ -286,12 +304,19 @@ export async function fetchWeather(
     throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
   }
 
+  let result: WeatherResult;
   try {
-    return parseWeatherResponse(data);
+    result = parseWeatherResponse(data);
   } catch (error) {
     if (error instanceof UpstreamError) {
       console.error('気象データAPIレスポンスの形式異常:', url, raw.slice(0, 200));
     }
     throw error;
   }
+
+  // 降水確率（標準予報API由来）を時刻で突き合わせて合流させる
+  for (const hour of result.hours) {
+    hour.precipitationProbability = probabilities.get(hour.time) ?? null;
+  }
+  return result;
 }

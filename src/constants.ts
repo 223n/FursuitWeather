@@ -239,6 +239,12 @@ export const RECOMMENDED_MAX_GRADE = 1;
 /** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
 export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
 
+/**
+ * Open-Meteo標準予報API（複数モデルの合成）
+ * 降水確率は気象庁モデルAPIでは提供されないため、この標準APIから補完取得する
+ */
+export const OPEN_METEO_FORECAST_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
 /** Open-Meteoジオコーディングv1 API（都市名・郵便番号から座標を検索する） */
 export const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 

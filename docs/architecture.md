@@ -23,6 +23,8 @@ flowchart LR
   （詳細は[開発ガイド](development.md)）
 - 上流はOpen-MeteoのJMAモデルAPI（`jma_seamless`）で、気象庁MSM
   （約5kmメッシュ・1時間粒度・4日先）のデータを取得します
+- 降水確率のみ気象庁モデルAPIにないため、Open-Meteo標準予報APIから
+  並行取得して補完します（取得失敗時も予報本体は成功させます）
 
 ## ソースコード構成
 
