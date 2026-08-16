@@ -6,9 +6,9 @@ import { handleForecast } from '../src/api/forecast';
 import { UPSTREAM_CACHE_TTL_SECONDS } from '../src/constants';
 import {
   buildForecastUrl,
+  buildProbabilityUrl,
   fetchWeather,
   parseWeatherResponse,
-  resetOptionalFieldsRejected,
   UpstreamError,
 } from '../src/weather/openMeteo';
 
@@ -36,17 +36,40 @@ function openMeteoBody(): unknown {
       weather_code: time.map(() => 1),
       shortwave_radiation: time.map(() => 400),
       wind_speed_10m: time.map(() => 2),
+    },
+  };
+}
+
+/** 標準予報API（降水確率）レスポンスのモックを作る */
+function probabilityBody(): unknown {
+  const time: string[] = [];
+  for (let hour = 0; hour < 24; hour += 1) {
+    time.push(`2026-08-15T${String(hour).padStart(2, '0')}:00`);
+  }
+  return {
+    hourly: {
+      time,
       precipitation_probability: time.map(() => 30),
     },
   };
+}
+
+/** URLに応じてJMAモデルAPIと標準予報API（降水確率）を出し分けるfetch実装を作る */
+function routeUpstream(
+  probabilityResponse: () => Response | Promise<Response>,
+): typeof fetch {
+  return (async (input: RequestInfo | URL) => {
+    if (String(input).includes('/v1/forecast')) {
+      return probabilityResponse();
+    }
+    return new Response(JSON.stringify(openMeteoBody()), { status: 200 });
+  }) as typeof fetch;
 }
 
 beforeEach(() => {
   // 上流エラー経路はconsole.errorへログするため、テスト出力を汚さないよう差し替える
   // （ログ内容のアサーションにも使う）
   vi.spyOn(console, 'error').mockImplementation(() => {});
-  // 任意フィールド拒否の記憶（モジュール可変状態）をテスト間で持ち越さない
-  resetOptionalFieldsRejected();
 });
 
 afterEach(() => {
@@ -86,32 +109,6 @@ describe('handleForecast', () => {
     const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: unknown };
     expect(init.cf).toEqual({ cacheTtl: UPSTREAM_CACHE_TTL_SECONDS, cacheEverything: true });
     expect(init.signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it('上流が400を返した場合は任意フィールドなしで一度だけ再試行する', async () => {
-    // 降水確率フィールドを上流モデルが受け付けないケースへの防御
-    const fetchMock = vi
-      .fn(
-        async (_input: RequestInfo | URL, _init?: RequestInit) =>
-          new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
-      )
-      .mockResolvedValueOnce(
-        new Response('{"error":true,"reason":"Cannot initialize"}', { status: 400 }),
-      );
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[0]![0])).toContain('precipitation_probability');
-    expect(String(fetchMock.mock.calls[1]![0])).not.toContain('precipitation_probability');
-    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
-      expect.stringContaining('再試行'),
-      expect.stringContaining('latitude='),
-      expect.stringContaining('Cannot initialize'),
-    );
   });
 
   it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
@@ -365,19 +362,9 @@ describe('parseWeatherResponse', () => {
     expect(result.hours).toHaveLength(23);
   });
 
-  it('降水確率は任意フィールドとして扱う（提供時は値、欠落・非数値はnull）', () => {
-    const withProbability = parseWeatherResponse(openMeteoBody());
-    expect(withProbability.hours[0]!.precipitationProbability).toBe(30);
-
-    const withoutField = openMeteoBody() as { hourly: Record<string, unknown> };
-    delete withoutField.hourly['precipitation_probability'];
-    const parsed = parseWeatherResponse(withoutField);
-    expect(parsed.hours).toHaveLength(24);
-    expect(parsed.hours[0]!.precipitationProbability).toBeNull();
-
-    const broken = openMeteoBody() as { hourly: { precipitation_probability: unknown[] } };
-    broken.hourly.precipitation_probability[2] = '50';
-    expect(parseWeatherResponse(broken).hours[2]!.precipitationProbability).toBeNull();
+  it('降水確率はJMAレスポンスの解析段階では常にnull（後段で標準予報APIから合流する）', () => {
+    const parsed = parseWeatherResponse(openMeteoBody());
+    expect(parsed.hours.every((h) => h.precipitationProbability === null)).toBe(true);
   });
 
   it('時刻が文書契約の形式（YYYY-MM-DDTHH:mm）でない時間は破棄する', () => {
@@ -391,6 +378,55 @@ describe('parseWeatherResponse', () => {
 });
 
 describe('fetchWeather', () => {
+  it('降水確率を標準予報APIから取得し、時刻で突き合わせて合流させる', async () => {
+    const fetchImpl = routeUpstream(
+      () => new Response(JSON.stringify(probabilityBody()), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.hours).toHaveLength(24);
+    expect(result.hours.every((h) => h.precipitationProbability === 30)).toBe(true);
+  });
+
+  it('降水確率の取得に失敗しても予報本体は成功する（確率はnull）', async () => {
+    const fetchImpl = routeUpstream(() => new Response('error', { status: 500 }));
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.hours).toHaveLength(24);
+    expect(result.hours.every((h) => h.precipitationProbability === null)).toBe(true);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '降水確率APIエラー:',
+      expect.stringContaining('/v1/forecast'),
+      500,
+      'error',
+    );
+  });
+
+  it('降水確率レスポンスの形式異常・時刻不一致・非数値はnullとして扱う', async () => {
+    // 形式異常（hourly欠落）
+    const brokenShape = routeUpstream(
+      () => new Response(JSON.stringify({ message: 'ok' }), { status: 200 }),
+    );
+    const shapeResult = await fetchWeather(35.68, 139.68, 1, brokenShape);
+    expect(shapeResult.hours.every((h) => h.precipitationProbability === null)).toBe(true);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '降水確率APIレスポンスの形式異常:',
+      expect.stringContaining('/v1/forecast'),
+    );
+
+    // 時刻の不一致（別日）と要素の非数値は該当時間のみnull
+    const body = probabilityBody() as {
+      hourly: { time: string[]; precipitation_probability: unknown[] };
+    };
+    body.hourly.time[0] = '2030-01-01T00:00';
+    body.hourly.precipitation_probability[1] = '50';
+    const mismatched = routeUpstream(
+      () => new Response(JSON.stringify(body), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, mismatched);
+    expect(result.hours[0]!.precipitationProbability).toBeNull();
+    expect(result.hours[1]!.precipitationProbability).toBeNull();
+    expect(result.hours[2]!.precipitationProbability).toBe(30);
+  });
+
   it('接続失敗の原因はログにのみ残し、利用者向けには固定の日本語文を返す', async () => {
     const rejectWithString = (() => Promise.reject('接続拒否')) as unknown as typeof fetch;
     await expect(fetchWeather(35.68, 139.68, 1, rejectWithString)).rejects.toThrow(
@@ -401,59 +437,6 @@ describe('fetchWeather', () => {
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
     );
-  });
-
-  it('400での拒否を記憶し、以後のリクエストは最初からフォールバックURLを使う', async () => {
-    // 恒常的な400のとき毎回2往復になるとエッジキャッシュの無料枠保護が無効化されるため、
-    // 拒否をアイソレート単位で記憶して1回目以降は必須フィールドのみで取得する
-    const fetchMock = vi
-      .fn(
-        async (_input: RequestInfo | URL, _init?: RequestInit) =>
-          new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
-      )
-      .mockResolvedValueOnce(new Response('bad request', { status: 400 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    await handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'));
-    // 2回目のリクエストは再試行なしの1回で、任意フィールドを含まないURLになる
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(String(fetchMock.mock.calls[2]![0])).not.toContain('precipitation_probability');
-  });
-
-  it('拒否記憶後の400は再試行せずそのまま502になる', async () => {
-    const fetchMock = vi.fn(async () => new Response('bad request', { status: 400 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    // 1回目: 400→再試行（これも400）→502
-    const first = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(first.status).toBe(502);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // 2回目: 記憶済みのため再試行せず1回で502
-    const second = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(second.status).toBe(502);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('400応答の本文が読めなくても任意フィールドなしの再試行は行われる', async () => {
-    const responses: Response[] = [
-      {
-        ok: false,
-        status: 400,
-        text: () => Promise.reject(new Error('切断')),
-      } as unknown as Response,
-      new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
-    ];
-    const fetchImpl = (async () => responses.shift()!) as unknown as typeof fetch;
-    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
-    expect(result.hours).toHaveLength(24);
   });
 
   it('200応答の本文読み取りに失敗した場合は解析失敗として扱い、原因をログに残す', async () => {
@@ -512,7 +495,7 @@ describe('buildForecastUrl', () => {
     expect(url.searchParams.get('forecast_days')).toBe('4');
   });
 
-  it('hourlyパラメータは必要フィールド+任意フィールドと完全一致する（timeを含めない）', () => {
+  it('hourlyパラメータは必要フィールドと完全一致する（timeを含めない）', () => {
     // 検証用フィールド一覧（HOURLY_FIELDS）と取得URLの意図しない乖離を検出する。
     // 'time'はレスポンス専用で、URLに含めると上流がエラーを返すため完全一致で確認する
     const url = new URL(buildForecastUrl(35.6785, 139.6823, 4));
@@ -525,13 +508,18 @@ describe('buildForecastUrl', () => {
         'weather_code',
         'shortwave_radiation',
         'wind_speed_10m',
-        'precipitation_probability',
       ].join(','),
     );
   });
+});
 
-  it('withOptionalFields=falseでは任意フィールドを含まないURLになる（400時の再試行用）', () => {
-    const url = new URL(buildForecastUrl(35.6785, 139.6823, 4, false));
-    expect(url.searchParams.get('hourly')).not.toContain('precipitation_probability');
+describe('buildProbabilityUrl', () => {
+  it('降水確率は標準予報APIから取得するURLになる', () => {
+    // 気象庁モデルAPIは降水確率を提供しないため、標準予報APIを指すことを固定する
+    const url = new URL(buildProbabilityUrl(35.6785, 139.6823, 4));
+    expect(url.origin + url.pathname).toBe('https://api.open-meteo.com/v1/forecast');
+    expect(url.searchParams.get('hourly')).toBe('precipitation_probability');
+    expect(url.searchParams.get('timezone')).toBe('Asia/Tokyo');
+    expect(url.searchParams.get('forecast_days')).toBe('4');
   });
 });

@@ -54,7 +54,8 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - `humidity`（%）
 - `apparentTemperature`（℃）
 - `precipitation`（mm）
-- `precipitationProbability`（%。上流が提供しない場合・欠測時は`null`）
+- `precipitationProbability`（%。気象庁モデルにないためOpen-Meteo標準
+  予報APIから補完。取得できない場合・欠測時は`null`）
 - `weatherCode`（WMOコード。欠測時は`-1`）
 - `solarRadiation`（W/m²）
 - `windSpeed`（m/s）
