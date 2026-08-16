@@ -148,8 +148,12 @@
         <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
         <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>表示地点の予報を共有</button>
       </div>
-      <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外） -->
-      <ul id="search-results" class="search-results" aria-label="地点検索の候補" hidden></ul>
+      <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
+           候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
+      <div id="search-results-box" class="search-results-box" hidden>
+        <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
+        <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
+      </div>
       <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
       <p id="location-label" class="location-label"></p>
       <p class="control-note">

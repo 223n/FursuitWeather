@@ -32,7 +32,11 @@ export async function handleGeocode(request: Request): Promise<Response> {
 
   try {
     const results = await fetchGeocoding(query);
-    return json({ results }, 200, true);
+    // レスポンス自体はブラウザにキャッシュさせない（no-store）。検索ロジックの
+    // 改善・修正後も古い「0件」応答が利用者のブラウザに残り続けるのを防ぐため。
+    // 上流への問い合わせはgeocoding.ts側でエッジに7日間キャッシュされるので、
+    // 上流の無料枠への負荷は増えない
+    return json({ results });
   } catch (error) {
     if (error instanceof UpstreamError) {
       console.error('地点検索の上流エラー:', url.pathname + url.search, error.message);

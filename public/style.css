@@ -256,9 +256,24 @@ input[type='number']:focus {
   margin: 0.35rem 0;
 }
 
+/* 検索結果の候補一覧。他のコントロールボタンと見分けが付くよう、
+ * ラベル付きの枠で囲って「選ぶ場所」であることを明示する */
+.search-results-box {
+  border: 2px solid var(--color-blue);
+  border-radius: 8px;
+  background-color: var(--level-cold-surface);
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.search-results-label {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+}
+
 .search-results {
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
