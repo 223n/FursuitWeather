@@ -27,7 +27,7 @@
   <link rel="canonical" href="https://fursuit-weather.223n.tech/">
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
-  <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch">
+  <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch" crossorigin>
   <script src="/app.js" defer></script>
   <!-- 構造化データ（JSON-LD）: 検索エンジンにサイト名とアプリの性質を伝える -->
   <script type="application/ld+json">

@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 import apiMd from '../docs/api.md?raw';
+import logicMd from '../docs/logic.md?raw';
 import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
@@ -42,10 +43,22 @@ describe('静的HTMLとconstantsの同期', () => {
 
   it('凡例の連続活動時間はHEAT_BANDSのactivityMinutesと一致する', () => {
     // 「危険」帯（activityMinutes=0、分数表記なし）は対象外。
-    // 低温側の凡例（低温注意）はCOLD_BANDS由来のため、ここでは検証しない
+    // 低温側の凡例（低温注意）はCOLD_BANDS由来のため、次のテストで検証する
     for (const band of HEAT_BANDS.filter((b) => b.activityMinutes > 0)) {
       expect(html).toContain(`連続${band.activityMinutes}分`);
     }
+  });
+
+  it('凡例の低温バッジはcoldCautionのラベルとgradeに一致する', () => {
+    const coldCaution = COLD_BANDS.find((b) => b.id === 'coldCaution');
+    expect(coldCaution).toBeDefined();
+    expect(html).toContain(`>${coldCaution!.label}</span>`);
+    expect(html).toContain(`cold grade-${coldCaution!.grade}`);
+  });
+
+  it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {
+    // as="fetch"のプリロードはcrossoriginがないとmodeが一致せず照合されない
+    expect(html).toMatch(/<link rel="preload" href="\/api\/forecast\?[^"]+" as="fetch" crossorigin>/);
   });
 });
 
@@ -93,6 +106,23 @@ describe('aboutページとconstantsの同期', () => {
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryRain);
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryCold);
     expect(aboutHtml).toContain(`平均気温${LAUNDRY.coldLimit}℃未満`);
+  });
+
+  it('干し時間帯と乾燥目安の数値がLAUNDRY定数と一致する', () => {
+    // 範囲記号「〜」はsr-only併記のマークアップで分断されるため、実マークアップ込みで比較する
+    const range = (from: number, to: string): string =>
+      `${from}<span aria-hidden="true">〜</span><span class="sr-only">から</span>${to}`;
+    expect(aboutHtml).toContain(
+      `干し時間帯（${range(LAUNDRY.windowStartHour, `${LAUNDRY.windowEndHour}時`)}）`,
+    );
+    expect(aboutHtml).toContain(
+      range(LAUNDRY.fursuitMinDryingHours, `${LAUNDRY.fursuitMaxDryingHours}時間`),
+    );
+  });
+
+  it('weatherCodeの欠測番兵値（-1）が公開仕様に明記されている', () => {
+    expect(aboutHtml).toContain('欠測時は<code>-1</code>');
+    expect(apiMd).toContain('欠測時は`-1`');
   });
 
   it('公開API仕様のレベルID列挙はunion型の全値を含む', () => {
@@ -155,14 +185,20 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
   // フォールバック表示に落ちて色・記号が深刻度と食い違うのを防ぐため、
   // Record型（キー網羅をtscが強制する）のキー一覧を経由して突き合わせる
   it('LAUNDRY_BADGESに全洗濯レベルのキーがある', () => {
+    // ファイル全文ではなくマップ定義ブロックにスコープし、別オブジェクトの
+    // 同名キーによる偶然の一致で空振りしないようにする
+    const block = appJs.match(/const LAUNDRY_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
     for (const key of Object.keys(LAUNDRY_LEVEL_LABELS)) {
-      expect(appJs).toContain(`${key}: {`);
+      expect(block![1]).toContain(`${key}: {`);
     }
   });
 
   it('COOLING_BADGESに全冷房要否のキーがある', () => {
+    const block = appJs.match(/const COOLING_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
     for (const key of Object.keys(COOLING_LABELS)) {
-      expect(appJs).toContain(`${key}: {`);
+      expect(block![1]).toContain(`${key}: {`);
     }
   });
 
@@ -171,6 +207,23 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
     // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
     expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+  });
+
+  it('判定ロジックの解説（docs/logic.md）のしきい値・係数はconstantsと一致する', () => {
+    // 判定表・係数の複製が最も濃いドキュメントを、既存のhtml同期方式で機械検証する
+    for (const band of HEAT_BANDS.filter((b) => b.activityMinutes > 0)) {
+      expect(logicMd).toContain(`| ${band.label} | ${band.activityMinutes}分 |`);
+    }
+    expect(logicMd).toContain(`| ${COOLING_REQUIRED_WBGT}℃以上 | 冷房必須 |`);
+    expect(logicMd).toContain(`| ${COOLING_RECOMMENDED_WBGT}℃以上 | 冷房推奨 |`);
+    expect(logicMd).toContain(
+      `干し時間帯（${LAUNDRY.windowStartHour}〜${LAUNDRY.windowEndHour}時）`,
+    );
+    expect(logicMd).toContain(`${LAUNDRY.windFactor} × 風速`);
+    expect(logicMd).toContain(
+      `${LAUNDRY.fursuitMinDryingHours}〜${LAUNDRY.fursuitMaxDryingHours}時間`,
+    );
+    expect(logicMd).toContain(`指数${LAUNDRY.moldWarningScore}未満`);
   });
 
   it('低温側レベルID（grade>0）は「cold」接頭辞を持つ', () => {

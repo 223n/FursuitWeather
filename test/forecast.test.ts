@@ -31,10 +31,14 @@ describe('buildHourForecast', () => {
 
 describe('buildDayForecast', () => {
   it('最高・最低気温と日中の最悪・最良レベルを集計する', () => {
-    const hours = fullDay('2026-08-15').map(buildHourForecast);
+    // 最低気温を日中帯（9〜18時）の外に置き、min/maxが全時間帯から集計される契約も固定する
+    const raw = fullDay('2026-08-15');
+    raw[3] = { ...raw[3]!, temperature: 18 };
+    raw[14] = { ...raw[14]!, temperature: 30 };
+    const hours = raw.map(buildHourForecast);
     const day = buildDayForecast('2026-08-15', hours);
-    expect(day.temperatureMin).toBe(24);
-    expect(day.temperatureMax).toBe(24);
+    expect(day.temperatureMin).toBe(18);
+    expect(day.temperatureMax).toBe(30);
     expect(day.outdoorWorst.grade).toBeGreaterThanOrEqual(day.outdoorBest.grade);
   });
 

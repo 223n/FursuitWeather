@@ -63,6 +63,7 @@ describe('handleForecast', () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toContain('max-age');
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
 
     const body = (await response.json()) as { hours: unknown[]; days: unknown[] };
     expect(body.hours).toHaveLength(24);
@@ -92,6 +93,8 @@ describe('handleForecast', () => {
   it('lat/lonがない場合は400を返す', async () => {
     const response = await handleForecast(new Request('https://example.com/api/forecast'));
     expect(response.status).toBe(400);
+    // エラーがブラウザにキャッシュされて復旧後も残り続けないこと（jsonErrorの契約）
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('lat');
   });
@@ -146,6 +149,7 @@ describe('handleForecast', () => {
       new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
     );
     expect(response.status).toBe(502);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('気象データの取得に失敗');
   });
@@ -172,6 +176,13 @@ describe('handleForecast', () => {
       '上流エラー:',
       expect.stringContaining('lat=35.68'),
       expect.any(String),
+    );
+    // 上流の失敗理由（レスポンス本文）もログに残る
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データAPIエラー:',
+      expect.stringContaining('latitude='),
+      500,
+      'error',
     );
   });
 
@@ -304,6 +315,23 @@ describe('fetchWeather', () => {
       '気象データの取得に失敗:',
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
+    );
+  });
+
+  it('上流エラー本文の読み取りに失敗しても、HTTPステータスのUpstreamErrorを返す', async () => {
+    // ボディ読み取り失敗はログ用のdetailが空になるだけで、エラー分類には影響しない
+    const brokenBody = (async () =>
+      ({
+        ok: false,
+        status: 503,
+        text: () => Promise.reject(new Error('読み取り失敗')),
+      }) as unknown as Response) as unknown as typeof fetch;
+    await expect(fetchWeather(35.68, 139.68, 1, brokenBody)).rejects.toThrow('HTTP 503');
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データAPIエラー:',
+      expect.stringContaining('latitude='),
+      503,
+      '',
     );
   });
 

@@ -12,7 +12,7 @@ export interface HourlyWeather {
   apparentTemperature: number;
   /** 降水量（mm） */
   precipitation: number;
-  /** WMO天気コード */
+  /** WMO天気コード（欠測時は-1） */
   weatherCode: number;
   /** 全天日射量（W/m²） */
   solarRadiation: number;
@@ -63,6 +63,8 @@ export type CoolingNeed = 'none' | 'recommended' | 'required';
 
 /** 屋内活動判定 */
 export interface IndoorAssessment extends ActivityAssessment {
+  /** 屋内は暑熱判定のみ行うため、レベルは暑熱側に限定される */
+  level: HeatLevelId;
   cooling: CoolingNeed;
   coolingLabel: string;
 }

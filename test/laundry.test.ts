@@ -102,6 +102,15 @@ describe('assessLaundry', () => {
     expect(result.advice).toContain('乾燥機');
   });
 
+  it('低温でも降水があれば雨が優先され「外干しNG（雨）」になる', () => {
+    // 冬の雨天日: 雨＞低温の優先順位とスコア0の強制を契約として固定する
+    const hours = dryingWindow({ temperature: 2, humidity: 40 });
+    hours[2] = { ...hours[2]!, precipitation: 1.5 };
+    const result = assessLaundry(hours);
+    expect(result.level).toBe('noDryRain');
+    expect(result.score).toBe(0);
+  });
+
   it('欠測で干し時間帯が部分的でも、同条件のフル時間帯と同じ指数になる', () => {
     // 指数が上限100で飽和すると正規化の退行を検出できないため、
     // 飽和しない穏やかな条件（スコア中位）で検証する

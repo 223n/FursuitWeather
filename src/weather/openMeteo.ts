@@ -199,6 +199,10 @@ export async function fetchWeather(
   }
 
   if (!response.ok) {
+    // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す。
+    // ボディを消費することで、未読ストリームによる上流接続の保持も防ぐ
+    const detail = (await response.text().catch(() => '')).slice(0, 200);
+    console.error('気象データAPIエラー:', url, response.status, detail);
     throw new UpstreamError(`気象データAPIがエラーを返しました（HTTP ${response.status}）`);
   }
 

@@ -495,7 +495,13 @@
       }
       // JSONとして妥当でも予報の形をしていないボディ（中間プロキシの200応答など）は、
       // 後続の描画でTypeErrorの生メッセージが出る前にここで弾く
-      if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours)) {
+      // （days・hours・noticesは描画経路が無条件に反復する配列のためすべて検証する）
+      if (
+        !body ||
+        !Array.isArray(body.days) ||
+        !Array.isArray(body.hours) ||
+        !Array.isArray(body.notices)
+      ) {
         throw new Error('予報データの形式が不正です');
       }
 
@@ -597,6 +603,10 @@
         }
         setStatus('現在地を取得できませんでした。地点を選択してください。', true);
       },
+      // 位置情報源が応答しない環境でコールバックが来ず「取得しています…」のまま
+      // 固まらないよう、待ち時間を有界にする（TIMEOUTは上のエラー表示に合流する）。
+      // maximumAgeは直近1分のキャッシュ位置を許容し、再クリック時の応答を速くする
+      { timeout: 15000, maximumAge: 60000 },
     );
   });
 

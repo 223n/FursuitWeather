@@ -34,8 +34,10 @@ npm run lint    # ESLint + tsc（typecheck）
 npm run test:coverage
 ```
 
-ステートメント・行・関数は100%を維持しています。未カバーの分岐は、
-番兵値（Infinity帯・スコア上限）により到達しない防御フォールバックのみです。
+ステートメント・行・関数は100%を維持しています。このしきい値は
+`vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
+未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
+防御フォールバックのみです。
 `public/app.js`はブラウザ実行のためカバレッジ対象外ですが、
 定数同期は`htmlSync.test.ts`、動作はPlaywrightでの実機確認で担保します。
 
