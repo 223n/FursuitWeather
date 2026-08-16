@@ -2,10 +2,12 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as forecastApi from '../src/api/forecast';
+import * as geocodeApi from '../src/api/geocode';
 import worker, { type Env } from '../src/index';
 
 // spyモードで実体を残したままモック化し、500系のテストでのみ失敗を注入する
 vi.mock('../src/api/forecast', { spy: true });
+vi.mock('../src/api/geocode', { spy: true });
 
 /** ASSETSバインディングをスタブした環境を作る */
 function createEnv(): Env {
@@ -30,6 +32,33 @@ describe('Workerルーティング', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { model: string };
     expect(body.model).toBe('demo');
+  });
+
+  it('/api/geocode はhandleGeocodeに委譲する', async () => {
+    vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
+      new Response(JSON.stringify({ results: [] }), { status: 200 }),
+    );
+    const response = await worker.fetch(
+      new Request('https://example.com/api/geocode?q=松山'),
+      createEnv(),
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    expect(vi.mocked(geocodeApi.handleGeocode)).toHaveBeenCalledOnce();
+  });
+
+  it('handleGeocodeの予期しない例外もCORSヘッダー付きのJSON 500に変換する', async () => {
+    vi.mocked(geocodeApi.handleGeocode).mockRejectedValueOnce(new TypeError('boom'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/geocode?q=test'),
+      createEnv(),
+      ctx,
+    );
+    expect(response.status).toBe(500);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(consoleError).toHaveBeenCalled();
   });
 
   it('存在しない/api/*パスはCORSヘッダー付きのJSON 404を返す', async () => {

@@ -35,6 +35,7 @@ function openMeteoBody(): unknown {
       weather_code: time.map(() => 1),
       shortwave_radiation: time.map(() => 400),
       wind_speed_10m: time.map(() => 2),
+      precipitation_probability: time.map(() => 30),
     },
   };
 }
@@ -82,6 +83,32 @@ describe('handleForecast', () => {
     const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: unknown };
     expect(init.cf).toEqual({ cacheTtl: UPSTREAM_CACHE_TTL_SECONDS, cacheEverything: true });
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('上流が400を返した場合は任意フィールドなしで一度だけ再試行する', async () => {
+    // 降水確率フィールドを上流モデルが受け付けないケースへの防御
+    const fetchMock = vi
+      .fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response('{"error":true,"reason":"Cannot initialize"}', { status: 400 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('precipitation_probability');
+    expect(String(fetchMock.mock.calls[1]![0])).not.toContain('precipitation_probability');
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      expect.stringContaining('再試行'),
+      expect.stringContaining('latitude='),
+      expect.stringContaining('Cannot initialize'),
+    );
   });
 
   it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
@@ -335,6 +362,21 @@ describe('parseWeatherResponse', () => {
     expect(result.hours).toHaveLength(23);
   });
 
+  it('降水確率は任意フィールドとして扱う（提供時は値、欠落・非数値はnull）', () => {
+    const withProbability = parseWeatherResponse(openMeteoBody());
+    expect(withProbability.hours[0]!.precipitationProbability).toBe(30);
+
+    const withoutField = openMeteoBody() as { hourly: Record<string, unknown> };
+    delete withoutField.hourly['precipitation_probability'];
+    const parsed = parseWeatherResponse(withoutField);
+    expect(parsed.hours).toHaveLength(24);
+    expect(parsed.hours[0]!.precipitationProbability).toBeNull();
+
+    const broken = openMeteoBody() as { hourly: { precipitation_probability: unknown[] } };
+    broken.hourly.precipitation_probability[2] = '50';
+    expect(parseWeatherResponse(broken).hours[2]!.precipitationProbability).toBeNull();
+  });
+
   it('時刻が文書契約の形式（YYYY-MM-DDTHH:mm）でない時間は破棄する', () => {
     // 形式不正が防御を通過すると、日付・時刻の位置切り出し（hourOf/dateOf）が
     // 化けたUIとして現れるため、上流境界で破棄する
@@ -356,6 +398,20 @@ describe('fetchWeather', () => {
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
     );
+  });
+
+  it('400応答の本文が読めなくても任意フィールドなしの再試行は行われる', async () => {
+    const responses: Response[] = [
+      {
+        ok: false,
+        status: 400,
+        text: () => Promise.reject(new Error('切断')),
+      } as unknown as Response,
+      new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+    ];
+    const fetchImpl = (async () => responses.shift()!) as unknown as typeof fetch;
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.hours).toHaveLength(24);
   });
 
   it('200応答の本文読み取りに失敗した場合は解析失敗として扱い、原因をログに残す', async () => {
@@ -414,7 +470,7 @@ describe('buildForecastUrl', () => {
     expect(url.searchParams.get('forecast_days')).toBe('4');
   });
 
-  it('hourlyパラメータは必要フィールドと完全一致する（timeを含めない）', () => {
+  it('hourlyパラメータは必要フィールド+任意フィールドと完全一致する（timeを含めない）', () => {
     // 検証用フィールド一覧（HOURLY_FIELDS）と取得URLの意図しない乖離を検出する。
     // 'time'はレスポンス専用で、URLに含めると上流がエラーを返すため完全一致で確認する
     const url = new URL(buildForecastUrl(35.6785, 139.6823, 4));
@@ -427,7 +483,13 @@ describe('buildForecastUrl', () => {
         'weather_code',
         'shortwave_radiation',
         'wind_speed_10m',
+        'precipitation_probability',
       ].join(','),
     );
+  });
+
+  it('withOptionalFields=falseでは任意フィールドを含まないURLになる（400時の再試行用）', () => {
+    const url = new URL(buildForecastUrl(35.6785, 139.6823, 4, false));
+    expect(url.searchParams.get('hourly')).not.toContain('precipitation_probability');
   });
 });

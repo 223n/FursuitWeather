@@ -105,8 +105,8 @@
     return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
   }
 
-  /** 座標から「現在地」の説明文を作る（最寄りのプリセット都市からの距離で表現） */
-  function describeCurrentLocation(lat, lon) {
+  /** 座標から最寄りのプリセット都市との位置関係を説明する文を作る */
+  function nearestCityText(lat, lon) {
     let nearest = null;
     let nearestKm = Number.POSITIVE_INFINITY;
     for (const city of CITIES) {
@@ -118,7 +118,59 @@
     }
     const rounded = Math.round(nearestKm);
     const relative = rounded < 5 ? `${nearest.name}付近` : `${nearest.name}から約${rounded}km`;
-    return `現在地（緯度${lat.toFixed(2)}・経度${lon.toFixed(2)}、${relative}）`;
+    return `緯度${lat.toFixed(2)}・経度${lon.toFixed(2)}、${relative}`;
+  }
+
+  /** 座標から「現在地」の説明文を作る */
+  function describeCurrentLocation(lat, lon) {
+    return `現在地（${nearestCityText(lat, lon)}）`;
+  }
+
+  /** 共有URLで開かれた地点の説明文を作る（URLに地点名がない場合の代替） */
+  function describeSharedLocation(lat, lon) {
+    return `共有された地点（${nearestCityText(lat, lon)}）`;
+  }
+
+  // 最後に表示した地点の記憶（このブラウザ内にのみ保存する）。
+  // プライベートモードなどlocalStorageが使えない環境では黙って無効になる
+  const LOCATION_STORAGE_KEY = 'fursuitweather:lastLocation';
+
+  /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
+  function readStoredLocation() {
+    try {
+      const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY);
+      if (!raw) {
+        return null;
+      }
+      const stored = JSON.parse(raw);
+      if (
+        !stored ||
+        typeof stored.query !== 'string' ||
+        !/^lat=-?[\d.]+&lon=-?[\d.]+$/.test(stored.query) ||
+        typeof stored.locationName !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        query: stored.query,
+        locationName: stored.locationName,
+        cityIndex: Number.isInteger(stored.cityIndex) ? stored.cityIndex : null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** 表示に成功した地点を記憶する */
+  function writeStoredLocation(query, locationName, cityIndex) {
+    try {
+      window.localStorage.setItem(
+        LOCATION_STORAGE_KEY,
+        JSON.stringify({ query, locationName, cityIndex }),
+      );
+    } catch {
+      // 保存できなくても予報表示自体には影響しないため無視する
+    }
   }
 
   /** スクリーンリーダー向けに、その日の予報を文章で組み立てる
@@ -421,6 +473,12 @@
       addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
       addCell(`${Math.round(hour.weather.humidity)}%`);
+      // 降水確率は上流モデルが提供しない場合がある（そのときは「-」表示）
+      addCell(
+        typeof hour.weather.precipitationProbability === 'number'
+          ? `${Math.round(hour.weather.precipitationProbability)}%`
+          : '-',
+      );
       addCell(`${hour.outdoor.suitWbgt.toFixed(1)}℃`);
       addCell(createBadge(hour.outdoor));
       // 連続活動目安も判定と同じ記号+色のバッジで表示する（色弱対応の記号併記）
@@ -461,8 +519,9 @@
 
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
-   * @param {string} locationName 表示する地点名（成功時にラベルへ反映） */
-  async function loadForecast(query, locationName) {
+   * @param {string} locationName 表示する地点名（成功時にラベルへ反映）
+   * @param {number | null} cityIndex 地点セレクト由来の場合のCITIESインデックス（記憶用） */
+  async function loadForecast(query, locationName, cityIndex = null) {
     // 確定ロードは保留中のセレクトデバウンスを無効化し、後から古い地点選択が
     // 発火して最後の明示操作を上書きするのを防ぐ
     clearTimeout(cityChangeTimer);
@@ -515,6 +574,14 @@
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
       setStatus('予報を取得しました', false);
       setLocationLabel(locationName);
+      if (query !== 'demo=1') {
+        // 次回アクセス時に同じ地点を表示できるよう記憶し、
+        // 表示中の地点をURLにも反映してそのまま共有・ブックマークできるようにする
+        writeStoredLocation(query, locationName, cityIndex);
+        const urlParams = new URLSearchParams(query);
+        urlParams.set('name', locationName);
+        window.history.replaceState(null, '', `?${urlParams.toString()}`);
+      }
       renderDayCards();
       renderNotices();
 
@@ -539,11 +606,12 @@
 
   /** 選択中の都市で予報を読み込む */
   function loadSelectedCity() {
-    const city = CITIES[Number(citySelect.value)];
+    const cityIndex = Number(citySelect.value);
+    const city = CITIES[cityIndex];
     if (!city) {
       return;
     }
-    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name);
+    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name, cityIndex);
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -610,11 +678,148 @@
     );
   });
 
-  // 初期表示: ?demo=1 のときはデモデータ、それ以外は選択中の都市
+  // 「表示地点の予報を共有」: 直前に要求した地点の共有URLをOSの共有機能または
+  // クリップボードで渡す（loadForecast成功時にアドレスバーへも同じURLを反映済み）
+  document.getElementById('share-button').addEventListener('click', async () => {
+    let shareUrl = `${window.location.origin}/`;
+    if (lastQuery === 'demo=1') {
+      shareUrl = `${window.location.origin}/?demo=1`;
+    } else if (lastQuery) {
+      const params = new URLSearchParams(lastQuery);
+      if (lastLocationName) {
+        params.set('name', lastLocationName);
+      }
+      shareUrl = `${window.location.origin}/?${params.toString()}`;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'FursuitWeather - 着ぐるみ天気予報',
+          text: `${lastLocationName || '選択した地点'}の着ぐるみ天気予報`,
+          url: shareUrl,
+        });
+      } catch {
+        // 共有シートのキャンセルは正常な操作のため何もしない
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setStatus('共有用URLをコピーしました', false);
+    } catch {
+      setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
+    }
+  });
+
+  // 地点検索: 都市名・郵便番号を/api/geocode（Worker経由のジオコーディング）で検索し、
+  // 候補をボタンとして表示する。選択で予報を読み込む
+  const searchInput = document.getElementById('place-search');
+  const searchResults = document.getElementById('search-results');
+
+  /** 検索結果の候補表示を消す */
+  function clearSearchResults() {
+    searchResults.hidden = true;
+    searchResults.replaceChildren();
+  }
+
+  async function searchPlace() {
+    const query = searchInput.value.trim();
+    if (query === '') {
+      setStatus('都市名または郵便番号を入力してください。', true);
+      return;
+    }
+    clearSearchResults();
+    setStatus('地点を検索しています…', false);
+    try {
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`).catch(() => {
+        throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          (body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`,
+        );
+      }
+      if (!body || !Array.isArray(body.results)) {
+        throw new Error('地点検索の結果の形式が不正です');
+      }
+      if (body.results.length === 0) {
+        setStatus('該当する地点が見つかりませんでした。表記を変えてお試しください。', true);
+        return;
+      }
+      for (const place of body.results) {
+        if (
+          typeof place.name !== 'string' ||
+          typeof place.latitude !== 'number' ||
+          typeof place.longitude !== 'number'
+        ) {
+          continue;
+        }
+        const label =
+          typeof place.admin1 === 'string' && place.admin1 !== ''
+            ? `${place.name}（${place.admin1}）`
+            : place.name;
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', () => {
+          clearSearchResults();
+          searchInput.value = '';
+          loadForecast(
+            `lat=${place.latitude.toFixed(4)}&lon=${place.longitude.toFixed(4)}`,
+            label,
+          );
+        });
+        item.appendChild(button);
+        searchResults.appendChild(item);
+      }
+      searchResults.hidden = false;
+      setStatus(`地点の候補が${searchResults.children.length}件見つかりました。選択してください。`, false);
+    } catch (error) {
+      setStatus(`エラー: ${error.message}`, true);
+    }
+  }
+
+  document.getElementById('search-button').addEventListener('click', searchPlace);
+  searchInput.addEventListener('keydown', (event) => {
+    // 検索欄でのEnterはフォーム送信ではなく検索を実行する
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      searchPlace();
+    }
+  });
+
+  // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
+  const sharedLat = Number.parseFloat(pageParams.get('lat') ?? '');
+  const sharedLon = Number.parseFloat(pageParams.get('lon') ?? '');
   if (pageParams.get('demo') === '1') {
     loadForecast('demo=1', 'デモデータ（架空の気象データ）');
+  } else if (
+    Number.isFinite(sharedLat) &&
+    Number.isFinite(sharedLon) &&
+    sharedLat >= -90 &&
+    sharedLat <= 90 &&
+    sharedLon >= -180 &&
+    sharedLon <= 180
+  ) {
+    // 共有URL: 地点名は表示にのみ使う（textContent経由のため装飾やタグは無効化される）
+    const sharedName = (pageParams.get('name') ?? '').trim().slice(0, 80);
+    loadForecast(
+      `lat=${sharedLat}&lon=${sharedLon}`,
+      sharedName || describeSharedLocation(sharedLat, sharedLon),
+    );
   } else {
-    loadSelectedCity();
+    const stored = readStoredLocation();
+    if (stored) {
+      // 記憶した地点が地点セレクト由来なら、セレクトの表示も合わせる
+      if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
+        citySelect.value = String(stored.cityIndex);
+      }
+      loadForecast(stored.query, stored.locationName, stored.cityIndex);
+    } else {
+      loadSelectedCity();
+    }
   }
 })();

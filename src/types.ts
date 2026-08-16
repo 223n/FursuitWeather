@@ -12,6 +12,8 @@ export interface HourlyWeather {
   apparentTemperature: number;
   /** 降水量（mm） */
   precipitation: number;
+  /** 降水確率（%）。上流が提供しない場合はnull */
+  precipitationProbability: number | null;
   /** WMO天気コード（欠測時は-1） */
   weatherCode: number;
   /** 全天日射量（W/m²） */
@@ -126,6 +128,16 @@ export interface DayForecast {
   /** 日中に冷房必須となる時間があるか */
   coolingRequired: boolean;
   laundry: LaundryAssessment;
+}
+
+/** 地点検索（ジオコーディング）の1候補 */
+export interface GeocodeResult {
+  /** 地名（例: 松山） */
+  name: string;
+  /** 都道府県などの上位区分（例: 愛媛県）。不明なら空文字 */
+  admin1: string;
+  latitude: number;
+  longitude: number;
 }
 
 /** 予報対象の位置情報 */

@@ -16,6 +16,7 @@ import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
 import llmsTxt from '../public/llms.txt?raw';
+import wbgtTool from '../public/wbgt-tool.js?raw';
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
@@ -162,6 +163,24 @@ describe('aboutページとconstantsの同期', () => {
     for (const id of ids) {
       expect(aboutHtml).toContain(`<code>${id}</code>`);
       expect(apiMd).toContain(`\`${id}\``);
+    }
+  });
+});
+
+describe('実測WBGTツール（wbgt-tool.js）とconstantsの同期', () => {
+  // aboutページの簡易ツールは素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
+  it('着衣補正値と冷房しきい値が一致する', () => {
+    expect(wbgtTool).toContain(`const SUIT_WBGT_ADJUSTMENT = ${SUIT_WBGT_ADJUSTMENT};`);
+    expect(wbgtTool).toContain(`const COOLING_REQUIRED_WBGT = ${COOLING_REQUIRED_WBGT};`);
+    expect(wbgtTool).toContain(`const COOLING_RECOMMENDED_WBGT = ${COOLING_RECOMMENDED_WBGT};`);
+  });
+
+  it('暑熱5段階のしきい値・ラベル・グレード・活動時間が一致する', () => {
+    for (const band of HEAT_BANDS) {
+      const bound = Number.isFinite(band.upperBound) ? String(band.upperBound) : 'Infinity';
+      expect(wbgtTool).toContain(
+        `{ upperBound: ${bound}, label: '${band.label}', grade: ${band.grade}, activityMinutes: ${band.activityMinutes} }`,
+      );
     }
   });
 });

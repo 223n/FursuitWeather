@@ -13,6 +13,7 @@ function fullDay(date: string, overrides: Partial<HourlyWeather> = {}): HourlyWe
     humidity: 60,
     apparentTemperature: 25,
     precipitation: 0,
+    precipitationProbability: null,
     weatherCode: 1,
     solarRadiation: hour >= 6 && hour <= 18 ? 500 : 0,
     windSpeed: 2,
