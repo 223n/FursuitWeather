@@ -23,9 +23,21 @@ npm test        # vitest
 npm run lint    # ESLint + tsc（typecheck）
 ```
 
-テストは`test/`配下にあります。静的HTML（注意事項・判定凡例）と
-`src/constants.ts`の同期は`test/htmlSync.test.ts`が機械検証します。
-凡例の文言を変える場合はこのテストも合わせて更新してください。
+テストは`test/`配下にあります。静的HTML（注意事項・判定凡例・about.htmlの
+しきい値表）や地点セレクトと`src/constants.ts`・`app.js`の同期は
+`test/htmlSync.test.ts`が機械検証します。凡例の文言を変える場合は
+このテストも合わせて更新してください。
+
+カバレッジは次のコマンドで計測できます（対象は`src/`）。
+
+```bash
+npm run test:coverage
+```
+
+ステートメント・行・関数は100%を維持しています。未カバーの分岐は、
+番兵値（Infinity帯・スコア上限）により到達しない防御フォールバックのみです。
+`public/app.js`はブラウザ実行のためカバレッジ対象外ですが、
+定数同期は`htmlSync.test.ts`、動作はPlaywrightでの実機確認で担保します。
 
 ## ビルド
 

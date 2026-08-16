@@ -85,6 +85,16 @@ describe('assessOutdoor（低温側）', () => {
     expect(result.level).toBe('coldCaution');
   });
 
+  it('暑熱と低温が同じ深刻度なら活動時間の短い暑熱側を採用する', () => {
+    // Ta=14℃, RH=60%, SR=300W/m²: 補正後WBGT約23.7℃で「注意」（grade 1・30分）。
+    // 体感温度0℃の「低温注意」（grade 1・45分）と同格だが、活動時間の短い暑熱側が勝つ
+    const result = assessOutdoor(
+      weather({ temperature: 14, apparentTemperature: 0, humidity: 60, solarRadiation: 300, windSpeed: 1 }),
+    );
+    expect(result.level).toBe('caution');
+    expect(result.activityMinutes).toBe(30);
+  });
+
   it('体感温度ちょうど0℃は「低温注意」に入る（快適/低温注意の境界）', () => {
     // classifyColdは「下限値より大きい」で判定するため、境界値は下の帯に入る
     const result = assessOutdoor(weather({ temperature: 2, apparentTemperature: 0 }));

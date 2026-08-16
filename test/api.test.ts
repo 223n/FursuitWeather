@@ -3,7 +3,15 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleForecast } from '../src/api/forecast';
-import { buildForecastUrl, parseWeatherResponse, UpstreamError } from '../src/weather/openMeteo';
+import {
+  buildForecastUrl,
+  fetchWeather,
+  parseWeatherResponse,
+  UpstreamError,
+} from '../src/weather/openMeteo';
+
+// spyモード: 実装はそのままに、個別テストでfetchWeatherの失敗を注入できるようにする
+vi.mock('../src/weather/openMeteo', { spy: true });
 
 /** Open-Meteoレスポンスのモックを作る */
 function openMeteoBody(): unknown {
@@ -111,6 +119,15 @@ describe('handleForecast', () => {
     expect(response.status).toBe(502);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('気象データの取得に失敗');
+  });
+
+  it('UpstreamError以外の予期しない例外は502に変換せず伝播させる', async () => {
+    // ロジック層のバグなどはここで握りつぶさず、index.tsの最終防衛線（500+ログ）に任せる
+    vi.mocked(fetchWeather).mockRejectedValueOnce(new TypeError('boom'));
+
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow('boom');
   });
 
   it('上流APIのエラーは502として返す', async () => {
@@ -240,6 +257,15 @@ describe('parseWeatherResponse', () => {
     body.hourly.time[4] = 4;
     const result = parseWeatherResponse(body);
     expect(result.hours).toHaveLength(23);
+  });
+});
+
+describe('fetchWeather', () => {
+  it('Errorでない値でrejectされてもメッセージを文字列化してUpstreamErrorにする', async () => {
+    const rejectWithString = (() => Promise.reject('接続拒否')) as unknown as typeof fetch;
+    await expect(fetchWeather(35.68, 139.68, 1, rejectWithString)).rejects.toThrow(
+      '気象データの取得に失敗しました: 接続拒否',
+    );
   });
 });
 

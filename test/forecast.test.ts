@@ -54,6 +54,22 @@ describe('buildDayForecast', () => {
     expect(day.coolingRequired).toBe(true);
   });
 
+  it('最悪と最良の判定はそれぞれ別の時間帯から選ばれる', () => {
+    // 既定の日中は猛暑（危険）のため、15時だけ涼しくして最良側が更新されることを確かめる
+    const raw = fullDay('2026-08-15');
+    raw[15] = {
+      ...raw[15]!,
+      temperature: 10,
+      apparentTemperature: 8,
+      solarRadiation: 0,
+    };
+    const hours = raw.map(buildHourForecast);
+    const day = buildDayForecast('2026-08-15', hours);
+    expect(day.outdoorWorst.grade).toBe(4);
+    expect(day.outdoorBest.grade).toBe(0);
+    expect(day.outdoorBest.level).toBe('optimal');
+  });
+
   it('日中データがない日は全時間帯からサマリーを組み立てる', () => {
     // 取得初日が夜間のみのケース（19〜23時の5時間）。
     // 21時だけ猛暑・19時だけ曇りにして、集計元が夜間の時間帯であることを確かめる
@@ -86,6 +102,13 @@ describe('buildForecast', () => {
     expect(forecast.hours).toHaveLength(48);
     expect(forecast.attribution.weatherData).toContain('Open-Meteo');
     expect(forecast.notices.length).toBeGreaterThan(0);
+  });
+
+  it('日付文字列が不完全でもデモデータは既定値で補って2日分を返す', () => {
+    // demoWeatherの日付分解フォールバック（年のみ指定→1月1日扱い）の防御動作を固定する
+    const demo = demoWeather('2026');
+    expect(demo.hours.length).toBeGreaterThan(0);
+    expect(demo.hours[demo.hours.length - 1]!.time.startsWith('2026-01-02')).toBe(true);
   });
 
   it('デモデータから危険な猛暑日と雨天日の予報を組み立てられる', () => {
