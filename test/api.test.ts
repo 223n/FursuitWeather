@@ -3,6 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleForecast } from '../src/api/forecast';
+import { UPSTREAM_CACHE_TTL_SECONDS } from '../src/constants';
 import {
   buildForecastUrl,
   fetchWeather,
@@ -48,12 +49,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
   // spyモックのOnceキュー・呼び出し履歴をテストごとに破棄し、順序依存を防ぐ
   vi.resetAllMocks();
+  // フェイクタイマーを使うテストからの偽装漏れを防ぐ
+  vi.useRealTimers();
 });
 
 describe('handleForecast', () => {
   it('正常系: 緯度経度を指定すると予報JSONを返す', async () => {
     const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL) =>
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -74,11 +77,16 @@ describe('handleForecast', () => {
     expect(upstreamUrl).toContain('latitude=35.6800');
     expect(upstreamUrl).toContain('longitude=139.6800');
     expect(upstreamUrl).toContain('forecast_days=4');
+
+    // 意図的に追加した防御（エッジキャッシュ・タイムアウト）が黙って消えないよう固定する
+    const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: unknown };
+    expect(init.cf).toEqual({ cacheTtl: UPSTREAM_CACHE_TTL_SECONDS, cacheEverything: true });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
     const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL) =>
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -186,7 +194,7 @@ describe('handleForecast', () => {
     );
   });
 
-  it('上流APIが非JSONを返した場合は502を返す', async () => {
+  it('上流APIが非JSONを返した場合は502を返し、本文サンプルをログに残す', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('<html>maintenance</html>', { status: 200 })),
@@ -196,9 +204,14 @@ describe('handleForecast', () => {
       new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
     );
     expect(response.status).toBe(502);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データAPIレスポンスの解析に失敗:',
+      expect.stringContaining('latitude='),
+      '<html>maintenance</html>',
+    );
   });
 
-  it('上流APIのレスポンスに必要な配列が欠けている場合は502を返す', async () => {
+  it('上流APIのレスポンスに必要な配列が欠けている場合は502を返し、本文サンプルをログに残す', async () => {
     const broken = openMeteoBody() as { hourly: Record<string, unknown> };
     delete broken.hourly['temperature_2m'];
     vi.stubGlobal(
@@ -210,6 +223,11 @@ describe('handleForecast', () => {
       new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
     );
     expect(response.status).toBe(502);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データAPIレスポンスの形式異常:',
+      expect.stringContaining('latitude='),
+      expect.stringContaining('"latitude":35.7'),
+    );
   });
 
   it('上流APIのレスポンスに位置情報（latitude）が欠けている場合は502を返す', async () => {
@@ -259,6 +277,19 @@ describe('handleForecast', () => {
     expect(body.model).toBe('demo');
     expect(body.days).toHaveLength(2);
   });
+
+  it('demo=1の初日は日本時間の今日になる（UTCとJSTの日付が食い違う時刻でも）', async () => {
+    // UTC 20:00 = JST翌日05:00。UTC日付への簡略化やオフセット符号の退行を検出する
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-15T20:00:00Z'));
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?demo=1'),
+    );
+    const body = (await response.json()) as { days: { date: string }[]; generatedAt: string };
+    expect(body.days[0]!.date).toBe('2026-08-16');
+    expect(body.generatedAt).toBe('2026-08-15T20:00:00.000Z');
+  });
 });
 
 describe('parseWeatherResponse', () => {
@@ -303,6 +334,15 @@ describe('parseWeatherResponse', () => {
     const result = parseWeatherResponse(body);
     expect(result.hours).toHaveLength(23);
   });
+
+  it('時刻が文書契約の形式（YYYY-MM-DDTHH:mm）でない時間は破棄する', () => {
+    // 形式不正が防御を通過すると、日付・時刻の位置切り出し（hourOf/dateOf）が
+    // 化けたUIとして現れるため、上流境界で破棄する
+    const body = openMeteoBody() as { hourly: { time: unknown[] } };
+    body.hourly.time[4] = '1765864800';
+    const result = parseWeatherResponse(body);
+    expect(result.hours).toHaveLength(23);
+  });
 });
 
 describe('fetchWeather', () => {
@@ -315,6 +355,23 @@ describe('fetchWeather', () => {
       '気象データの取得に失敗:',
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
+    );
+  });
+
+  it('200応答の本文読み取りに失敗した場合は解析失敗として扱い、原因をログに残す', async () => {
+    const brokenText = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        text: () => Promise.reject(new Error('切断')),
+      }) as unknown as Response) as unknown as typeof fetch;
+    await expect(fetchWeather(35.68, 139.68, 1, brokenText)).rejects.toThrow(
+      '気象データAPIのレスポンスを解析できませんでした',
+    );
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データAPIレスポンスの読み取りに失敗:',
+      expect.stringContaining('latitude='),
+      expect.any(Error),
     );
   });
 

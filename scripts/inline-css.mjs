@@ -2,10 +2,16 @@
 // 外部CSSはレンダリングをブロックするため（PageSpeed指摘: 推定300ms）、
 // minify後のstyle.cssを各ページの<style>として埋め込み、リクエストを1つ削減する。
 // style.css自体も配信は残す（開発時の参照とキャッシュ用）
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const LINK_TAG = '<link rel="stylesheet" href="/style.css">';
-const PAGES = ['public/index.html', 'public/about.html', 'public/404.html'];
+// public/直下の全HTMLを自動対象にする（ページ追加時の列挙漏れを防ぐ）。
+// リンクタグのないページはビルド失敗になるため、対象外にしたいページが
+// 生じた時点で明示的な除外リストを導入する
+const PAGES = readdirSync('public')
+  .filter((file) => file.endsWith('.html'))
+  .map((file) => `public/${file}`)
+  .sort();
 
 const css = readFileSync('public/style.css', 'utf8');
 

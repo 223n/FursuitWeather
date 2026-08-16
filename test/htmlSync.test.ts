@@ -15,18 +15,30 @@ import logicMd from '../docs/logic.md?raw';
 import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
+import llmsTxt from '../public/llms.txt?raw';
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   COOLING_LABELS,
   COOLING_RECOMMENDED_WBGT,
   COOLING_REQUIRED_WBGT,
+  DAYTIME_END_HOUR,
+  DAYTIME_START_HOUR,
+  DEFAULT_FORECAST_DAYS,
   HEAT_BANDS,
   LAUNDRY,
   LAUNDRY_LEVEL_LABELS,
+  MAX_FORECAST_DAYS,
+  RECOMMENDED_MAX_GRADE,
+  RESPONSE_CACHE_MAX_AGE_SECONDS,
   SUIT_WBGT_ADJUSTMENT,
+  UPSTREAM_CACHE_TTL_SECONDS,
   YEAR_ROUND_NOTICES,
 } from '../src/constants';
+
+/** sr-only併記つきの範囲表記（視覚は「〜」・読み上げは「から」）を組み立てる */
+const srRange = (from: number | string, to: number | string): string =>
+  `${from}<span aria-hidden="true">〜</span><span class="sr-only">から</span>${to}`;
 
 describe('静的HTMLとconstantsの同期', () => {
   it('注意事項の静的コピーはYEAR_ROUND_NOTICESの全文と一致する', () => {
@@ -46,6 +58,17 @@ describe('静的HTMLとconstantsの同期', () => {
     // 低温側の凡例（低温注意）はCOLD_BANDS由来のため、次のテストで検証する
     for (const band of HEAT_BANDS.filter((b) => b.activityMinutes > 0)) {
       expect(html).toContain(`連続${band.activityMinutes}分`);
+    }
+  });
+
+  it('凡例はグレード・ラベル・連続活動時間が同一項目内で対応している', () => {
+    // ラベルと分数が「どこかにある」だけでなく、同じlegend-item内で対になって
+    // いることを検証し、行の入れ替え編集ミスを検出する
+    for (const band of HEAT_BANDS.filter((b) => b.activityMinutes > 0)) {
+      const pattern = new RegExp(
+        `badge-large grade-${band.grade}"[^]*?${band.label}</span>\\s*<p>連続${band.activityMinutes}分`,
+      );
+      expect(html).toMatch(pattern);
     }
   });
 
@@ -69,10 +92,14 @@ describe('aboutページとconstantsの同期', () => {
     }
   });
 
-  it('WBGT対応表の活動時間はHEAT_BANDSのactivityMinutesと一致する', () => {
-    // 「危険」帯（activityMinutes=0）は表中で「中止」表記のため対象外
+  it('WBGT対応表の活動時間はHEAT_BANDSのactivityMinutesと行単位で一致する', () => {
+    // 「危険」帯（activityMinutes=0）は表中で「中止」表記のため対象外。
+    // 行の入れ替え編集ミスを検出するため、同一<tr>内でラベルと分数を対で検証する
+    const rows = [...aboutHtml.matchAll(/<tr>([^]*?)<\/tr>/g)].map((m) => m[1]!);
     for (const band of HEAT_BANDS.filter((b) => b.activityMinutes > 0)) {
-      expect(aboutHtml).toContain(`>${band.activityMinutes}分<`);
+      const row = rows.find((r) => r.includes(`>${band.label}</span>`));
+      expect(row, band.label).toBeDefined();
+      expect(row!).toContain(`>${band.activityMinutes}分<`);
     }
   });
 
@@ -110,13 +137,11 @@ describe('aboutページとconstantsの同期', () => {
 
   it('干し時間帯と乾燥目安の数値がLAUNDRY定数と一致する', () => {
     // 範囲記号「〜」はsr-only併記のマークアップで分断されるため、実マークアップ込みで比較する
-    const range = (from: number, to: string): string =>
-      `${from}<span aria-hidden="true">〜</span><span class="sr-only">から</span>${to}`;
     expect(aboutHtml).toContain(
-      `干し時間帯（${range(LAUNDRY.windowStartHour, `${LAUNDRY.windowEndHour}時`)}）`,
+      `干し時間帯（${srRange(LAUNDRY.windowStartHour, `${LAUNDRY.windowEndHour}時`)}）`,
     );
     expect(aboutHtml).toContain(
-      range(LAUNDRY.fursuitMinDryingHours, `${LAUNDRY.fursuitMaxDryingHours}時間`),
+      srRange(LAUNDRY.fursuitMinDryingHours, `${LAUNDRY.fursuitMaxDryingHours}時間`),
     );
   });
 
@@ -138,6 +163,40 @@ describe('aboutページとconstantsの同期', () => {
       expect(aboutHtml).toContain(`<code>${id}</code>`);
       expect(apiMd).toContain(`\`${id}\``);
     }
+  });
+});
+
+describe('公開仕様（about・api.md・llms.txt）と定数の同期', () => {
+  it('予報日数の上限と既定値が全公開仕様で一致する', () => {
+    expect(aboutHtml).toContain(
+      `予報日数（${srRange('<code>1</code>', `<code>${MAX_FORECAST_DAYS}</code>`)}、デフォルト<code>${DEFAULT_FORECAST_DAYS}</code>）`,
+    );
+    expect(aboutHtml).toContain(`予報日数の上限は${MAX_FORECAST_DAYS}日`);
+    expect(apiMd).toContain(`予報日数（\`1\`〜\`${MAX_FORECAST_DAYS}\`、デフォルト\`${DEFAULT_FORECAST_DAYS}\`）`);
+    expect(apiMd).toContain(`予報日数の上限は${MAX_FORECAST_DAYS}日`);
+    expect(llmsTxt).toContain(`days（1〜${MAX_FORECAST_DAYS}、既定${DEFAULT_FORECAST_DAYS}）`);
+    expect(llmsTxt).toContain(`最大${MAX_FORECAST_DAYS}日先`);
+  });
+
+  it('日中時間帯と活動推奨の深刻度しきい値が一致する', () => {
+    expect(aboutHtml).toContain(`日中（${srRange(DAYTIME_START_HOUR, `${DAYTIME_END_HOUR}時`)}）`);
+    expect(apiMd).toContain(`日中（${DAYTIME_START_HOUR}〜${DAYTIME_END_HOUR}時）`);
+    expect(aboutHtml).toContain(`深刻度${RECOMMENDED_MAX_GRADE}以下`);
+    expect(apiMd).toContain(`深刻度${RECOMMENDED_MAX_GRADE}以下`);
+  });
+
+  it('キャッシュ時間と着衣補正値がllms.txt・キャッシュ解説と一致する', () => {
+    expect(aboutHtml).toContain(`max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`);
+    expect(aboutHtml).toContain(`cacheTtl: ${UPSTREAM_CACHE_TTL_SECONDS}`);
+    expect(aboutHtml).toContain(
+      `エッジでの気象データキャッシュ（${UPSTREAM_CACHE_TTL_SECONDS / 60}分）`,
+    );
+    expect(apiMd).toContain(`エッジで${UPSTREAM_CACHE_TTL_SECONDS / 60}分キャッシュ`);
+    expect(llmsTxt).toContain(`約${UPSTREAM_CACHE_TTL_SECONDS / 60}分エッジキャッシュ`);
+    expect(llmsTxt).toContain(
+      `ブラウザキャッシュ（${RESPONSE_CACHE_MAX_AGE_SECONDS / 60}分）`,
+    );
+    expect(llmsTxt).toContain(`+${SUIT_WBGT_ADJUSTMENT}℃`);
   });
 });
 

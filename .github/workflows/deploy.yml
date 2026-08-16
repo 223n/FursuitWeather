@@ -36,8 +36,9 @@ jobs:
       - name: lintを実行
         run: npm run lint
 
-      - name: テストを実行
-        run: npm test
+      # CIと同一の関門: カバレッジしきい値（vitest.config.ts）の未達もここで失敗になる
+      - name: テストを実行（カバレッジしきい値つき）
+        run: npm run test:coverage
 
       - name: ビルド（minify+CSSインライン化）
         run: npm run build

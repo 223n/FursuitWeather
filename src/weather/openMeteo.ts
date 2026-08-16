@@ -73,6 +73,13 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+/**
+ * 時刻文字列の形式（YYYY-MM-DDTHH:mm、types.tsのHourlyWeather.timeの契約）
+ * 下流（hourOf/dateOf・フロントのformatDate）は位置ベースで切り出すため、
+ * 形式が異なる時刻はここで破棄する
+ */
+const TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
 /** レスポンスの並列配列から1時間分のレコードを取り出す。欠測はnullを返す */
 function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWeather | null {
   const time = hourly.time[index];
@@ -89,6 +96,7 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
   // 特に日射量を0で補うと日中のWBGTが最大約3℃低く（危険側に）出るため、既定値では補わない
   if (
     typeof time !== 'string' ||
+    !TIME_PATTERN.test(time) ||
     !isFiniteNumber(temperature) ||
     !isFiniteNumber(humidity) ||
     !isFiniteNumber(apparentTemperature) ||
@@ -206,12 +214,30 @@ export async function fetchWeather(
     throw new UpstreamError(`気象データAPIがエラーを返しました（HTTP ${response.status}）`);
   }
 
-  let data: unknown;
+  // 200応答でも中身が想定外（仕様変更・不完全JSON・中間装置のHTML応答）になる
+  // 障害が現実には最も起こりやすいため、原因の一次証拠（ボディ先頭）をログに残す
+  let raw: string;
   try {
-    data = await response.json();
-  } catch {
+    raw = await response.text();
+  } catch (error) {
+    console.error('気象データAPIレスポンスの読み取りに失敗:', url, error);
     throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
   }
 
-  return parseWeatherResponse(data);
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    console.error('気象データAPIレスポンスの解析に失敗:', url, raw.slice(0, 200));
+    throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
+  }
+
+  try {
+    return parseWeatherResponse(data);
+  } catch (error) {
+    if (error instanceof UpstreamError) {
+      console.error('気象データAPIレスポンスの形式異常:', url, raw.slice(0, 200));
+    }
+    throw error;
+  }
 }

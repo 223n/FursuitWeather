@@ -102,6 +102,30 @@ describe('assessLaundry', () => {
     expect(result.advice).toContain('乾燥機');
   });
 
+  it('中間3帯（fair・good・veryGood）にスコアどおり着地する', () => {
+    // LAUNDRY_BANDSのしきい値（30/50/70/85）と帯の対応を固定する。
+    // scoreも併記して、入力が狙った帯にあることを自己文書化する
+    const fair = assessLaundry(dryingWindow({ temperature: 20, humidity: 60, windSpeed: 1 }));
+    expect(fair.score).toBe(38);
+    expect(fair.level).toBe('fair');
+
+    const good = assessLaundry(dryingWindow({ temperature: 25, humidity: 60, windSpeed: 1 }));
+    expect(good.score).toBe(52);
+    expect(good.level).toBe('good');
+
+    const veryGood = assessLaundry(dryingWindow({ temperature: 30, humidity: 55, windSpeed: 1 }));
+    expect(veryGood.score).toBe(78);
+    expect(veryGood.level).toBe('veryGood');
+  });
+
+  it('しきい値ちょうどのスコアは下の帯に入る（「以下」判定の境界）', () => {
+    // classifyScoreは「上限値以下」で判定するため、境界値は下の帯に入る。
+    // <=が<へ退行するとgoodになり検出される
+    const result = assessLaundry(dryingWindow({ temperature: 25, humidity: 61.5, windSpeed: 1 }));
+    expect(result.score).toBe(50);
+    expect(result.level).toBe('fair');
+  });
+
   it('低温でも降水があれば雨が優先され「外干しNG（雨）」になる', () => {
     // 冬の雨天日: 雨＞低温の優先順位とスコア0の強制を契約として固定する
     const hours = dryingWindow({ temperature: 2, humidity: 40 });

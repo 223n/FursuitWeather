@@ -39,7 +39,9 @@ npm run test:coverage
 未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
 防御フォールバックのみです。
 `public/app.js`はブラウザ実行のためカバレッジ対象外ですが、
-定数同期は`htmlSync.test.ts`、動作はPlaywrightでの実機確認で担保します。
+定数同期は`htmlSync.test.ts`で機械検証し、動作はリリース時に
+Playwrightで実機確認しています（手順は
+[アクセシビリティ設計](accessibility.md)の検証方法を参照）。
 
 ## ビルド
 
