@@ -20,6 +20,13 @@ export interface HourlyWeather {
   windSpeed: number;
 }
 
+/**
+ * 深刻度（0=快適〜4=危険、UIの色分け用）
+ * フロントの`grade-0`〜`grade-4` CSSクラスとGRADE_SYMBOLSの添字に直結する
+ * 閉じた値域のため、帯の追加時に範囲外の値を書くとコンパイルエラーになる
+ */
+export type Grade = 0 | 1 | 2 | 3 | 4;
+
 /** 暑熱側のレベルID（環境省5段階に対応） */
 export type HeatLevelId = 'safe' | 'caution' | 'warning' | 'severe' | 'danger';
 
@@ -39,8 +46,8 @@ export interface ActivityAssessment {
   level: OutdoorLevelId;
   /** 日本語ラベル */
   label: string;
-  /** 深刻度（0=快適〜4=危険、UIの色分け用） */
-  grade: number;
+  /** 深刻度 */
+  grade: Grade;
   /** 1回あたりの連続活動時間の目安（分、0は着用中止） */
   activityMinutes: number;
   /** 注意文 */
@@ -92,7 +99,7 @@ export interface LaundryAssessment {
 export interface LevelSummary {
   level: OutdoorLevelId;
   label: string;
-  grade: number;
+  grade: Grade;
 }
 
 /** 1日分の予報サマリー */
@@ -115,13 +122,16 @@ export interface DayForecast {
   laundry: LaundryAssessment;
 }
 
+/** 予報対象の位置情報 */
+export interface ForecastLocation {
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
 /** APIレスポンス全体 */
 export interface ForecastResponse {
-  location: {
-    latitude: number;
-    longitude: number;
-    timezone: string;
-  };
+  location: ForecastLocation;
   /** 生成時刻（ISO8601） */
   generatedAt: string;
   /** 使用した気象モデル */

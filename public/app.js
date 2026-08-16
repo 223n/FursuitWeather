@@ -146,7 +146,6 @@
 
   /** 表示中の地点ラベルを更新する */
   function setLocationLabel(name) {
-    lastLocationName = name;
     if (!name) {
       locationLabel.replaceChildren();
       return;
@@ -351,8 +350,8 @@
       '屋内（空調なしの場合）',
       createBadge(
         day.coolingRequired
-          ? { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' }
-          : { grade: 0, label: '冷房なしでも可の時間帯あり' },
+          ? { ...COOLING_BADGES.required, label: '冷房必須' }
+          : { ...COOLING_BADGES.none, label: '冷房なしでも可の時間帯あり' },
       ),
     );
     const laundryValue = badgeWithText(
@@ -464,11 +463,23 @@
    * @param {string} query APIへのクエリ文字列
    * @param {string} locationName 表示する地点名（成功時にラベルへ反映） */
   async function loadForecast(query, locationName) {
+    // 確定ロードは保留中のセレクトデバウンスを無効化し、後から古い地点選択が
+    // 発火して最後の明示操作を上書きするのを防ぐ
+    clearTimeout(cityChangeTimer);
+    // 「予報を更新」が常に「最後に要求した条件の再試行」になるよう、
+    // クエリと地点名は成功を待たずペアで記録する（表示ラベルの更新は成功時のみ）
     lastQuery = query;
+    lastLocationName = locationName;
     const seq = ++requestSeq;
     setStatus('予報を取得しています…', false);
     try {
-      const response = await fetch(`/api/forecast?${query}`);
+      // ネットワーク断ではブラウザ固有の英語メッセージ（Failed to fetch等）になるため、
+      // 生メッセージを出さず日本語の定型文に差し替える
+      const response = await fetch(`/api/forecast?${query}`).catch(() => {
+        throw new Error(
+          '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
+        );
+      });
       // 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを出さないよう、
       // パース失敗はnullに落としてからステータスを判定する
       const body = await response.json().catch(() => null);
@@ -539,7 +550,7 @@
   // （セレクトの値が変わらないとchangeイベントが発火しないため、明示的なボタンを用意）
   document.getElementById('city-button').addEventListener('click', loadSelectedCity);
 
-  // 「予報を更新」は表示中の予報（現在地・デモを含む）と同じ条件で再取得する
+  // 「予報を更新」は直前に要求した条件（現在地・デモを含む）で再取得する
   document.getElementById('reload-button').addEventListener('click', () => {
     if (lastQuery) {
       loadForecast(lastQuery, lastLocationName);
@@ -549,13 +560,21 @@
   });
 
   document.getElementById('geolocation-button').addEventListener('click', () => {
+    // GPS取得待ちの間に保留中のセレクトデバウンスが発火しないよう先に解除する
+    clearTimeout(cityChangeTimer);
     if (!navigator.geolocation) {
       setStatus('このブラウザは位置情報に対応していません。', true);
       return;
     }
     setStatus('現在地を取得しています…', false);
+    // GPS取得中に別の地点操作でロードが始まっていたら、遅れて届いた結果は破棄する
+    // （requestSeqのfetch応答ガードはコールバック起点の新規ロードには効かないため）
+    const startedAt = requestSeq;
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (requestSeq !== startedAt) {
+          return;
+        }
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         loadForecast(
@@ -564,6 +583,9 @@
         );
       },
       () => {
+        if (requestSeq !== startedAt) {
+          return;
+        }
         setStatus('現在地を取得できませんでした。地点を選択してください。', true);
       },
     );

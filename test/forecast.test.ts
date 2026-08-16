@@ -53,6 +53,24 @@ describe('buildDayForecast', () => {
     const day = buildDayForecast('2026-08-15', hours);
     expect(day.coolingRequired).toBe(true);
   });
+
+  it('日中データがない日は全時間帯からサマリーを組み立てる', () => {
+    // 取得初日が夜間のみのケース（19〜23時の5時間）。
+    // 21時だけ猛暑・19時だけ曇りにして、集計元が夜間の時間帯であることを確かめる
+    const raw = fullDay('2026-08-15').slice(19, 24);
+    raw[0] = { ...raw[0]!, weatherCode: 3 };
+    raw[2] = { ...raw[2]!, temperature: 34, humidity: 65 };
+    const hours = raw.map(buildHourForecast);
+    const day = buildDayForecast('2026-08-15', hours);
+
+    // 例外なくサマリーが返り、最悪判定は夜間（21時）の猛暑から選ばれる
+    expect(day.outdoorWorst.grade).toBe(4);
+    expect(day.outdoorWorst.grade).toBeGreaterThan(day.outdoorBest.grade);
+    // 活動推奨時間帯は日中（9〜18時）のみが対象のため空になる
+    expect(day.recommendedHours).toEqual([]);
+    // 代表天気コードは正午に最も近い19時の値
+    expect(day.weatherCode).toBe(3);
+  });
 });
 
 describe('buildForecast', () => {

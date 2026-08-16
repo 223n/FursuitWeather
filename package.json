@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "build": "npm run minify && node scripts/inline-css.mjs",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleForecast } from '../src/api/forecast';
-import { buildForecastUrl } from '../src/weather/openMeteo';
+import { buildForecastUrl, parseWeatherResponse, UpstreamError } from '../src/weather/openMeteo';
 
 /** Open-Meteoレスポンスのモックを作る */
 function openMeteoBody(): unknown {
@@ -96,6 +96,23 @@ describe('handleForecast', () => {
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
   });
 
+  it('上流APIへの接続自体が失敗（タイムアウト・ネットワーク断）した場合は502を返す', async () => {
+    // AbortSignal.timeoutによる打ち切りもfetchのrejectとしてこの経路に入る
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('The operation was aborted');
+      }),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(response.status).toBe(502);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toContain('気象データの取得に失敗');
+  });
+
   it('上流APIのエラーは502として返す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 
@@ -179,6 +196,50 @@ describe('handleForecast', () => {
     const body = (await response.json()) as { model: string; days: unknown[] };
     expect(body.model).toBe('demo');
     expect(body.days).toHaveLength(2);
+  });
+});
+
+describe('parseWeatherResponse', () => {
+  it('時刻配列が空の場合は「気象データが空でした」を投げる', () => {
+    const body = openMeteoBody() as { hourly: Record<string, unknown[]> };
+    for (const key of Object.keys(body.hourly)) {
+      body.hourly[key] = [];
+    }
+    expect(() => parseWeatherResponse(body)).toThrow(UpstreamError);
+    expect(() => parseWeatherResponse(body)).toThrow('気象データが空でした');
+  });
+
+  it('全時間帯で必須項目が欠測の場合も「気象データが空でした」を投げる', () => {
+    const body = openMeteoBody() as { hourly: { temperature_2m: (number | null)[] } };
+    body.hourly.temperature_2m = body.hourly.temperature_2m.map(() => null);
+    expect(() => parseWeatherResponse(body)).toThrow('気象データが空でした');
+  });
+
+  it('表示用フィールド（降水量・天気コード）の欠測は既定値で補って時間を残す', () => {
+    const body = openMeteoBody() as {
+      hourly: { precipitation: (number | null)[]; weather_code: (number | null)[] };
+    };
+    body.hourly.precipitation[5] = null;
+    body.hourly.weather_code[5] = null;
+    const result = parseWeatherResponse(body);
+    expect(result.hours).toHaveLength(24);
+    expect(result.hours[5]!.precipitation).toBe(0);
+    expect(result.hours[5]!.weatherCode).toBe(-1);
+  });
+
+  it('数値であるべき要素が文字列の時間は破棄する（型主張の実行時検証）', () => {
+    const body = openMeteoBody() as { hourly: { temperature_2m: unknown[] } };
+    body.hourly.temperature_2m[3] = '28';
+    const result = parseWeatherResponse(body);
+    expect(result.hours).toHaveLength(23);
+    expect(result.hours.some((h) => h.time === '2026-08-15T03:00')).toBe(false);
+  });
+
+  it('時刻が文字列でない時間は破棄する', () => {
+    const body = openMeteoBody() as { hourly: { time: unknown[] } };
+    body.hourly.time[4] = 4;
+    const result = parseWeatherResponse(body);
+    expect(result.hours).toHaveLength(23);
   });
 });
 

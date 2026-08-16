@@ -11,7 +11,9 @@ const css = readFileSync('public/style.css', 'utf8');
 
 for (const page of PAGES) {
   const html = readFileSync(page, 'utf8');
-  const replaced = html.replace(LINK_TAG, `<style>${css}</style>`);
+  // 置換値は関数で渡す: 文字列で渡すとCSS中の $' や $& などが
+  // String.replaceの置換パターンとして解釈され、HTMLを静かに破壊するため
+  const replaced = html.replace(LINK_TAG, () => `<style>${css}</style>`);
   if (replaced === html) {
     throw new Error(`${page}に${LINK_TAG}が見つかりません`);
   }

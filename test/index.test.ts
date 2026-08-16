@@ -57,7 +57,12 @@ describe('Workerルーティング', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('サーバー内部');
-    expect(consoleError).toHaveBeenCalled();
+    // ログ行単体で再現条件が分かるよう、リクエストの文脈（パス+クエリ）を含めている
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('demo=1'),
+      expect.any(Error),
+    );
   });
 
   it('API以外のパスは静的アセットへ委譲する', async () => {

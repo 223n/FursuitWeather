@@ -9,8 +9,12 @@ on:
   push:
     branches:
       - main
-      # PRマージまでのプレビューデプロイ用（マージ後はこの行を削除してよい）
-      - claude/fursuit-weather-service-509a55
+
+# 短時間に連続pushしたとき、所要時間の揺らぎで古いコミットのデプロイが
+# 後から完走して本番を巻き戻さないよう、「最後のpushが勝つ」に揃える
+concurrency:
+  group: deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -29,14 +33,14 @@ jobs:
       - name: 依存パッケージをインストール
         run: npm ci
 
+      - name: lintを実行
+        run: npm run lint
+
       - name: テストを実行
         run: npm test
 
-      - name: アセットを圧縮（minify）
-        run: npm run minify
-
-      - name: 各ページのCSSをインライン化
-        run: node scripts/inline-css.mjs
+      - name: ビルド（minify+CSSインライン化）
+        run: npm run build
 
       - name: デプロイ
         uses: cloudflare/wrangler-action@v4

@@ -18,7 +18,8 @@ export default {
       try {
         return await handleForecast(request);
       } catch (error) {
-        console.error('予期しないエラー:', error);
+        // ログ行単体で再現条件（座標・日数）が分かるよう、リクエストの文脈を添える
+        console.error('予期しないエラー:', url.pathname + url.search, error);
         return jsonError(500, 'サーバー内部でエラーが発生しました');
       }
     }
