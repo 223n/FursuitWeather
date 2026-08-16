@@ -759,10 +759,11 @@
   // 候補をボタンとして表示する。選択で予報を読み込む
   const searchInput = document.getElementById('place-search');
   const searchResults = document.getElementById('search-results');
+  const searchResultsBox = document.getElementById('search-results-box');
 
   /** 検索結果の候補表示を消す */
   function clearSearchResults() {
-    searchResults.hidden = true;
+    searchResultsBox.hidden = true;
     searchResults.replaceChildren();
   }
 
@@ -793,11 +794,7 @@
       if (!body || !Array.isArray(body.results)) {
         throw new Error('地点検索の結果の形式が不正です');
       }
-      if (body.results.length === 0) {
-        setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
-        return;
-      }
-      const items = [];
+      const places = [];
       for (const place of body.results) {
         if (
           typeof place.name !== 'string' ||
@@ -810,25 +807,43 @@
           typeof place.admin1 === 'string' && place.admin1 !== ''
             ? `${place.name}（${place.admin1}）`
             : place.name;
+        places.push({ label, latitude: place.latitude, longitude: place.longitude });
+      }
+      if (places.length === 0) {
+        setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
+        return;
+      }
+      const selectPlace = (choice) => {
+        clearSearchResults();
+        searchInput.value = '';
+        loadForecast(
+          `lat=${choice.latitude.toFixed(4)}&lon=${choice.longitude.toFixed(4)}`,
+          choice.label,
+        );
+      };
+      // 候補が1件だけなら選ばせる必要がないため、そのまま予報を表示する
+      // （郵便番号検索は市区町村1件に決まることが多く、この経路になる）
+      if (places.length === 1) {
+        selectPlace(places[0]);
+        return;
+      }
+      const items = places.map((choice) => {
         const item = document.createElement('li');
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = label;
-        button.addEventListener('click', () => {
-          clearSearchResults();
-          searchInput.value = '';
-          loadForecast(
-            `lat=${place.latitude.toFixed(4)}&lon=${place.longitude.toFixed(4)}`,
-            label,
-          );
-        });
+        button.appendChild(faIcon('location-dot', 'btn-icon'));
+        button.appendChild(document.createTextNode(choice.label));
+        button.addEventListener('click', () => selectPlace(choice));
         item.appendChild(button);
-        items.push(item);
-      }
+        return item;
+      });
       // 追記ではなく全置換にして、万一の競合でも新旧候補が混在しないようにする
       searchResults.replaceChildren(...items);
-      searchResults.hidden = false;
-      setStatus(`地点の候補が${items.length}件見つかりました。選択してください。`, false);
+      searchResultsBox.hidden = false;
+      setStatus(
+        `地点の候補が${places.length}件見つかりました。検索欄の下の一覧から選択してください。`,
+        false,
+      );
     } catch (error) {
       if (seq !== searchSeq) {
         return;

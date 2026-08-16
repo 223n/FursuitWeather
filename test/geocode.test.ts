@@ -46,7 +46,8 @@ describe('handleGeocode', () => {
     const response = await handleGeocode(new Request('https://example.com/api/geocode?q=松山'));
     expect(response.status).toBe(200);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(response.headers.get('Cache-Control')).toContain('max-age');
+    // 検索ロジックの修正後も古い「0件」応答がブラウザに残らないよう、no-storeを固定する
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
 
     const body = (await response.json()) as {
       results: { name: string; admin1: string; latitude: number; longitude: number }[];
