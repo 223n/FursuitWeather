@@ -62,6 +62,8 @@
   }
   </script>
   <link rel="stylesheet" href="/style.css">
+  <!-- 実測WBGTから判定する簡易ツール（本ページ内のみで使用） -->
+  <script src="/wbgt-tool.js" defer></script>
   <!-- favicon: 太陽+肉球（SVG優先、旧ブラウザ・クローラー向けにICO、iOS向けにタッチアイコン） -->
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -147,6 +149,19 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
         <li><a href="https://www.anthrocon.org/guides/fursuiting-in-the-summer/" rel="noopener">Anthrocon「Fursuiting in the Summer」</a></li>
         <li><a href="https://melbfurcon.com/fursuiting-guidelines/" rel="noopener">Melbourne Fur Con「Fursuiting Guidelines」</a></li>
       </ul>
+
+      <h3 id="wbgt-tool">実測WBGTから判定</h3>
+      <p>
+        イベント会場などでWBGT計により実測した値から、着ぐるみ着用時の判定を確認できます。
+        実測値に着衣補正を加えて、上の対応表と同じ基準で判定します。
+      </p>
+      <div class="control-row">
+        <label for="wbgt-input">実測WBGT（℃）</label>
+        <input type="number" id="wbgt-input" min="-20" max="50" step="0.1" inputmode="decimal">
+        <button type="button" id="wbgt-judge-button">判定する</button>
+      </div>
+      <!-- 結果は事前に高さを確保した領域へ書き込み、判定時のレイアウトシフトを防ぐ -->
+      <p id="wbgt-result" class="wbgt-result" role="status"></p>
 
       <h3>低温側の判定</h3>
       <p>
@@ -260,6 +275,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
                 <li><code>humidity</code>（%）</li>
                 <li><code>apparentTemperature</code>（℃）</li>
                 <li><code>precipitation</code>（mm）</li>
+                <li><code>precipitationProbability</code>（%。提供がない場合・欠測時は<code>null</code>）</li>
                 <li><code>weatherCode</code>（WMOコード。欠測時は<code>-1</code>）</li>
                 <li><code>solarRadiation</code>（W/m²）</li>
                 <li><code>windSpeed</code>（m/s）</li>

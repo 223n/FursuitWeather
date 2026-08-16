@@ -16,6 +16,7 @@ import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
 import llmsTxt from '../public/llms.txt?raw';
+import wbgtTool from '../public/wbgt-tool.js?raw';
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
@@ -25,6 +26,9 @@ import {
   DAYTIME_END_HOUR,
   DAYTIME_START_HOUR,
   DEFAULT_FORECAST_DAYS,
+  GEOCODING_CACHE_TTL_SECONDS,
+  GEOCODING_MAX_QUERY_LENGTH,
+  GEOCODING_MAX_RESULTS,
   HEAT_BANDS,
   LAUNDRY,
   LAUNDRY_LEVEL_LABELS,
@@ -82,6 +86,16 @@ describe('静的HTMLとconstantsの同期', () => {
   it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {
     // as="fetch"のプリロードはcrossoriginがないとmodeが一致せず照合されない
     expect(html).toMatch(/<link rel="preload" href="\/api\/forecast\?[^"]+" as="fetch" crossorigin>/);
+  });
+
+  it('時間別テーブルのsr-only captionは全列（降水確率を含む）を列挙している', () => {
+    // captionの列挙はスクリーンリーダー利用者が列位置を把握する前提情報のため、
+    // 列の追加時に実テーブルと乖離しないよう機械検証する
+    const caption = html.match(/<table id="hours-table">[\s\S]*?<caption[^>]*>([\s\S]*?)<\/caption>/);
+    expect(caption).not.toBeNull();
+    for (const column of ['時刻', '天気', '気温', '湿度', '降水確率', '暑さ指数', '屋外判定', '屋内判定']) {
+      expect(caption![1]).toContain(column);
+    }
   });
 });
 
@@ -166,6 +180,43 @@ describe('aboutページとconstantsの同期', () => {
   });
 });
 
+describe('実測WBGTツール（wbgt-tool.js）とconstantsの同期', () => {
+  // aboutページの簡易ツールは素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
+  it('着衣補正値と冷房しきい値が一致する', () => {
+    expect(wbgtTool).toContain(`const SUIT_WBGT_ADJUSTMENT = ${SUIT_WBGT_ADJUSTMENT};`);
+    expect(wbgtTool).toContain(`const COOLING_REQUIRED_WBGT = ${COOLING_REQUIRED_WBGT};`);
+    expect(wbgtTool).toContain(`const COOLING_RECOMMENDED_WBGT = ${COOLING_RECOMMENDED_WBGT};`);
+  });
+
+  it('暑熱5段階のしきい値・ラベル・グレード・活動時間が件数・順序込みで一致する', () => {
+    // toContainのみだと並び順の崩れ・余分な帯の混入を検出できないため、
+    // 定義ブロックを抽出して全件をtoEqualで突き合わせる
+    const block = wbgtTool.match(/const HEAT_BANDS = \[([\s\S]*?)\n {2}\];/);
+    expect(block).not.toBeNull();
+    const parsed = [
+      ...block![1]!.matchAll(
+        /\{ upperBound: ([\d.]+|Infinity), label: '([^']+)', grade: (\d), activityMinutes: (\d+) \}/g,
+      ),
+    ].map((m) => ({
+      upperBound: m[1] === 'Infinity' ? Number.POSITIVE_INFINITY : Number(m[1]),
+      label: m[2]!,
+      grade: Number(m[3]),
+      activityMinutes: Number(m[4]),
+    }));
+    expect(parsed.length).toBeGreaterThan(0);
+    expect(parsed).toEqual(
+      HEAT_BANDS.map((b) => ({
+        upperBound: b.upperBound,
+        label: b.label,
+        grade: b.grade,
+        activityMinutes: b.activityMinutes,
+      })),
+    );
+    // 最終帯がInfinity終端であること（ツール側の??フォールバックが到達不能であること）も固定する
+    expect(parsed[parsed.length - 1]!.upperBound).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
 describe('公開仕様（about・api.md・llms.txt）と定数の同期', () => {
   it('予報日数の上限と既定値が全公開仕様で一致する', () => {
     expect(aboutHtml).toContain(
@@ -183,6 +234,16 @@ describe('公開仕様（about・api.md・llms.txt）と定数の同期', () => 
     expect(apiMd).toContain(`日中（${DAYTIME_START_HOUR}〜${DAYTIME_END_HOUR}時）`);
     expect(aboutHtml).toContain(`深刻度${RECOMMENDED_MAX_GRADE}以下`);
     expect(apiMd).toContain(`深刻度${RECOMMENDED_MAX_GRADE}以下`);
+  });
+
+  it('地点検索の制限値（文字数・件数・キャッシュ）が入力欄と公開仕様に一致する', () => {
+    // 検索欄のmaxlengthはサーバー側の検証（GEOCODING_MAX_QUERY_LENGTH）と機能的に結合する
+    expect(html).toContain(`maxlength="${GEOCODING_MAX_QUERY_LENGTH}"`);
+    expect(apiMd).toContain(`${GEOCODING_MAX_QUERY_LENGTH}文字以内`);
+    expect(llmsTxt).toContain(`${GEOCODING_MAX_QUERY_LENGTH}文字以内`);
+    expect(apiMd).toContain(`最大${GEOCODING_MAX_RESULTS}件`);
+    expect(llmsTxt).toContain(`最大${GEOCODING_MAX_RESULTS}件`);
+    expect(apiMd).toContain(`${GEOCODING_CACHE_TTL_SECONDS / 86400}日間`);
   });
 
   it('キャッシュ時間と着衣補正値がllms.txt・キャッシュ解説と一致する', () => {

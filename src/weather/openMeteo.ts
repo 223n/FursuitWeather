@@ -25,6 +25,13 @@ const HOURLY_FIELDS = [
   'wind_speed_10m',
 ] as const;
 
+/**
+ * あれば使う任意のhourlyフィールド（表示の補助情報）
+ * 上流モデルが提供しない可能性があるため、レスポンス検証では必須にせず、
+ * 取得URLが400で拒否された場合は任意フィールドなしで再試行する
+ */
+const OPTIONAL_HOURLY_FIELDS = ['precipitation_probability'] as const;
+
 /** Open-Meteoのレスポンスのうち本サービスが使用する部分 */
 interface OpenMeteoResponse {
   latitude: number;
@@ -39,6 +46,8 @@ interface OpenMeteoResponse {
     weather_code: (number | null)[];
     shortwave_radiation: (number | null)[];
     wind_speed_10m: (number | null)[];
+    /** 任意フィールド: 上流が提供しない場合は存在しない */
+    precipitation_probability?: (number | null)[];
   };
 }
 
@@ -50,12 +59,24 @@ export class UpstreamError extends Error {
   }
 }
 
-/** 取得URLを組み立てる */
-export function buildForecastUrl(latitude: number, longitude: number, days: number): string {
+/**
+ * 取得URLを組み立てる
+ *
+ * @param withOptionalFields falseなら任意フィールド（降水確率）を含めない（400時の再試行用）
+ */
+export function buildForecastUrl(
+  latitude: number,
+  longitude: number,
+  days: number,
+  withOptionalFields = true,
+): string {
+  const fields: readonly string[] = withOptionalFields
+    ? [...HOURLY_FIELDS, ...OPTIONAL_HOURLY_FIELDS]
+    : HOURLY_FIELDS;
   const params = new URLSearchParams({
     latitude: latitude.toFixed(4),
     longitude: longitude.toFixed(4),
-    hourly: HOURLY_FIELDS.join(','),
+    hourly: fields.join(','),
     timezone: 'Asia/Tokyo',
     // 風速はWBGT式に合わせてm/sで取得する（デフォルトはkm/h）
     wind_speed_unit: 'ms',
@@ -90,6 +111,7 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
   const weatherCode = hourly.weather_code[index];
   const solarRadiation = hourly.shortwave_radiation[index];
   const windSpeed = hourly.wind_speed_10m[index];
+  const precipitationProbability = hourly.precipitation_probability?.[index];
 
   // WBGT計算に必要な項目（気温・湿度・体感温度・風速・日射量）の欠測・非数値は
   // その時間を破棄する。
@@ -113,6 +135,10 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
     apparentTemperature,
     // 降水量・天気コードは表示用のため、欠測・非数値でも既定値で補って時間を残す
     precipitation: isFiniteNumber(precipitation) ? precipitation : 0,
+    // 降水確率は任意フィールドのため、欠測・非提供はnull（フロントは「-」表示）
+    precipitationProbability: isFiniteNumber(precipitationProbability)
+      ? precipitationProbability
+      : null,
     weatherCode: isFiniteNumber(weatherCode) ? weatherCode : -1,
     solarRadiation,
     windSpeed,
@@ -167,22 +193,22 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
 }
 
 /**
- * 時間別の気象データを取得する
- * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
- *
- * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ * 上流が任意フィールドを拒否したことの記憶（アイソレート単位）
+ * 恒常的な400のとき、400応答はエッジにキャッシュされないため、記憶しないと
+ * 全リクエストが「400→再試行」の2往復になり無料枠保護が無効化される。
+ * アイソレート再起動で自動リセットされるため、上流が対応すれば自然復帰する
  */
-export async function fetchWeather(
-  latitude: number,
-  longitude: number,
-  days: number,
-  fetchImpl: typeof fetch = fetch,
-): Promise<WeatherResult> {
-  const url = buildForecastUrl(latitude, longitude, days);
+let optionalFieldsRejected = false;
 
-  let response: Response;
+/** テスト用: 任意フィールド拒否の記憶をリセットする */
+export function resetOptionalFieldsRejected(): void {
+  optionalFieldsRejected = false;
+}
+
+/** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
+async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
-    response = await fetchImpl(url, {
+    return await fetchImpl(url, {
       headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
       // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
       // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
@@ -204,6 +230,34 @@ export async function fetchWeather(
         ? '気象データの取得がタイムアウトしました。時間をおいて再度お試しください'
         : '気象データの取得に失敗しました。時間をおいて再度お試しください',
     );
+  }
+}
+
+/**
+ * 時間別の気象データを取得する
+ * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
+ * 任意フィールドが原因の400は必須フィールドのみで一度だけ再試行する
+ *
+ * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ */
+export async function fetchWeather(
+  latitude: number,
+  longitude: number,
+  days: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<WeatherResult> {
+  let url = buildForecastUrl(latitude, longitude, days, !optionalFieldsRejected);
+  let response = await requestUpstream(url, fetchImpl);
+
+  if (response.status === 400 && !optionalFieldsRejected) {
+    // 任意フィールド（降水確率）を上流モデルが受け付けない場合に備え、
+    // 必須フィールドのみのURLで一度だけ再試行する（恒常的な400ならログで気付ける）。
+    // 以後のリクエストは最初からフォールバックURLを使い、エッジキャッシュの保護下に戻す
+    const detail = (await response.text().catch(() => '')).slice(0, 200);
+    console.error('気象データAPIが400を返したため任意フィールドなしで再試行:', url, detail);
+    optionalFieldsRejected = true;
+    url = buildForecastUrl(latitude, longitude, days, false);
+    response = await requestUpstream(url, fetchImpl);
   }
 
   if (!response.ok) {

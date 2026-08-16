@@ -3,6 +3,7 @@
 // （wrangler.jsoncのassets.run_worker_first設定による）
 
 import { handleForecast, jsonError } from './api/forecast';
+import { handleGeocode } from './api/geocode';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -19,6 +20,15 @@ export default {
         return await handleForecast(request);
       } catch (error) {
         // ログ行単体で再現条件（座標・日数）が分かるよう、リクエストの文脈を添える
+        console.error('予期しないエラー:', url.pathname + url.search, error);
+        return jsonError(500, 'サーバー内部でエラーが発生しました');
+      }
+    }
+
+    if (url.pathname === '/api/geocode') {
+      try {
+        return await handleGeocode(request);
+      } catch (error) {
         console.error('予期しないエラー:', url.pathname + url.search, error);
         return jsonError(500, 'サーバー内部でエラーが発生しました');
       }

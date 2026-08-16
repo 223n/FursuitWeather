@@ -184,7 +184,8 @@ label {
 }
 
 select,
-button {
+button,
+input[type='search'] {
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
@@ -208,7 +209,8 @@ button:hover {
 /* フォーカスリングは白背景に対して3:1以上のコントラストを確保した濃色を使う
  * （#E69F00は2.25:1でWCAG 2.1 SC 1.4.11を満たさないため濃い#A66E00にしている） */
 select:focus,
-button:focus {
+button:focus,
+input[type='search']:focus {
   outline: 3px solid #A66E00;
   outline-offset: 2px;
 }
@@ -216,6 +218,35 @@ button:focus {
 /* ステータス表示
  * 通常メッセージ（#status）とエラー（#status-error、role=alert）をgridで同じ位置に重ね、
  * 出現・消滅でレイアウトシフト（CLS）が発生しないよう高さは常に確保しておく */
+input[type='number'] {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  width: 7em;
+}
+
+input[type='number']:focus {
+  outline: 3px solid #a66e00;
+  outline-offset: 2px;
+}
+
+/* 実測WBGTツールの結果領域（判定時のレイアウトシフトを防ぐため高さを確保） */
+.wbgt-result {
+  min-height: 3.4rem;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .status-area {
   display: grid;
   min-height: 3.4rem;

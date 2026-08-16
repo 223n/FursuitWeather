@@ -32,6 +32,19 @@ export function jsonError(status: number, message: string): Response {
   return json({ error: message }, status);
 }
 
+/** CORSプリフライト（OPTIONS）への応答を生成する（全APIエンドポイント共通） */
+export function preflightResponse(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 /** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
 function parseNumberParam(params: URLSearchParams, name: string): number | null {
   const raw = params.get(name);
@@ -55,15 +68,7 @@ function todayInJst(now: Date): string {
 export async function handleForecast(request: Request): Promise<Response> {
   // 他サイトからのAPI利用（CORS）のため、プリフライトリクエストに応答する
   if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET',
-        'Access-Control-Allow-Headers': '*',
-        'Access-Control-Max-Age': '86400',
-      },
-    });
+    return preflightResponse();
   }
 
   if (request.method !== 'GET') {

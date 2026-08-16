@@ -46,6 +46,7 @@ function buildDay(
       humidity,
       apparentTemperature: Math.round((temperature + 2) * 10) / 10,
       precipitation: isRainy ? 2.5 : 0,
+      precipitationProbability: isRainy ? 80 : 10,
       weatherCode: isRainy ? 61 : options.weatherCode,
       solarRadiation: isRainy ? 50 : solarCurve(hour, options.peakSolar),
       windSpeed: 2.5,

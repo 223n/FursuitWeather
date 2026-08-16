@@ -54,6 +54,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - `humidity`（%）
 - `apparentTemperature`（℃）
 - `precipitation`（mm）
+- `precipitationProbability`（%。上流が提供しない場合・欠測時は`null`）
 - `weatherCode`（WMOコード。欠測時は`-1`）
 - `solarRadiation`（W/m²）
 - `windSpeed`（m/s）
@@ -98,6 +99,35 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - `fursuitDryingHours`（時間）
 - `moldWarning`（boolean）
 - `advice`
+
+## GET /api/geocode
+
+都市名または郵便番号から地点候補を検索します。
+フロントエンドの地点検索が使用する補助APIで、Open-Meteoの
+ジオコーディングAPIへWorkerが代理で問い合わせます。
+
+| パラメータ | 必須 | 説明 |
+|-----------|------|------|
+| `q` | 必須 | 都市名または郵便番号（100文字以内。例: `松山`、`790-0067`） |
+
+レスポンスは次の形式です。候補は日本国内のみ、最大5件です。
+該当がない場合は空配列を返します。
+
+```json
+{
+  "results": [
+    {
+      "name": "松山",
+      "admin1": "愛媛県",
+      "latitude": 33.8392,
+      "longitude": 132.7658
+    }
+  ]
+}
+```
+
+地名データはほぼ変化しないため、レスポンスはエッジで7日間
+キャッシュされます。
 
 ## 利用上の注意
 

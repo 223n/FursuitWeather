@@ -138,10 +138,19 @@
         <button type="button" id="geolocation-button">現在地を使う</button>
         <button type="button" id="reload-button">予報を更新</button>
       </div>
+      <div class="control-row">
+        <label for="place-search">地点検索</label>
+        <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off">
+        <button type="button" id="search-button">検索</button>
+        <button type="button" id="share-button">表示地点の予報を共有</button>
+      </div>
+      <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外） -->
+      <ul id="search-results" class="search-results" aria-label="地点検索の候補" hidden></ul>
       <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
       <p id="location-label" class="location-label"></p>
       <p class="control-note">
         現在地の取得にはブラウザの位置情報の許可が必要です。位置情報は予報の取得のみに使い、保存しません。
+        最後に表示した地点（現在地を除く）はこのブラウザ内にのみ保存され、次回のアクセス時に自動で表示されます。
       </p>
     </section>
 
@@ -243,8 +252,9 @@
       <div class="table-wrapper">
         <table id="hours-table">
           <caption class="sr-only">
-            選択した日の時間別予報。行ごとに時刻、天気、気温、湿度、着ぐるみ補正後の暑さ指数、
-            屋外判定、連続活動時間の上限目安、空調なしの場合の屋内判定と冷房要否を示します。
+            選択した日の時間別予報。行ごとに時刻、天気、気温、湿度、降水確率、
+            着ぐるみ補正後の暑さ指数、屋外判定、連続活動時間の上限目安、
+            空調なしの場合の屋内判定と冷房要否を示します。
           </caption>
           <thead>
             <tr>
@@ -252,6 +262,7 @@
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>天気</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-temperature-half"/></svg>気温</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-droplet"/></svg>湿度</th>
+              <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-cloud-rain"/></svg>降水<br>確率</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-temperature-high"/></svg>暑さ指数<br><span class="th-note">（着ぐるみ補正後）</span></th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-tree"/></svg>屋外判定</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>連続活動<br>目安</th>

@@ -12,6 +12,7 @@ function weather(overrides: Partial<HourlyWeather>): HourlyWeather {
     humidity: 60,
     apparentTemperature: 26,
     precipitation: 0,
+    precipitationProbability: null,
     weatherCode: 1,
     solarRadiation: 500,
     windSpeed: 2,

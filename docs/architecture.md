@@ -29,9 +29,12 @@ flowchart LR
 ```text
 src/
 ├── index.ts            Workerエントリポイント（ルーティング・最終防衛線）
-├── api/forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
+├── api/
+│   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
+│   └── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
+│   ├── geocoding.ts    ジオコーディングAPIクライアント（都市名・郵便番号検索）
 │   └── demoData.ts     デモデータ生成
 ├── logic/
 │   ├── wbgt.ts         WBGT推定（小野2014式）
