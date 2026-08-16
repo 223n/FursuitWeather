@@ -44,6 +44,13 @@
   - 5段階の段階分けの互換基準
 - 風速関数はMeyer式（小さい濡れ面の蒸発量推定）のm/s換算形
 
+## 地点検索
+
+- [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api)
+  - 都市名から座標を検索（GeoNamesデータ由来）
+- [zipcloud 郵便番号検索API](https://zipcloud.ibsnet.co.jp/doc/api)
+  - 日本の郵便番号から住所（市区町村名）への変換に使用
+
 ## デザイン・アイコン
 
 - カラーユニバーサルデザイン（CUD）推奨色をベースにした配色

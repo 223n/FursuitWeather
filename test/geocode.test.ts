@@ -129,6 +129,115 @@ describe('handleGeocode', () => {
   });
 });
 
+describe('fetchGeocoding（郵便番号）', () => {
+  /** zipcloudとジオコーディングをURLで出し分けるfetch実装を作る */
+  function routePostal(options: {
+    zipcloud: () => Response;
+    search: (url: string) => Response;
+  }): { impl: typeof fetch; calls: string[] } {
+    const calls: string[] = [];
+    const impl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('zipcloud')) {
+        return options.zipcloud();
+      }
+      return options.search(url);
+    }) as typeof fetch;
+    return { impl, calls };
+  }
+
+  const cityHit = JSON.stringify({
+    results: [
+      { name: '蒲郡', admin1: '愛知県', latitude: 34.8262, longitude: 137.2196, country_code: 'JP' },
+    ],
+  });
+
+  it('郵便番号はzipcloudで市区町村名へ変換してから地名検索する（全角・ハイフンなしも可）', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () =>
+        new Response(JSON.stringify({ status: 200, results: [{ address2: '蒲郡市' }] }), {
+          status: 200,
+        }),
+      search: () => new Response(cityHit, { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('４４３−００４１', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe('蒲郡');
+    expect(calls[0]).toContain('zipcode=4430041');
+    expect(calls[1]).toContain(`name=${encodeURIComponent('蒲郡市')}`);
+  });
+
+  it('zipcloudで住所が引けない場合はハイフン有無の両形式で直接検索する', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () =>
+        new Response(JSON.stringify({ status: 200, results: null }), { status: 200 }),
+      // ハイフン付きは0件、ハイフンなしでヒットするケース
+      search: (url) =>
+        url.includes('4430041') && !url.includes('443-0041')
+          ? new Response(cityHit, { status: 200 })
+          : new Response(JSON.stringify({}), { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('443-0041', impl);
+    expect(results).toHaveLength(1);
+    expect(calls[1]).toContain(encodeURIComponent('443-0041'));
+    expect(calls[2]).toContain('name=4430041');
+  });
+
+  it('zipcloudのエラー・変換後の0件でも直接検索へフォールバックする', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () => new Response('error', { status: 500 }),
+      search: () => new Response(JSON.stringify({}), { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('4430041', impl);
+    expect(results).toEqual([]);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '郵便番号APIエラー:',
+      expect.stringContaining('zipcode='),
+      500,
+    );
+    // zipcloud→ハイフン付き→ハイフンなしの順で試している
+    expect(calls).toHaveLength(3);
+  });
+
+  it('zipcloudへの接続失敗でも検索全体は継続する', async () => {
+    const { impl } = routePostal({
+      zipcloud: () => {
+        throw new Error('down');
+      },
+      search: () => new Response(cityHit, { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('443-0041', impl);
+    expect(results).toHaveLength(1);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '郵便番号の変換に失敗:',
+      expect.stringContaining('zipcode='),
+      expect.any(Error),
+    );
+  });
+
+  it('市区町村名の検索が0件なら郵便番号の直接検索も試す', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () =>
+        new Response(JSON.stringify({ status: 200, results: [{ address2: '蒲郡市' }] }), {
+          status: 200,
+        }),
+      search: (url) =>
+        url.includes('443-0041')
+          ? new Response(cityHit, { status: 200 })
+          : new Response(JSON.stringify({}), { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('443-0041', impl);
+    expect(results).toHaveLength(1);
+    expect(calls).toHaveLength(3);
+  });
+});
+
 describe('fetchGeocoding', () => {
   it('接続失敗は固定の日本語文のUpstreamErrorにする', async () => {
     const reject = (() => Promise.reject(new Error('down'))) as unknown as typeof fetch;

@@ -794,7 +794,7 @@
         throw new Error('地点検索の結果の形式が不正です');
       }
       if (body.results.length === 0) {
-        setStatus('該当する地点が見つかりませんでした。表記を変えてお試しください。', true);
+        setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
         return;
       }
       const items = [];
