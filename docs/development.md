@@ -84,6 +84,25 @@ npm run deploy
 重複コンテンツ対策は各ページのcanonicalタグ（カスタムドメイン指定）で
 担保しています。
 
+## セキュリティヘッダー
+
+静的アセットのレスポンスヘッダーは`public/_headers`で設定しています
+（CSP・X-Content-Type-Options・Referrer-Policy・Permissions-Policy・
+HSTS）。APIレスポンスのヘッダーは`src/api/forecast.ts`の`json()`で
+設定します。
+
+CSPは自己配信のみを許可する構成（`default-src 'self'`）のため、
+外部CDN・Webフォント・外部画像などを追加する場合は`_headers`の更新が
+必要です。デプロイ時にCSSがHTMLへインライン化されるため、`style-src`には
+`'unsafe-inline'`を含めています。
+
+## 依存関係の更新
+
+`.github/dependabot.yml`により、npmパッケージとGitHub Actionsの更新PRが
+毎週月曜の朝（日本時間）に自動作成されます。マイナー・パッチ更新は
+1つのPRにまとめられます。CIのテストが通ることを確認してマージして
+ください。
+
 ## 開発時の注意
 
 - 表示文言のラベルや係数を変える場合は、`src/constants.ts`を起点にする

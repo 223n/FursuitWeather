@@ -1,0 +1,29 @@
+# 依存パッケージとGitHub Actionsの更新PRを自動作成する
+# マイナー・パッチ更新は1つのPRにまとめ、確認の手間を減らす
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"

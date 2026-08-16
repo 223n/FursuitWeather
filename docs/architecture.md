@@ -17,6 +17,10 @@ flowchart LR
 
 - 静的アセットは無料・無制限で配信され、Workerは `/api/*` のみ起動します
   （`wrangler.jsonc` の `assets.run_worker_first` 設定による）
+- 存在しないパスへのアクセスには`public/404.html`を404ステータスで
+  返します（`assets.not_found_handling`設定による）
+- セキュリティヘッダーは`public/_headers`で設定します
+  （詳細は[開発ガイド](development.md)）
 - 上流はOpen-MeteoのJMAモデルAPI（`jma_seamless`）で、気象庁MSM
   （約5kmメッシュ・1時間粒度・4日先）のデータを取得します
 

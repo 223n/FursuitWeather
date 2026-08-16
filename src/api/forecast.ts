@@ -16,6 +16,8 @@ export function json(body: unknown, status = 200, cacheable = false): Response {
     'Content-Type': 'application/json; charset=utf-8',
     // 個人開発の公開APIとして他サイトからの利用も許可する
     'Access-Control-Allow-Origin': '*',
+    // Content-Typeを無視した推測実行を防ぐ（静的アセット側はpublic/_headersで設定）
+    'X-Content-Type-Options': 'nosniff',
   };
   if (cacheable) {
     headers['Cache-Control'] = `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`;
