@@ -248,6 +248,13 @@ export const OPEN_METEO_FORECAST_BASE_URL = 'https://api.open-meteo.com/v1/forec
 /** Open-Meteoジオコーディングv1 API（都市名・郵便番号から座標を検索する） */
 export const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 
+/**
+ * zipcloud 郵便番号検索API（日本の郵便番号→住所変換）
+ * Open-Meteoの検索は日本の郵便番号を確実には引けないため、
+ * 郵便番号はまず住所（市区町村名）へ変換してから地名で検索する
+ */
+export const ZIPCLOUD_BASE_URL = 'https://zipcloud.ibsnet.co.jp/api/search';
+
 /** 地点検索クエリの最大文字数（異常に長い入力を上流へ流さない） */
 export const GEOCODING_MAX_QUERY_LENGTH = 100;
 

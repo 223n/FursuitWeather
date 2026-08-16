@@ -1,12 +1,15 @@
-// Open-Meteoジオコーディングv1 APIクライアント
-// 都市名・郵便番号から座標を検索する。郵便番号はGeoNamesの郵便番号データに基づく。
-// APIキーは不要（非商用・要出典表記。気象APIと同じ提供元）
+// 地点検索クライアント
+// 都市名はOpen-Meteoジオコーディングv1 APIで座標を検索する（APIキー不要）。
+// 日本の郵便番号はOpen-Meteoの検索で確実に引けないため、zipcloud（郵便番号→住所）で
+// 市区町村名へ変換してから地名検索する。変換に失敗した場合は郵便番号のまま
+// ハイフン有無の両形式で直接検索を試す
 
 import {
   GEOCODING_BASE_URL,
   GEOCODING_CACHE_TTL_SECONDS,
   GEOCODING_MAX_RESULTS,
   UPSTREAM_TIMEOUT_MS,
+  ZIPCLOUD_BASE_URL,
 } from '../constants';
 import type { GeocodeResult } from '../types';
 import { UpstreamError } from './openMeteo';
@@ -82,12 +85,13 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
 
 /**
  * 都市名・郵便番号から地点候補を検索する
+ * 1回分の地名検索を実行する
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
-export async function fetchGeocoding(
+async function searchByName(
   query: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch,
 ): Promise<GeocodeResult[]> {
   const url = buildGeocodingUrl(query);
 
@@ -122,4 +126,82 @@ export async function fetchGeocoding(
   }
 
   return parseGeocodingResponse(data);
+}
+
+/** 全角の数字・ハイフン類を半角へ正規化する */
+function normalizeQuery(query: string): string {
+  return query
+    .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
+    .replace(/[ー−‐―ｰ]/g, '-')
+    .trim();
+}
+
+/**
+ * 日本の郵便番号を住所（市区町村名）へ変換する
+ * 補助手段のため、失敗しても検索全体は継続する（ログには残す）
+ */
+async function resolvePostalCode(
+  digits: string,
+  fetchImpl: typeof fetch,
+): Promise<string | null> {
+  const url = `${ZIPCLOUD_BASE_URL}?zipcode=${digits}`;
+  try {
+    const response = await fetchImpl(url, {
+      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
+      // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
+      cf: {
+        cacheTtl: GEOCODING_CACHE_TTL_SECONDS,
+        cacheEverything: true,
+      },
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      console.error('郵便番号APIエラー:', url, response.status);
+      return null;
+    }
+    const data = (await response.json()) as {
+      results?: { address2?: unknown }[] | null;
+    };
+    const city = data?.results?.[0]?.address2;
+    return typeof city === 'string' && city !== '' ? city : null;
+  } catch (error) {
+    console.error('郵便番号の変換に失敗:', url, error);
+    return null;
+  }
+}
+
+/**
+ * 都市名・郵便番号から地点候補を検索する
+ * 郵便番号はzipcloudで市区町村名へ変換してから地名検索し、
+ * 変換できない場合はハイフン有無の両形式で直接検索を試す
+ *
+ * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ */
+export async function fetchGeocoding(
+  query: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<GeocodeResult[]> {
+  const normalized = normalizeQuery(query);
+  const digits = normalized.replace(/-/g, '');
+
+  if (!/^\d{7}$/.test(digits)) {
+    return searchByName(normalized, fetchImpl);
+  }
+
+  // 郵便番号: まず住所へ変換して市区町村名で検索する
+  const city = await resolvePostalCode(digits, fetchImpl);
+  if (city !== null) {
+    const results = await searchByName(city, fetchImpl);
+    if (results.length > 0) {
+      return results;
+    }
+  }
+
+  // 変換できない・市区町村名で見つからない場合は、郵便番号のまま両形式で試す
+  const hyphenated = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  const direct = await searchByName(hyphenated, fetchImpl);
+  if (direct.length > 0) {
+    return direct;
+  }
+  return searchByName(digits, fetchImpl);
 }
