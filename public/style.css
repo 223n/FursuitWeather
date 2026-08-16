@@ -233,9 +233,27 @@ input[type='number']:focus {
   outline-offset: 2px;
 }
 
+/* 実測WBGTツール: 対話エリアであることが分かるよう枠線で囲む */
+.wbgt-tool-box {
+  border: 2px solid var(--color-blue);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
 /* 実測WBGTツールの結果領域（判定時のレイアウトシフトを防ぐため高さを確保） */
 .wbgt-result {
   min-height: 3.4rem;
+}
+
+.wbgt-result-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+}
+
+.wbgt-result-list li {
+  margin: 0.35rem 0;
 }
 
 .search-results {
