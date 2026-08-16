@@ -97,6 +97,15 @@ describe('handleGeocode', () => {
     expect(response.status).toBe(405);
   });
 
+  it('OPTIONSプリフライトには204とCORSヘッダーを返す（/api/forecastと同じ契約）', async () => {
+    const response = await handleGeocode(
+      new Request('https://example.com/api/geocode', { method: 'OPTIONS' }),
+    );
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+  });
+
   it('上流APIのエラーは502として返し、運用検知のためログに残す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 

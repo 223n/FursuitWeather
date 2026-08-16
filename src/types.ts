@@ -12,7 +12,7 @@ export interface HourlyWeather {
   apparentTemperature: number;
   /** 降水量（mm） */
   precipitation: number;
-  /** 降水確率（%）。上流が提供しない場合はnull */
+  /** 降水確率（%）。上流が提供しない場合・欠測時はnull */
   precipitationProbability: number | null;
   /** WMO天気コード（欠測時は-1） */
   weatherCode: number;

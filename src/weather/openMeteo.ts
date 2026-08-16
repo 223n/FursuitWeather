@@ -192,6 +192,19 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
   };
 }
 
+/**
+ * 上流が任意フィールドを拒否したことの記憶（アイソレート単位）
+ * 恒常的な400のとき、400応答はエッジにキャッシュされないため、記憶しないと
+ * 全リクエストが「400→再試行」の2往復になり無料枠保護が無効化される。
+ * アイソレート再起動で自動リセットされるため、上流が対応すれば自然復帰する
+ */
+let optionalFieldsRejected = false;
+
+/** テスト用: 任意フィールド拒否の記憶をリセットする */
+export function resetOptionalFieldsRejected(): void {
+  optionalFieldsRejected = false;
+}
+
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
 async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
@@ -233,14 +246,16 @@ export async function fetchWeather(
   days: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<WeatherResult> {
-  let url = buildForecastUrl(latitude, longitude, days);
+  let url = buildForecastUrl(latitude, longitude, days, !optionalFieldsRejected);
   let response = await requestUpstream(url, fetchImpl);
 
-  if (response.status === 400) {
+  if (response.status === 400 && !optionalFieldsRejected) {
     // 任意フィールド（降水確率）を上流モデルが受け付けない場合に備え、
-    // 必須フィールドのみのURLで一度だけ再試行する（恒常的な400ならログで気付ける）
+    // 必須フィールドのみのURLで一度だけ再試行する（恒常的な400ならログで気付ける）。
+    // 以後のリクエストは最初からフォールバックURLを使い、エッジキャッシュの保護下に戻す
     const detail = (await response.text().catch(() => '')).slice(0, 200);
     console.error('気象データAPIが400を返したため任意フィールドなしで再試行:', url, detail);
+    optionalFieldsRejected = true;
     url = buildForecastUrl(latitude, longitude, days, false);
     response = await requestUpstream(url, fetchImpl);
   }

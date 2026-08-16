@@ -81,15 +81,22 @@
   const hoursTitle = document.getElementById('hours-title');
   const noticesList = document.getElementById('notices-list');
 
-  // 可変状態はこのブロックの6変数のみ（描画関数はここを参照する）
+  // 可変状態はこのブロックの変数のみ（描画関数はここを参照する）
   let currentForecast = null;
   let selectedDate = null;
-  /** 最後に予報を取得したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
+  /** 最後に予報を要求したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
   let lastQuery = null;
-  /** 最後に表示した地点の名前（「予報を更新」でラベルを維持するために保持） */
+  /** 最後に要求した地点の名前（「予報を更新」でラベルを維持するために保持） */
   let lastLocationName = null;
+  /** 最後に要求したロードのオプション（「予報を更新」で記憶可否などを引き継ぐ） */
+  let lastOptions = null;
+  /** 表示に成功した地点のクエリと名前（共有ボタンはこちらを使う。失敗中のlastQueryとは別） */
+  let displayedQuery = null;
+  let displayedName = null;
   /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
   let requestSeq = 0;
+  /** 進行中の地点検索の識別番号（古い検索応答で候補が汚染されるのを防ぐ） */
+  let searchSeq = 0;
   /** 地点セレクトのデバウンス用タイマー */
   let cityChangeTimer = null;
 
@@ -520,16 +527,22 @@
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
    * @param {string} locationName 表示する地点名（成功時にラベルへ反映）
-   * @param {number | null} cityIndex 地点セレクト由来の場合のCITIESインデックス（記憶用） */
-  async function loadForecast(query, locationName, cityIndex = null) {
-    // 確定ロードは保留中のセレクトデバウンスを無効化し、後から古い地点選択が
-    // 発火して最後の明示操作を上書きするのを防ぐ
+   * @param {object} [options]
+   * @param {number | null} [options.cityIndex] 地点セレクト由来の場合のCITIESインデックス（記憶用）
+   * @param {boolean} [options.persist] falseなら記憶もURL反映もしない（現在地用）
+   * @param {string | null} [options.storedName] 記憶に使う名前（URL由来の名前を信頼しない場合に指定） */
+  async function loadForecast(query, locationName, options = {}) {
+    const { cityIndex = null, persist = true, storedName = null } = options;
+    // 確定ロードは保留中のセレクトデバウンスと検索応答を無効化し、後から
+    // 古い地点選択・検索候補が発火して最後の明示操作を上書きするのを防ぐ
     clearTimeout(cityChangeTimer);
     cityChangeTimer = null;
+    searchSeq += 1;
     // 「予報を更新」が常に「最後に要求した条件の再試行」になるよう、
     // クエリと地点名は成功を待たずペアで記録する（表示ラベルの更新は成功時のみ）
     lastQuery = query;
     lastLocationName = locationName;
+    lastOptions = options;
     const seq = ++requestSeq;
     setStatus('予報を取得しています…', false);
     try {
@@ -574,13 +587,23 @@
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
       setStatus('予報を取得しました', false);
       setLocationLabel(locationName);
+      // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）
+      displayedQuery = query;
+      displayedName = locationName;
       if (query !== 'demo=1') {
-        // 次回アクセス時に同じ地点を表示できるよう記憶し、
-        // 表示中の地点をURLにも反映してそのまま共有・ブックマークできるようにする
-        writeStoredLocation(query, locationName, cityIndex);
-        const urlParams = new URLSearchParams(query);
-        urlParams.set('name', locationName);
-        window.history.replaceState(null, '', `?${urlParams.toString()}`);
+        if (persist) {
+          // 次回アクセス時に同じ地点を表示できるよう記憶し、表示中の地点をURLにも
+          // 反映してそのまま共有・ブックマークできるようにする。
+          // 記憶する名前はstoredName優先（共有URL由来の名前を鵜呑みにしないため）
+          writeStoredLocation(query, storedName ?? locationName, cityIndex);
+          const urlParams = new URLSearchParams(query);
+          urlParams.set('name', locationName);
+          window.history.replaceState(null, '', `?${urlParams.toString()}`);
+        } else {
+          // 現在地は「位置情報は保存しません」の約束どおり記憶もURL反映もしない。
+          // 以前の地点パラメータが残っているとアドレスバーと表示が食い違うため消す
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       }
       renderDayCards();
       renderNotices();
@@ -611,7 +634,7 @@
     if (!city) {
       return;
     }
-    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name, cityIndex);
+    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -631,9 +654,10 @@
   document.getElementById('city-button').addEventListener('click', loadSelectedCity);
 
   // 「予報を更新」は直前に要求した条件（現在地・デモを含む）で再取得する
+  // （記憶可否などのオプションも引き継ぎ、現在地の再取得で座標が保存されないようにする）
   document.getElementById('reload-button').addEventListener('click', () => {
     if (lastQuery) {
-      loadForecast(lastQuery, lastLocationName);
+      loadForecast(lastQuery, lastLocationName, lastOptions ?? {});
     } else {
       loadSelectedCity();
     }
@@ -663,6 +687,8 @@
         loadForecast(
           `lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
           describeCurrentLocation(lat, lon),
+          // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）
+          { persist: false },
         );
       },
       () => {
@@ -678,16 +704,17 @@
     );
   });
 
-  // 「表示地点の予報を共有」: 直前に要求した地点の共有URLをOSの共有機能または
-  // クリップボードで渡す（loadForecast成功時にアドレスバーへも同じURLを反映済み）
+  // 「表示地点の予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
+  // クリップボードで渡す（要求中・失敗中のlastQueryではなくdisplayedQueryを使い、
+  // 画面の予報と共有URLが常に一致するようにする）
   document.getElementById('share-button').addEventListener('click', async () => {
     let shareUrl = `${window.location.origin}/`;
-    if (lastQuery === 'demo=1') {
+    if (displayedQuery === 'demo=1') {
       shareUrl = `${window.location.origin}/?demo=1`;
-    } else if (lastQuery) {
-      const params = new URLSearchParams(lastQuery);
-      if (lastLocationName) {
-        params.set('name', lastLocationName);
+    } else if (displayedQuery) {
+      const params = new URLSearchParams(displayedQuery);
+      if (displayedName) {
+        params.set('name', displayedName);
       }
       shareUrl = `${window.location.origin}/?${params.toString()}`;
     }
@@ -695,7 +722,7 @@
       try {
         await navigator.share({
           title: 'FursuitWeather - 着ぐるみ天気予報',
-          text: `${lastLocationName || '選択した地点'}の着ぐるみ天気予報`,
+          text: `${displayedName || '選択した地点'}の着ぐるみ天気予報`,
           url: shareUrl,
         });
       } catch {
@@ -728,6 +755,9 @@
       setStatus('都市名または郵便番号を入力してください。', true);
       return;
     }
+    // 連続検索・検索後の確定操作（候補選択・地点セレクトなど）より後に届いた
+    // 古い応答が候補やステータスを上書きしないよう、世代番号で守る
+    const seq = ++searchSeq;
     clearSearchResults();
     setStatus('地点を検索しています…', false);
     try {
@@ -735,6 +765,9 @@
         throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
       });
       const body = await response.json().catch(() => null);
+      if (seq !== searchSeq) {
+        return;
+      }
       if (!response.ok) {
         throw new Error(
           (body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`,
@@ -747,6 +780,7 @@
         setStatus('該当する地点が見つかりませんでした。表記を変えてお試しください。', true);
         return;
       }
+      const items = [];
       for (const place of body.results) {
         if (
           typeof place.name !== 'string' ||
@@ -772,11 +806,16 @@
           );
         });
         item.appendChild(button);
-        searchResults.appendChild(item);
+        items.push(item);
       }
+      // 追記ではなく全置換にして、万一の競合でも新旧候補が混在しないようにする
+      searchResults.replaceChildren(...items);
       searchResults.hidden = false;
-      setStatus(`地点の候補が${searchResults.children.length}件見つかりました。選択してください。`, false);
+      setStatus(`地点の候補が${items.length}件見つかりました。選択してください。`, false);
     } catch (error) {
+      if (seq !== searchSeq) {
+        return;
+      }
       setStatus(`エラー: ${error.message}`, true);
     }
   }
@@ -804,12 +843,16 @@
     sharedLon >= -180 &&
     sharedLon <= 180
   ) {
-    // 共有URL: 地点名は表示にのみ使う（textContent経由のため装飾やタグは無効化される）
+    // 共有URL: URL由来の地点名は信頼しない。表示には座標由来の位置関係を併記して
+    // 名前と座標の食い違い（偽装リンク）に気付けるようにし、記憶には座標由来の
+    // 名前だけを使って偽装名が次回以降の表示に固定されないようにする。
+    // 表示自体はtextContent経由のため、タグや装飾は無効化される
     const sharedName = (pageParams.get('name') ?? '').trim().slice(0, 80);
-    loadForecast(
-      `lat=${sharedLat}&lon=${sharedLon}`,
-      sharedName || describeSharedLocation(sharedLat, sharedLon),
-    );
+    const coordName = describeSharedLocation(sharedLat, sharedLon);
+    const displayLabel = sharedName
+      ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
+      : coordName;
+    loadForecast(`lat=${sharedLat}&lon=${sharedLon}`, displayLabel, { storedName: coordName });
   } else {
     const stored = readStoredLocation();
     if (stored) {
@@ -817,7 +860,7 @@
       if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
         citySelect.value = String(stored.cityIndex);
       }
-      loadForecast(stored.query, stored.locationName, stored.cityIndex);
+      loadForecast(stored.query, stored.locationName, { cityIndex: stored.cityIndex });
     } else {
       loadSelectedCity();
     }

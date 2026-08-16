@@ -8,6 +8,7 @@ import {
   buildForecastUrl,
   fetchWeather,
   parseWeatherResponse,
+  resetOptionalFieldsRejected,
   UpstreamError,
 } from '../src/weather/openMeteo';
 
@@ -44,6 +45,8 @@ beforeEach(() => {
   // 上流エラー経路はconsole.errorへログするため、テスト出力を汚さないよう差し替える
   // （ログ内容のアサーションにも使う）
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  // 任意フィールド拒否の記憶（モジュール可変状態）をテスト間で持ち越さない
+  resetOptionalFieldsRejected();
 });
 
 afterEach(() => {
@@ -398,6 +401,45 @@ describe('fetchWeather', () => {
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
     );
+  });
+
+  it('400での拒否を記憶し、以後のリクエストは最初からフォールバックURLを使う', async () => {
+    // 恒常的な400のとき毎回2往復になるとエッジキャッシュの無料枠保護が無効化されるため、
+    // 拒否をアイソレート単位で記憶して1回目以降は必須フィールドのみで取得する
+    const fetchMock = vi
+      .fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'));
+    // 2回目のリクエストは再試行なしの1回で、任意フィールドを含まないURLになる
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2]![0])).not.toContain('precipitation_probability');
+  });
+
+  it('拒否記憶後の400は再試行せずそのまま502になる', async () => {
+    const fetchMock = vi.fn(async () => new Response('bad request', { status: 400 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    // 1回目: 400→再試行（これも400）→502
+    const first = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(first.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // 2回目: 記憶済みのため再試行せず1回で502
+    const second = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    expect(second.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('400応答の本文が読めなくても任意フィールドなしの再試行は行われる', async () => {
