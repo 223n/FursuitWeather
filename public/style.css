@@ -585,6 +585,11 @@ th {
   background-color: var(--color-surface);
 }
 
+/* ボタン先頭のアイコン（fill: currentColorのためホバー時の白反転にも追従する） */
+.btn-icon {
+  margin-right: 0.35em;
+}
+
 .th-note {
   font-weight: 400;
   font-size: 0.75rem;
