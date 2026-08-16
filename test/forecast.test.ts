@@ -107,7 +107,7 @@ describe('buildForecast', () => {
   it('日付文字列が不完全でもデモデータは既定値で補って2日分を返す', () => {
     // demoWeatherの日付分解フォールバック（年のみ指定→1月1日扱い）の防御動作を固定する
     const demo = demoWeather('2026');
-    expect(demo.hours.length).toBeGreaterThan(0);
+    expect(demo.hours).toHaveLength(48);
     expect(demo.hours[demo.hours.length - 1]!.time.startsWith('2026-01-02')).toBe(true);
   });
 

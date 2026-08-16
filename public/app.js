@@ -466,6 +466,7 @@
     // 確定ロードは保留中のセレクトデバウンスを無効化し、後から古い地点選択が
     // 発火して最後の明示操作を上書きするのを防ぐ
     clearTimeout(cityChangeTimer);
+    cityChangeTimer = null;
     // 「予報を更新」が常に「最後に要求した条件の再試行」になるよう、
     // クエリと地点名は成功を待たずペアで記録する（表示ラベルの更新は成功時のみ）
     lastQuery = query;
@@ -492,7 +493,9 @@
           (body && body.error) || `予報の取得に失敗しました（HTTP ${response.status}）`,
         );
       }
-      if (!body) {
+      // JSONとして妥当でも予報の形をしていないボディ（中間プロキシの200応答など）は、
+      // 後続の描画でTypeErrorの生メッセージが出る前にここで弾く
+      if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours)) {
         throw new Error('予報データの形式が不正です');
       }
 
@@ -543,7 +546,10 @@
   // 連続操作中の取得と読み上げ通知の洪水を防ぐ（確定は600ms静止後）
   citySelect.addEventListener('change', () => {
     clearTimeout(cityChangeTimer);
-    cityChangeTimer = setTimeout(loadSelectedCity, 600);
+    cityChangeTimer = setTimeout(() => {
+      cityChangeTimer = null;
+      loadSelectedCity();
+    }, 600);
   });
 
   // 「この地点を使う」: 現在地やデモの表示中でも、セレクトで選んだ地点にいつでも戻れる
@@ -562,6 +568,7 @@
   document.getElementById('geolocation-button').addEventListener('click', () => {
     // GPS取得待ちの間に保留中のセレクトデバウンスが発火しないよう先に解除する
     clearTimeout(cityChangeTimer);
+    cityChangeTimer = null;
     if (!navigator.geolocation) {
       setStatus('このブラウザは位置情報に対応していません。', true);
       return;
@@ -572,7 +579,9 @@
     const startedAt = requestSeq;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        if (requestSeq !== startedAt) {
+        // 取得中に新しいロードが始まった、または新しいセレクト操作が保留されて
+        // いたら、遅れて届いたGPS結果はそちらに譲る（最後の明示操作が勝つ）
+        if (requestSeq !== startedAt || cityChangeTimer !== null) {
           return;
         }
         const lat = position.coords.latitude;
@@ -583,7 +592,7 @@
         );
       },
       () => {
-        if (requestSeq !== startedAt) {
+        if (requestSeq !== startedAt || cityChangeTimer !== null) {
           return;
         }
         setStatus('現在地を取得できませんでした。地点を選択してください。', true);

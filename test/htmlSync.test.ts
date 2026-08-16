@@ -10,6 +10,7 @@
 // 場合はこのテストも合わせて更新すること。
 
 import { describe, expect, it } from 'vitest';
+import apiMd from '../docs/api.md?raw';
 import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
@@ -93,6 +94,21 @@ describe('aboutページとconstantsの同期', () => {
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryCold);
     expect(aboutHtml).toContain(`平均気温${LAUNDRY.coldLimit}℃未満`);
   });
+
+  it('公開API仕様のレベルID列挙はunion型の全値を含む', () => {
+    // 判定レベルを追加すると型・constants・凡例はコンパイルエラーとテストで
+    // 更新が強制されるが、API仕様の列挙（about.html・docs/api.md）は手動同期のため検証する
+    const ids = [
+      ...HEAT_BANDS.map((b) => b.id),
+      ...COLD_BANDS.map((b) => b.id),
+      ...Object.keys(LAUNDRY_LEVEL_LABELS),
+    ];
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) {
+      expect(aboutHtml).toContain(`<code>${id}</code>`);
+      expect(apiMd).toContain(`\`${id}\``);
+    }
+  });
 });
 
 describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
@@ -114,6 +130,23 @@ describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
       expect(Number(m[1])).toBe(i);
     });
   });
+
+  it('既定都市（selected）とAPI先読みURLはCITIESの座標と一致する', () => {
+    // 先読み（link rel=preload）は初回fetchとURLがバイト単位で一致して初めて効く。
+    // CITIESの並び替え・座標変更時にselectedとpreloadが取り残されるのを防ぐ
+    const cities = [...appJs.matchAll(/\{ name: '([^']+)', lat: ([\d.]+), lon: ([\d.]+) \}/g)];
+    expect(cities.length).toBeGreaterThan(0);
+
+    const selectedMatch = html.match(/<option value="(\d+)" selected>([^<]+)<\/option>/);
+    expect(selectedMatch).not.toBeNull();
+    const defaultCity = cities[Number(selectedMatch![1])]!;
+    expect(selectedMatch![2]).toBe(defaultCity[1]);
+
+    const preloadMatch = html.match(/<link rel="preload" href="\/api\/forecast\?([^"]+)"/);
+    expect(preloadMatch).not.toBeNull();
+    // app.jsは数値をテンプレート文字列に埋め込むため、数値化してから期待クエリを作る
+    expect(preloadMatch![1]).toBe(`lat=${Number(defaultCity[2])}&lon=${Number(defaultCity[3])}`);
+  });
 });
 
 describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
@@ -130,6 +163,25 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
   it('COOLING_BADGESに全冷房要否のキーがある', () => {
     for (const key of Object.keys(COOLING_LABELS)) {
       expect(appJs).toContain(`${key}: {`);
+    }
+  });
+
+  it('日別カードの冷房必須ラベルはCOOLING_LABELS.requiredと一致する', () => {
+    // 日別サマリーAPI（coolingRequired: boolean）にはラベルが無くapp.jsが文言を
+    // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
+    // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
+    expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+  });
+
+  it('低温側レベルID（grade>0）は「cold」接頭辞を持つ', () => {
+    // app.jsのcreateBadgeがレベルIDの'cold'接頭辞で青系配色+温度計アイコン
+    // （色弱対応の形の区別）を判定するため、素のJSでは守れない命名契約を検証する。
+    // 'optimal'（grade 0、快適）は低温スタイルを持たない意図的な例外
+    for (const band of COLD_BANDS.filter((b) => b.grade > 0)) {
+      expect(band.id.startsWith('cold')).toBe(true);
+    }
+    for (const band of HEAT_BANDS) {
+      expect(band.id.startsWith('cold')).toBe(false);
     }
   });
 });

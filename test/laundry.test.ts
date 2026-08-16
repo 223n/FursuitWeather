@@ -103,9 +103,13 @@ describe('assessLaundry', () => {
   });
 
   it('欠測で干し時間帯が部分的でも、同条件のフル時間帯と同じ指数になる', () => {
-    const full = assessLaundry(dryingWindow({}));
+    // 指数が上限100で飽和すると正規化の退行を検出できないため、
+    // 飽和しない穏やかな条件（スコア中位）で検証する
+    const conditions = { temperature: 22, humidity: 85, windSpeed: 1 };
+    const full = assessLaundry(dryingWindow(conditions));
     // 6時間のうち3時間分が欠測したケース
-    const partial = assessLaundry(dryingWindow({}).slice(0, 3));
+    const partial = assessLaundry(dryingWindow(conditions).slice(0, 3));
+    expect(full.score).toBeLessThan(100);
     expect(partial.score).toBe(full.score);
   });
 });

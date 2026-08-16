@@ -30,7 +30,11 @@ export type Grade = 0 | 1 | 2 | 3 | 4;
 /** 暑熱側のレベルID（環境省5段階に対応） */
 export type HeatLevelId = 'safe' | 'caution' | 'warning' | 'severe' | 'danger';
 
-/** 低温側のレベルID */
+/**
+ * 低温側のレベルID
+ * 'optimal'を除き'cold'接頭辞が必須。public/app.jsのcreateBadgeが接頭辞で
+ * 低温スタイル（青系配色+温度計アイコン）を判定する（test/htmlSync.test.tsで検証）
+ */
 export type ColdLevelId = 'optimal' | 'coldCaution' | 'coldWarning' | 'coldDanger';
 
 /** 屋外活動レベルID */

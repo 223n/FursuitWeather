@@ -1,7 +1,7 @@
 // /api/forecast ハンドラーのテスト
 // 上流APIはグローバルfetchのモックで差し替える
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleForecast } from '../src/api/forecast';
 import {
   buildForecastUrl,
@@ -38,16 +38,24 @@ function openMeteoBody(): unknown {
   };
 }
 
+beforeEach(() => {
+  // 上流エラー経路はconsole.errorへログするため、テスト出力を汚さないよう差し替える
+  // （ログ内容のアサーションにも使う）
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  // spyモックのOnceキュー・呼び出し履歴をテストごとに破棄し、順序依存を防ぐ
+  vi.resetAllMocks();
 });
 
 describe('handleForecast', () => {
   it('正常系: 緯度経度を指定すると予報JSONを返す', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 })),
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
     );
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await handleForecast(
       new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
@@ -58,6 +66,25 @@ describe('handleForecast', () => {
     const body = (await response.json()) as { hours: unknown[]; days: unknown[] };
     expect(body.hours).toHaveLength(24);
     expect(body.days).toHaveLength(1);
+
+    // ハンドラー→上流URLの配線（lat/lonの取り違え・既定daysの伝播）を検証する
+    const upstreamUrl = String(fetchMock.mock.calls[0]![0]);
+    expect(upstreamUrl).toContain('latitude=35.6800');
+    expect(upstreamUrl).toContain('longitude=139.6800');
+    expect(upstreamUrl).toContain('forecast_days=4');
+  });
+
+  it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68&days=2'),
+    );
+    expect(response.status).toBe(200);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('forecast_days=2');
   });
 
   it('lat/lonがない場合は400を返す', async () => {
@@ -130,7 +157,7 @@ describe('handleForecast', () => {
     ).rejects.toThrow('boom');
   });
 
-  it('上流APIのエラーは502として返す', async () => {
+  it('上流APIのエラーは502として返し、運用検知のためログに残す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 
     const response = await handleForecast(
@@ -139,6 +166,11 @@ describe('handleForecast', () => {
     expect(response.status).toBe(502);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('気象データ');
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '上流エラー:',
+      expect.stringContaining('lat=35.68'),
+      expect.any(String),
+    );
   });
 
   it('上流APIが非JSONを返した場合は502を返す', async () => {
@@ -261,10 +293,25 @@ describe('parseWeatherResponse', () => {
 });
 
 describe('fetchWeather', () => {
-  it('Errorでない値でrejectされてもメッセージを文字列化してUpstreamErrorにする', async () => {
+  it('接続失敗の原因はログにのみ残し、利用者向けには固定の日本語文を返す', async () => {
     const rejectWithString = (() => Promise.reject('接続拒否')) as unknown as typeof fetch;
     await expect(fetchWeather(35.68, 139.68, 1, rejectWithString)).rejects.toThrow(
-      '気象データの取得に失敗しました: 接続拒否',
+      '気象データの取得に失敗しました。時間をおいて再度お試しください',
+    );
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '気象データの取得に失敗:',
+      expect.stringContaining('latitude=35.6800'),
+      '接続拒否',
+    );
+  });
+
+  it('タイムアウトはその旨が分かる日本語文にする', async () => {
+    // AbortSignal.timeoutの中断はname=TimeoutErrorのエラーとしてrejectされる
+    const timeoutError = new Error('The operation was aborted due to timeout');
+    timeoutError.name = 'TimeoutError';
+    const rejectTimeout = (() => Promise.reject(timeoutError)) as unknown as typeof fetch;
+    await expect(fetchWeather(35.68, 139.68, 1, rejectTimeout)).rejects.toThrow(
+      '気象データの取得がタイムアウトしました',
     );
   });
 });

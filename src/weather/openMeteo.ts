@@ -187,8 +187,14 @@ export async function fetchWeather(
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch (error) {
+    // 原因（英語のランタイムメッセージ）はログにのみ残し、
+    // 利用者へ返すメッセージには固定の日本語文を使う
+    console.error('気象データの取得に失敗:', url, error);
+    const isTimeout = error instanceof Error && error.name === 'TimeoutError';
     throw new UpstreamError(
-      `気象データの取得に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+      isTimeout
+        ? '気象データの取得がタイムアウトしました。時間をおいて再度お試しください'
+        : '気象データの取得に失敗しました。時間をおいて再度お試しください',
     );
   }
 
