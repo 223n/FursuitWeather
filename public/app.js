@@ -449,8 +449,25 @@
   }
 
   /** 時間別テーブルを描画する */
+  /** 日本時間の現在日付（YYYY-MM-DD）と時（0〜23）を返す
+   * 予報データの時刻はAsia/Tokyoのため、端末のタイムゾーンに依存せずJSTで比較する */
+  function nowInJst() {
+    const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    return { date: jst.toISOString().slice(0, 10), hour: jst.getUTCHours() };
+  }
+
   function renderHours() {
-    const hours = currentForecast.hours.filter((h) => h.time.startsWith(selectedDate));
+    const now = nowInJst();
+    const hours = currentForecast.hours.filter((h) => {
+      if (!h.time.startsWith(selectedDate)) {
+        return false;
+      }
+      // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
+      if (selectedDate === now.date) {
+        return Number.parseInt(h.time.slice(11, 13), 10) >= now.hour;
+      }
+      return true;
+    });
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
