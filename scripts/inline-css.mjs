@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const LINK_TAG = '<link rel="stylesheet" href="/style.css">';
-const PAGES = ['public/index.html', 'public/about.html'];
+const PAGES = ['public/index.html', 'public/about.html', 'public/404.html'];
 
 const css = readFileSync('public/style.css', 'utf8');
 
