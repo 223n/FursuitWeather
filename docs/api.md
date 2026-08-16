@@ -54,7 +54,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - `humidity`（%）
 - `apparentTemperature`（℃）
 - `precipitation`（mm）
-- `weatherCode`（WMOコード）
+- `weatherCode`（WMOコード。欠測時は`-1`）
 - `solarRadiation`（W/m²）
 - `windSpeed`（m/s）
 
@@ -74,6 +74,9 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 
 - 暑熱側: `safe`／`caution`／`warning`／`severe`／`danger`
 - 低温側: `optimal`／`coldCaution`／`coldWarning`／`coldDanger`
+
+低温側の値が現れるのは`outdoor`（および`outdoorWorst`／`outdoorBest`）
+のみです。`indoor`の`level`は暑熱側の値のみ返します。
 
 ### days[]の各要素
 

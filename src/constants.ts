@@ -1,7 +1,7 @@
 // FursuitWeather 定数定義
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
-import type { ColdLevelId, HeatLevelId, LaundryLevelId } from './types';
+import type { ColdLevelId, CoolingNeed, Grade, HeatLevelId, LaundryLevelId } from './types';
 
 /**
  * 小野ら（2014）によるWBGT推定式の係数
@@ -50,7 +50,7 @@ export interface HeatBand {
   upperBound: number;
   id: HeatLevelId;
   label: string;
-  grade: number;
+  grade: Grade;
   /** 1回あたりの連続活動時間の目安（分） */
   activityMinutes: number;
   advice: string;
@@ -115,7 +115,7 @@ export interface ColdBand {
   lowerBound: number;
   id: ColdLevelId;
   label: string;
-  grade: number;
+  grade: Grade;
   activityMinutes: number;
   advice: string;
 }
@@ -165,6 +165,13 @@ export const COLD_BANDS: readonly ColdBand[] = [
  */
 export const COOLING_REQUIRED_WBGT = 25;
 export const COOLING_RECOMMENDED_WBGT = 21;
+
+/** 冷房要否の表示ラベル（LAUNDRY_LEVEL_LABELSと同様、表示文言は本ファイルに集約する） */
+export const COOLING_LABELS: Record<CoolingNeed, string> = {
+  required: '冷房必須',
+  recommended: '冷房推奨',
+  none: '冷房なしでも可',
+};
 
 /**
  * 洗濯乾燥指数の計算パラメータ
@@ -234,6 +241,13 @@ export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
 
 /** 上流APIレスポンスのキャッシュ時間（秒）。MSMの更新は3時間ごとのため30分で十分 */
 export const UPSTREAM_CACHE_TTL_SECONDS = 1800;
+
+/**
+ * 上流APIの応答待ちタイムアウト（ミリ秒）
+ * 通常応答は1秒未満のため、エッジキャッシュミス時の余裕を見ても10秒で十分。
+ * 上流の応答停滞時にユーザーリクエストを長時間道連れにしないための上限
+ */
+export const UPSTREAM_TIMEOUT_MS = 10000;
 
 /** 自APIレスポンスのブラウザキャッシュ時間（秒） */
 export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;

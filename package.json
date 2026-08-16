@@ -4,17 +4,23 @@
   "private": true,
   "description": "着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報するサービス",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "wrangler dev",
+    "build": "npm run minify && node scripts/inline-css.mjs",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && npm run typecheck",
     "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "0.28.2",
     "eslint": "^10.8.1",
     "typescript": "~5.9.3",

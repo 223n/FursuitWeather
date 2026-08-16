@@ -49,6 +49,12 @@
 
 ## 検証方法
 
-- axe-coreによる自動監査（トップ・aboutの両ページで違反0件を維持）
-- PlaywrightでのCLS測定（0.000を維持）
-- 文言・凡例の同期はvitest（`test/htmlSync.test.ts`）で機械検証
+文言・凡例の同期はvitest（`test/htmlSync.test.ts`）が機械検証します。
+次の2つはリリース時に手動で測定し、トップ・aboutの両ページで
+axe-core違反0件・CLS 0.000を確認しています（依存保守コストを避けるため
+リポジトリの依存には含めていません）。
+
+- axe-core監査: `npm run dev`で起動したページにaxe-coreスクリプトを
+  注入して`axe.run()`を実行する（ブラウザ開発者ツールまたはPlaywright経由）
+- CLS測定: Playwrightで`PerformanceObserver`（`layout-shift`）を購読し、
+  読み込み完了までのシフト量を合算する

@@ -1,6 +1,7 @@
 // 洗濯乾燥指数
 // Tetensの式で飽和水蒸気圧から飽差（VPD）を求め、Meyer式由来の風速関数を掛けた
-// 毎時の乾燥スピードを干し時間帯（9〜15時）で積算して0〜100に指数化する
+// 毎時の乾燥スピードを干し時間帯（LAUNDRY.windowStartHour〜windowEndHour）で
+// 積算して0〜100に指数化する
 // 段階分けはtenki.jp洗濯指数の5段階に準拠し、降雨・低温の例外処理を重ねる
 
 import { LAUNDRY, LAUNDRY_BANDS, LAUNDRY_LEVEL_LABELS } from '../constants';
@@ -62,7 +63,7 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
       label: LAUNDRY_LEVEL_LABELS.indoorDry,
       fursuitDryingHours: fursuitDryingHours(0),
       moldWarning: true,
-      advice: '干し時間帯（9〜15時）の予報データがないため判定できません。',
+      advice: `干し時間帯（${LAUNDRY.windowStartHour}〜${LAUNDRY.windowEndHour}時）の予報データがないため判定できません。`,
     };
   }
 
@@ -103,7 +104,9 @@ export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessmen
     `着ぐるみの全身洗いは扇風機併用で約${dryingHours}時間の乾燥が目安です。`,
   );
   if (moldWarning) {
-    adviceParts.push('48時間以内に乾き切らないとカビの恐れがあります。除湿機の併用を推奨します。');
+    adviceParts.push(
+      `${LAUNDRY.fursuitMaxDryingHours}時間以内に乾き切らないとカビの恐れがあります。除湿機の併用を推奨します。`,
+    );
   }
   adviceParts.push('乾燥機は熱でファーが傷むため、熱なし設定でも使用しないでください。');
 

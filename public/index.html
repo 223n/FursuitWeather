@@ -22,11 +22,12 @@
   <meta name="twitter:title" content="FursuitWeather - 着ぐるみ天気予報">
   <meta name="twitter:description" content="暑さ指数（WBGT）から着ぐるみ活動の適否・活動可能時間・冷房要否・洗濯乾燥指数を予報します。">
   <meta name="twitter:image" content="https://fursuit-weather.223n.tech/og-image.png">
-  <!-- 正規URL（カスタムドメイン。workers.devのURLはroutes設定により無効化されている） -->
+  <!-- 正規URL（カスタムドメイン）。workers.devサブドメインも有効なため、
+       重複コンテンツ対策としてカスタムドメインを正規URLに指定する -->
   <link rel="canonical" href="https://fursuit-weather.223n.tech/">
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
-  <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch">
+  <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch" crossorigin>
   <script src="/app.js" defer></script>
   <!-- 構造化データ（JSON-LD）: 検索エンジンにサイト名とアプリの性質を伝える -->
   <script type="application/ld+json">

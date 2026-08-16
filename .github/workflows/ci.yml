@@ -25,5 +25,11 @@ jobs:
       - name: lintを実行
         run: npm run lint
 
-      - name: テストを実行
-        run: npm test
+      # カバレッジしきい値（vitest.config.ts）の未達もここで失敗になる
+      - name: テストを実行（カバレッジしきい値つき）
+        run: npm run test:coverage
+
+      # デプロイ時にしか実行されないビルド（LINK_TAG完全一致チェックを含む）の
+      # 失敗をマージ前に検出する。成果物はコミットしない（検証のみ）
+      - name: ビルドを検証
+        run: npm run build

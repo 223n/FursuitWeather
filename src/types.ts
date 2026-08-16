@@ -12,7 +12,7 @@ export interface HourlyWeather {
   apparentTemperature: number;
   /** 降水量（mm） */
   precipitation: number;
-  /** WMO天気コード */
+  /** WMO天気コード（欠測時は-1） */
   weatherCode: number;
   /** 全天日射量（W/m²） */
   solarRadiation: number;
@@ -20,10 +20,21 @@ export interface HourlyWeather {
   windSpeed: number;
 }
 
+/**
+ * 深刻度（0=快適〜4=危険、UIの色分け用）
+ * フロントの`grade-0`〜`grade-4` CSSクラスとGRADE_SYMBOLSの添字に直結する
+ * 閉じた値域のため、帯の追加時に範囲外の値を書くとコンパイルエラーになる
+ */
+export type Grade = 0 | 1 | 2 | 3 | 4;
+
 /** 暑熱側のレベルID（環境省5段階に対応） */
 export type HeatLevelId = 'safe' | 'caution' | 'warning' | 'severe' | 'danger';
 
-/** 低温側のレベルID */
+/**
+ * 低温側のレベルID
+ * 'optimal'を除き'cold'接頭辞が必須。public/app.jsのcreateBadgeが接頭辞で
+ * 低温スタイル（青系配色+温度計アイコン）を判定する（test/htmlSync.test.tsで検証）
+ */
 export type ColdLevelId = 'optimal' | 'coldCaution' | 'coldWarning' | 'coldDanger';
 
 /** 屋外活動レベルID */
@@ -39,8 +50,8 @@ export interface ActivityAssessment {
   level: OutdoorLevelId;
   /** 日本語ラベル */
   label: string;
-  /** 深刻度（0=快適〜4=危険、UIの色分け用） */
-  grade: number;
+  /** 深刻度 */
+  grade: Grade;
   /** 1回あたりの連続活動時間の目安（分、0は着用中止） */
   activityMinutes: number;
   /** 注意文 */
@@ -52,6 +63,8 @@ export type CoolingNeed = 'none' | 'recommended' | 'required';
 
 /** 屋内活動判定 */
 export interface IndoorAssessment extends ActivityAssessment {
+  /** 屋内は暑熱判定のみ行うため、レベルは暑熱側に限定される */
+  level: HeatLevelId;
   cooling: CoolingNeed;
   coolingLabel: string;
 }
@@ -92,7 +105,7 @@ export interface LaundryAssessment {
 export interface LevelSummary {
   level: OutdoorLevelId;
   label: string;
-  grade: number;
+  grade: Grade;
 }
 
 /** 1日分の予報サマリー */
@@ -115,13 +128,16 @@ export interface DayForecast {
   laundry: LaundryAssessment;
 }
 
+/** 予報対象の位置情報 */
+export interface ForecastLocation {
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
 /** APIレスポンス全体 */
 export interface ForecastResponse {
-  location: {
-    latitude: number;
-    longitude: number;
-    timezone: string;
-  };
+  location: ForecastLocation;
   /** 生成時刻（ISO8601） */
   generatedAt: string;
   /** 使用した気象モデル */

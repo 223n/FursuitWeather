@@ -102,6 +102,8 @@ export async function handleForecast(request: Request): Promise<Response> {
       weather = await fetchWeather(latitude, longitude, days);
     } catch (error) {
       if (error instanceof UpstreamError) {
+        // 上流障害（レート制限・仕様変更など）を運用で検知できるよう、502もログに残す
+        console.error('上流エラー:', url.pathname + url.search, error.message);
         return jsonError(502, error.message);
       }
       throw error;

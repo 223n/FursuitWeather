@@ -23,21 +23,40 @@ npm test        # vitest
 npm run lint    # ESLint + tsc（typecheck）
 ```
 
-テストは`test/`配下にあります。静的HTML（注意事項・判定凡例）と
-`src/constants.ts`の同期は`test/htmlSync.test.ts`が機械検証します。
-凡例の文言を変える場合はこのテストも合わせて更新してください。
+テストは`test/`配下にあります。静的HTML（注意事項・判定凡例・about.htmlの
+しきい値表）や地点セレクトと`src/constants.ts`・`app.js`の同期は
+`test/htmlSync.test.ts`が機械検証します。凡例の文言を変える場合は
+このテストも合わせて更新してください。
+
+カバレッジは次のコマンドで計測できます（対象は`src/`）。
+
+```bash
+npm run test:coverage
+```
+
+ステートメント・行・関数は100%を維持しています。このしきい値は
+`vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
+未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
+防御フォールバックのみです。
+`public/app.js`はブラウザ実行のためカバレッジ対象外ですが、
+定数同期は`htmlSync.test.ts`で機械検証し、動作はリリース時に
+Playwrightで実機確認しています（手順は
+[アクセシビリティ設計](accessibility.md)の検証方法を参照）。
 
 ## ビルド
 
-デプロイ時に次の最適化を行います（CIでは自動実行）。
+デプロイ時に次の最適化を行います（CI・デプロイの両ワークフローで自動実行）。
 
 ```bash
-npm run minify              # app.js・style.cssをesbuildで圧縮
-node scripts/inline-css.mjs # 各HTMLへCSSをインライン化
+npm run build   # minify（app.js・style.cssの圧縮）+ 各HTMLへのCSSインライン化
 ```
 
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した
 場合は`git checkout`で戻してください。
+
+なお`npm run deploy`（手動デプロイ）はビルドを経由しません。緊急時は
+非最適化のまま配信されますが、動作に支障はありません（最適化配信は
+次のGitHub Actionsデプロイで戻ります）。
 
 ## デプロイ
 
@@ -61,8 +80,8 @@ npm run deploy
 
 | ワークフロー | 内容 |
 |--------------|------|
-| `ci.yml` | lintとテスト（pushとPRで実行） |
-| `deploy.yml` | テスト→minify→CSSインライン化→wrangler deploy |
+| `ci.yml` | lint→テスト→ビルド検証（pushとPRで実行） |
+| `deploy.yml` | lint→テスト→ビルド→wrangler deploy（mainのみ。並走時は最後のpushが勝つ） |
 
 ### カスタムドメイン
 

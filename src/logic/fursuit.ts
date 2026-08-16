@@ -5,6 +5,7 @@
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
+  COOLING_LABELS,
   COOLING_RECOMMENDED_WBGT,
   COOLING_REQUIRED_WBGT,
   HEAT_BANDS,
@@ -89,12 +90,6 @@ export function assessCooling(indoorSuitWbgt: number): CoolingNeed {
   }
   return 'none';
 }
-
-const COOLING_LABELS: Record<CoolingNeed, string> = {
-  required: '冷房必須',
-  recommended: '冷房推奨',
-  none: '冷房なしでも可',
-};
 
 /**
  * 屋内の着ぐるみ活動を判定する

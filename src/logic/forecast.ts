@@ -10,6 +10,7 @@ import {
 } from '../constants';
 import type {
   DayForecast,
+  ForecastLocation,
   ForecastResponse,
   HourForecast,
   HourlyWeather,
@@ -79,12 +80,6 @@ export function buildDayForecast(date: string, hours: readonly HourForecast[]): 
     coolingRequired: summaryTarget.some((h) => h.indoor.cooling === 'required'),
     laundry: assessLaundry(hours.map((h) => h.weather)),
   };
-}
-
-export interface ForecastLocation {
-  latitude: number;
-  longitude: number;
-  timezone: string;
 }
 
 /** 気象データ一式から予報レスポンスを組み立てる */

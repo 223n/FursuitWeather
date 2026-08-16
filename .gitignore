@@ -12,6 +12,9 @@ node_modules/
 # ビルド成果物
 dist/
 
+# カバレッジレポート（npm run test:coverage）
+coverage/
+
 # ログ
 *.log
 
