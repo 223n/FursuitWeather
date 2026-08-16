@@ -53,7 +53,8 @@ afterEach(() => {
 describe('handleForecast', () => {
   it('正常系: 緯度経度を指定すると予報JSONを返す', async () => {
     const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -76,7 +77,8 @@ describe('handleForecast', () => {
 
   it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
     const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
