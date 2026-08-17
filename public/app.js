@@ -1701,8 +1701,25 @@
   // Service Worker登録（PWA）: オフライン時にシェルと最後に取得した予報を表示できる。
   // オンライン時は常にネットワーク優先のため、通常表示への影響はない（詳細はsw.js）
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // 登録できない環境（古いブラウザなど）でも通常表示には影響しない
-    });
+    // CSPで`require-trusted-types-for 'script'`を有効にしているため、
+    // register()へ文字列をそのまま渡すとTypeErrorになる（DOM型XSS対策）。
+    // 自分のsw.js以外を返さないポリシーを通してURLを作る。
+    // ポリシー名は_headersのtrusted-typesディレクティブと一致させること
+    let swUrl = '/sw.js';
+    try {
+      if (window.trustedTypes && window.trustedTypes.createPolicy) {
+        swUrl = window.trustedTypes
+          .createPolicy('fursuitweather-sw', { createScriptURL: () => '/sw.js' })
+          .createScriptURL('/sw.js');
+      }
+    } catch {
+      // ポリシーを作れない場合は登録を諦める（通常表示には影響しない）
+      swUrl = null;
+    }
+    if (swUrl !== null) {
+      navigator.serviceWorker.register(swUrl).catch(() => {
+        // 登録できない環境（古いブラウザなど）でも通常表示には影響しない
+      });
+    }
   }
 })();
