@@ -301,6 +301,24 @@
       </div>
     </section>
 
+    <!-- 活動プランナー: 選択中の日の指定時間帯から休憩計画を組み立てる。
+         結果は利用者の操作起点で表示されるためCLS対策の対象外 -->
+    <section id="planner-section" aria-labelledby="planner-heading">
+      <h2 id="planner-heading">活動プランナー</h2>
+      <p class="hint">
+        イベントの時間帯を選ぶと、選択中の日のその時間帯の判定と、
+        休憩を挟んだ着用計画の目安を表示します（終了時刻は含みません）。
+      </p>
+      <div class="control-row">
+        <label for="plan-start">開始</label>
+        <select id="plan-start"></select>
+        <label for="plan-end">終了</label>
+        <select id="plan-end"></select>
+        <button type="button" id="plan-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>計画を立てる</button>
+      </div>
+      <div id="plan-result" class="plan-result"></div>
+    </section>
+
     <section id="notices-section" aria-label="注意事項">
       <h2>活動時の注意</h2>
       <!-- 初期表示から高さを確保するため静的に記載する（内容はsrc/constants.tsの

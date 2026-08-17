@@ -476,6 +476,8 @@
       selectedDate = day.date;
       updateSelectedCard();
       renderHours();
+      // 別の日の古い計画が残らないよう、日付の切り替えで消す
+      clearPlan();
     };
     titleButton.addEventListener('click', selectDay);
     // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
@@ -734,6 +736,8 @@
       renderNowCard();
       renderDayCards();
       renderNotices();
+      // 地点や取得結果が変わったら、古い前提の計画を残さない
+      clearPlan();
 
       if (selectedDate) {
         renderHours();
@@ -1049,6 +1053,103 @@
       searchPlace();
     }
   });
+
+  // 活動プランナー: 選択中の日の指定時間帯から、休憩を挟んだ着用計画の目安を作る
+  const planStart = document.getElementById('plan-start');
+  const planEnd = document.getElementById('plan-end');
+  const planResult = document.getElementById('plan-result');
+
+  // 時刻の選択肢を生成する（開始0〜23時、終了1〜24時。既定は10〜16時）
+  for (let hour = 0; hour < 24; hour += 1) {
+    planStart.appendChild(new Option(`${hour}時`, String(hour)));
+    planEnd.appendChild(new Option(`${hour + 1}時`, String(hour + 1)));
+  }
+  planStart.value = '10';
+  planEnd.value = '16';
+
+  /** プランナーの結果を消す（地点・日付が変わったとき、古い前提の計画を残さない） */
+  function clearPlan() {
+    planResult.replaceChildren();
+  }
+
+  /** 選択中の日の指定時間帯の計画を描画する */
+  function renderPlan() {
+    if (!currentForecast || !selectedDate) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    const start = Number(planStart.value);
+    const end = Number(planEnd.value);
+    if (start >= end) {
+      setStatus('終了時刻は開始時刻より後にしてください。', true);
+      return;
+    }
+    const hours = currentForecast.hours.filter((h) => {
+      if (!h.time.startsWith(selectedDate)) {
+        return false;
+      }
+      const hour = hourNumberOf(h.time);
+      return hour >= start && hour < end;
+    });
+    if (hours.length === 0) {
+      const message = document.createElement('p');
+      message.className = 'hint';
+      message.textContent =
+        '選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。';
+      planResult.replaceChildren(message);
+      setStatus('選択した時間帯の予報データがありませんでした。', true);
+      return;
+    }
+
+    const heading = document.createElement('h3');
+    heading.textContent = `${formatDate(selectedDate)} ${start}時〜${end}時の計画`;
+
+    const list = document.createElement('ul');
+    list.className = 'plan-hours';
+    let totalMinutes = 0;
+    const rainHours = [];
+    for (const h of hours) {
+      const hour = hourNumberOf(h.time);
+      const item = document.createElement('li');
+      item.appendChild(createBadge(h.outdoor));
+      const text = document.createElement('span');
+      if (h.outdoor.activityMinutes > 0) {
+        text.textContent = `${hour}時台: 連続${h.outdoor.activityMinutes}分まで（残りは休憩・冷却）`;
+        totalMinutes += h.outdoor.activityMinutes;
+      } else {
+        text.textContent = `${hour}時台: 着用中止`;
+      }
+      item.appendChild(text);
+      list.appendChild(item);
+      if (h.weather.precipitation > 0) {
+        rainHours.push(`${hour}時`);
+      }
+    }
+
+    const total = document.createElement('p');
+    total.className = 'plan-total';
+    total.textContent =
+      totalMinutes > 0
+        ? `この時間帯で着用できる合計の目安: 約${totalMinutes}分（1時間ごとに休憩を挟んだ場合）`
+        : 'この時間帯の屋外での着用は推奨できません。屋内の冷房環境での活動をご検討ください。';
+
+    const notes = document.createElement('ul');
+    notes.className = 'plan-notes hint';
+    if (rainHours.length > 0) {
+      const rainNote = document.createElement('li');
+      rainNote.textContent = `降水の予報がある時間帯: ${rainHours.join('、')}。濡れたファーは乾きにくく冷えの原因になります。`;
+      notes.appendChild(rainNote);
+    }
+    const generalNote = document.createElement('li');
+    generalNote.textContent =
+      'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
+    notes.appendChild(generalNote);
+
+    planResult.replaceChildren(heading, list, total, notes);
+    setStatus('活動計画を作成しました。', false);
+  }
+
+  document.getElementById('plan-button').addEventListener('click', renderPlan);
 
   // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
