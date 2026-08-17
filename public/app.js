@@ -25,6 +25,10 @@
    * 絵文字は環境依存のため、絵柄はFont AwesomeのSVGアイコン（自前配信）で表示する */
   const GRADE_SYMBOLS = [['◎'], ['○'], ['△'], ['✕'], [{ icon: 'ban' }]];
 
+  /** 取得する予報日数。タブ構成（今日・明日・明後日）に合わせて3日にする
+   * （index.htmlのpreload URLと同期。ずれはhtmlSyncテストが検出する） */
+  const FORECAST_DAYS = 3;
+
   /** SVGスプライト（index.html内で定義）からアイコン要素を作る */
   function faIcon(name, extraClass) {
     const svgNs = 'http://www.w3.org/2000/svg';
@@ -473,11 +477,14 @@
     card.appendChild(list);
 
     const selectDay = () => {
+      // カードの選択はその日の時間別タブへの切り替えとして扱う
       selectedDate = day.date;
       updateSelectedCard();
-      renderHours();
-      // 別の日の古い計画が残らないよう、日付の切り替えで消す
-      clearPlan();
+      const index = currentForecast.days.findIndex((d) => d.date === day.date);
+      const dayTab = TABS.find((t) => t.dayIndex === index);
+      if (dayTab) {
+        activateTab(dayTab.tabId, false);
+      }
     };
     titleButton.addEventListener('click', selectDay);
     // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
@@ -505,6 +512,97 @@
   function nowInJst() {
     const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
     return { date: jst.toISOString().slice(0, 10), hour: jst.getUTCHours() };
+  }
+
+  // タブ切り替え（WAI-ARIAタブパターン・自動選択）。
+  // 時間別の3タブ（今日/明日/明後日）は同じパネルを日付を変えて共有する
+  const TABS = [
+    { tabId: 'tab-now', panelId: 'now-section' },
+    { tabId: 'tab-days', panelId: 'days-section' },
+    { tabId: 'tab-day-0', panelId: 'hours-section', dayIndex: 0 },
+    { tabId: 'tab-day-1', panelId: 'hours-section', dayIndex: 1 },
+    { tabId: 'tab-day-2', panelId: 'hours-section', dayIndex: 2 },
+    { tabId: 'tab-planner', panelId: 'planner-section' },
+  ];
+  const tabList = document.querySelector('.tabs');
+  let activeTabId = 'tab-now';
+
+  /** 指定タブを選択状態にし、対応するパネルだけを表示する */
+  function activateTab(tabId, focusTab) {
+    const target = TABS.find((t) => t.tabId === tabId);
+    if (!target) {
+      return;
+    }
+    activeTabId = tabId;
+    for (const { tabId: id, panelId } of TABS) {
+      const tab = document.getElementById(id);
+      const selected = id === tabId;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      // パネルは複数タブで共有されるため、表示判定はパネル単位でまとめて行う
+      document.getElementById(panelId).hidden = panelId !== target.panelId;
+    }
+    // 共有パネル（時間別）は選択中のタブをラベルにする
+    document.getElementById(target.panelId).setAttribute('aria-labelledby', tabId);
+    if (target.dayIndex !== undefined && currentForecast) {
+      const date = currentForecast.days[target.dayIndex]?.date;
+      if (date) {
+        selectedDate = date;
+        renderHours();
+      }
+    }
+    if (focusTab) {
+      document.getElementById(tabId).focus();
+    }
+  }
+
+  /** 表示可能なタブ（日数不足の日付タブを除く）の一覧を返す */
+  function visibleTabs() {
+    return TABS.filter((t) => !document.getElementById(t.tabId).hidden);
+  }
+
+  tabList.addEventListener('click', (event) => {
+    const tab = event.target.closest('[role="tab"]');
+    if (tab) {
+      activateTab(tab.id, false);
+    }
+  });
+
+  // 矢印キーで隣のタブへ移動して自動選択する（Home/Endは先頭・末尾）
+  tabList.addEventListener('keydown', (event) => {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (!keys.includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    const tabs = visibleTabs();
+    const index = tabs.findIndex((t) => t.tabId === activeTabId);
+    let next = index;
+    if (event.key === 'ArrowRight') {
+      next = (index + 1) % tabs.length;
+    } else if (event.key === 'ArrowLeft') {
+      next = (index - 1 + tabs.length) % tabs.length;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else {
+      next = tabs.length - 1;
+    }
+    activateTab(tabs[next].tabId, true);
+  });
+
+  /** 取得済みの日数に合わせて日付タブの表示を切り替える */
+  function updateDayTabs() {
+    for (const target of TABS) {
+      if (target.dayIndex === undefined) {
+        continue;
+      }
+      const tab = document.getElementById(target.tabId);
+      tab.hidden = !currentForecast || currentForecast.days[target.dayIndex] === undefined;
+    }
+    // 表示中のタブが日数不足で消えた場合は「現在の天気」へ戻す
+    if (document.getElementById(activeTabId).hidden) {
+      activateTab('tab-now', false);
+    }
   }
 
   // いまの判定: 現在時刻（JST）の時間別判定を大きく1枚で表示する
@@ -705,7 +803,7 @@
     try {
       // ネットワーク断ではブラウザ固有の英語メッセージ（Failed to fetch等）になるため、
       // 生メッセージを出さず日本語の定型文に差し替える
-      const response = await fetch(`/api/forecast?${query}`).catch(() => {
+      const response = await fetch(`/api/forecast?${query}&days=${FORECAST_DAYS}`).catch(() => {
         throw new Error(
           '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
         );
@@ -784,7 +882,10 @@
       renderNowCard();
       renderDayCards();
       renderNotices();
-      // 地点や取得結果が変わったら、古い前提の計画を残さない
+      // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
+      // 地点や取得結果が変わったら古い前提の計画を残さない
+      updateDayTabs();
+      populatePlanDates();
       clearPlan();
 
       if (selectedDate) {
@@ -1102,7 +1203,8 @@
     }
   });
 
-  // 活動プランナー: 選択中の日の指定時間帯から、休憩を挟んだ着用計画の目安を作る
+  // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
+  const planDate = document.getElementById('plan-date');
   const planStart = document.getElementById('plan-start');
   const planEnd = document.getElementById('plan-end');
   const planResult = document.getElementById('plan-result');
@@ -1115,14 +1217,32 @@
   planStart.value = '10';
   planEnd.value = '16';
 
+  /** 取得済みの予報からプランナーの日付候補を作り直す（選択は可能なら維持する） */
+  function populatePlanDates() {
+    const previous = planDate.value;
+    planDate.replaceChildren();
+    if (!currentForecast) {
+      return;
+    }
+    const names = ['今日', '明日', '明後日'];
+    currentForecast.days.forEach((day, index) => {
+      const prefix = names[index] ? `${names[index]} ` : '';
+      planDate.appendChild(new Option(`${prefix}${formatDate(day.date)}`, day.date));
+    });
+    if ([...planDate.options].some((option) => option.value === previous)) {
+      planDate.value = previous;
+    }
+  }
+
   /** プランナーの結果を消す（地点・日付が変わったとき、古い前提の計画を残さない） */
   function clearPlan() {
     planResult.replaceChildren();
   }
 
-  /** 選択中の日の指定時間帯の計画を描画する */
+  /** 選んだ日付の指定時間帯の計画を描画する */
   function renderPlan() {
-    if (!currentForecast || !selectedDate) {
+    const planDateValue = planDate.value;
+    if (!currentForecast || !planDateValue) {
       setStatus('先に予報を読み込んでください。', true);
       return;
     }
@@ -1133,7 +1253,7 @@
       return;
     }
     const hours = currentForecast.hours.filter((h) => {
-      if (!h.time.startsWith(selectedDate)) {
+      if (!h.time.startsWith(planDateValue)) {
         return false;
       }
       const hour = hourNumberOf(h.time);
@@ -1150,7 +1270,7 @@
     }
 
     const heading = document.createElement('h3');
-    heading.textContent = `${formatDate(selectedDate)} ${start}時〜${end}時の計画`;
+    heading.textContent = `${formatDate(planDateValue)} ${start}時〜${end}時の計画`;
 
     const list = document.createElement('ul');
     list.className = 'plan-hours';

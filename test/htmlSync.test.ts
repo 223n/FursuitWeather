@@ -298,9 +298,12 @@ describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
 
     const preloadMatch = html.match(/<link rel="preload" href="\/api\/forecast\?([^"]+)"/);
     expect(preloadMatch).not.toBeNull();
-    // app.jsは座標を小数2桁（約1km）へ丸めてURLに埋め込むため、期待クエリも同じ丸めで作る
+    // app.jsは座標を小数2桁（約1km）へ丸め、日数（FORECAST_DAYS）を付けてfetchする。
+    // preloadはこの初回fetchとバイト一致して初めて効くため、日数も含めて検証する
+    const daysMatch = appJs.match(/const FORECAST_DAYS = (\d+);/);
+    expect(daysMatch).not.toBeNull();
     expect(preloadMatch![1]).toBe(
-      `lat=${Number(defaultCity[2]).toFixed(2)}&lon=${Number(defaultCity[3]).toFixed(2)}`,
+      `lat=${Number(defaultCity[2]).toFixed(2)}&lon=${Number(defaultCity[3]).toFixed(2)}&days=${daysMatch![1]}`,
     );
   });
 });
