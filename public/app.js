@@ -505,6 +505,60 @@
     return { date: jst.toISOString().slice(0, 10), hour: jst.getUTCHours() };
   }
 
+  // いまの判定: 現在時刻（JST）の時間別判定を大きく1枚で表示する
+  const nowCard = document.getElementById('now-card');
+
+  /** 時刻文字列（YYYY-MM-DDTHH:MM）から時の数値を取り出す */
+  function hourNumberOf(time) {
+    return Number.parseInt(time.slice(11, 13), 10);
+  }
+
+  /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
+  function renderNowCard() {
+    const now = nowInJst();
+    const todayHours = currentForecast.hours.filter((h) => h.time.startsWith(now.date));
+    const target =
+      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+    if (!target) {
+      const message = document.createElement('p');
+      message.className = 'hint';
+      message.textContent =
+        '本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。';
+      nowCard.replaceChildren(message);
+      return;
+    }
+
+    const hourNumber = hourNumberOf(target.time);
+    const timeLine = document.createElement('p');
+    timeLine.className = 'now-time';
+    // 現在時刻ちょうどのデータがない場合（深夜の欠測など）は代替時刻を明示する
+    timeLine.textContent =
+      `${hourNumber === now.hour ? `${hourNumber}時` : `本日${hourNumber}時（直近の時間帯）`}` +
+      `・${target.weatherLabel}・${target.weather.temperature.toFixed(1)}℃`;
+
+    const headline = document.createElement('div');
+    headline.className = 'now-headline';
+    headline.appendChild(createBadge(target.outdoor, true));
+    const minutes = document.createElement('span');
+    minutes.className = 'now-minutes';
+    minutes.textContent =
+      target.outdoor.activityMinutes > 0
+        ? `連続${target.outdoor.activityMinutes}分まで`
+        : '着用中止';
+    headline.appendChild(minutes);
+
+    const advice = document.createElement('p');
+    advice.className = 'now-advice';
+    advice.textContent = target.outdoor.advice;
+
+    const indoor = document.createElement('p');
+    indoor.className = 'now-time';
+    indoor.textContent = `屋内（空調なし想定）: ${target.indoor.coolingLabel}`;
+
+    nowCard.replaceChildren(timeLine, headline, advice, indoor);
+  }
+
   function renderHours() {
     const now = nowInJst();
     const hours = currentForecast.hours.filter((h) => {
@@ -677,6 +731,7 @@
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
+      renderNowCard();
       renderDayCards();
       renderNotices();
 
@@ -693,6 +748,7 @@
       setStatus(`エラー: ${error.message}`, true);
       // 予報を表示できないときは読み込み中のプレースホルダーを消す
       if (!currentForecast) {
+        nowCard.replaceChildren();
         dayCardsElement.replaceChildren();
         hoursBody.replaceChildren();
       }

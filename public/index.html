@@ -176,6 +176,17 @@
       <div id="status-error" class="status-box" role="alert"></div>
     </div>
 
+    <!-- いまの判定: 現在時刻の判定を大きく1枚で表示する（現場でひと目で分かる用途）。
+         読み込み前はスケルトンで高さを確保し、CLSを防ぐ -->
+    <section id="now-section" aria-labelledby="now-heading">
+      <h2 id="now-heading">いまの判定</h2>
+      <div id="now-card" class="now-card">
+        <div class="skeleton-line w40"></div>
+        <div class="skeleton-line w60"></div>
+        <div class="skeleton-line w80"></div>
+      </div>
+    </section>
+
     <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
          見出しナビゲーションから消える環境があるため） -->
     <section class="legend" aria-labelledby="legend-heading">

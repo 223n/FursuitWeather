@@ -304,6 +304,37 @@ input[type='number']:focus {
   margin-bottom: 1rem;
 }
 
+/* いまの判定カード。読み込み前後で高さが揺れないようmin-heightを確保する */
+.now-card {
+  min-height: 8.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.now-headline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.now-time {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.now-minutes {
+  font-weight: 700;
+}
+
+.now-advice {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 .status-box {
   grid-area: 1 / 1;
   padding: 0.75rem 1rem;
