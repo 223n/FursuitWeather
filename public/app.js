@@ -97,6 +97,9 @@
   /** 表示に成功した地点のクエリと名前（共有ボタンはこちらを使う。失敗中のlastQueryとは別） */
   let displayedQuery = null;
   let displayedName = null;
+  /** 表示中の予報がService Workerの保存分（オフライン表示）かどうか。
+   * 追加の案内を出すときも、鮮度の注記を消さずに前置きするために保持する */
+  let displayedFromCache = false;
   /** 表示中の地点がお気に入りに登録可能か（現在地=persist:falseは不可）と、登録に使う情報 */
   let displayedStorable = false;
   let displayedStoredName = null;
@@ -477,7 +480,8 @@
     card.appendChild(list);
 
     const selectDay = () => {
-      // カードの選択はその日の時間別タブへの切り替えとして扱う
+      // カードの選択はその日の時間別タブへの切り替えとして扱う（明示操作として数える）
+      manualTabSeq += 1;
       selectedDate = day.date;
       updateSelectedCard();
       const index = currentForecast.days.findIndex((d) => d.date === day.date);
@@ -526,6 +530,10 @@
   ];
   const tabList = document.querySelector('.tabs');
   let activeTabId = 'tab-now';
+  /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
+   * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
+   * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
+  let manualTabSeq = 0;
 
   /** 指定タブを選択状態にし、対応するパネルだけを表示する */
   function activateTab(tabId, focusTab) {
@@ -564,6 +572,7 @@
   tabList.addEventListener('click', (event) => {
     const tab = event.target.closest('[role="tab"]');
     if (tab) {
+      manualTabSeq += 1;
       activateTab(tab.id, false);
     }
   });
@@ -587,6 +596,7 @@
     } else {
       next = tabs.length - 1;
     }
+    manualTabSeq += 1;
     activateTab(tabs[next].tabId, true);
   });
 
@@ -842,7 +852,8 @@
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
       // オフライン時はService Workerが保存済みの予報で応答するため、
       // その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
-      if (response.headers.get('X-Served-From-Cache') === '1') {
+      displayedFromCache = response.headers.get('X-Served-From-Cache') === '1';
+      if (displayedFromCache) {
         const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
         const timeText = Number.isNaN(cachedAt.getTime())
           ? '以前'
@@ -894,6 +905,9 @@
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
+      // 呼び出し元が表示成功後の追加処理（イベント開催日のタブ切り替えなど）を
+      // 行えるよう、成功をtrueで返す（破棄・失敗時はundefined）
+      return true;
     } catch (error) {
       if (seq !== requestSeq) {
         return;
@@ -1202,6 +1216,241 @@
       searchPlace();
     }
   });
+
+  // イベント予報: あらかじめ定義したイベント（/events.json）を読み込み、
+  // 選択したイベントの開催地の予報を表示する。定義の書き方はdocs/events.md
+  const eventSelect = document.getElementById('event-select');
+  const eventButton = document.getElementById('event-button');
+  /** 表示可能なイベント一覧（セレクトのvalueはこの配列のインデックス） */
+  let eventList = [];
+
+  /** 日付文字列がYYYY-MM-DD形式かつ実在する日付かを判定する
+   * （2026-02-30のような書き間違いをここで弾く。test/events.test.tsと同じ基準） */
+  function isValidDateText(text) {
+    if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return false;
+    }
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  }
+
+  /** 時刻文字列がHH:MM形式（00:00〜23:59）かを判定する */
+  function isValidTimeText(text) {
+    return typeof text === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(text);
+  }
+
+  /** 郵便番号がハイフン区切り（123-4567）または7桁の数字かを判定する
+   * （どちらの形式でも/api/geocodeが受け付ける） */
+  function isValidZipText(text) {
+    return typeof text === 'string' && /^\d{3}-?\d{4}$/.test(text);
+  }
+
+  /** YYYY-MM-DD同士の日数差（toDate − fromDate、日数） */
+  function daysBetween(fromDate, toDate) {
+    const toUtc = (text) => {
+      const [year, month, day] = text.split('-').map(Number);
+      return Date.UTC(year, month - 1, day);
+    };
+    return Math.round((toUtc(toDate) - toUtc(fromDate)) / 86400000);
+  }
+
+  /** イベントの日付の表示文を作る。翌年以降の開催は年を添えて取り違えを防ぐ */
+  function formatEventDate(dateText) {
+    const year = Number(dateText.slice(0, 4));
+    const prefix = year === Number(nowInJst().date.slice(0, 4)) ? '' : `${year}年`;
+    return `${prefix}${formatDate(dateText)}`;
+  }
+
+  /** イベントの開催期間の表示文を作る（単日は日付のみ）
+   * 「〜」の読み上げは環境依存だが、option要素は装飾を持てないためそのまま使う
+   * （開始・終了の日付自体は読み上げられるため意味は伝わる） */
+  function formatEventPeriod(event) {
+    return event.startDate === event.endDate
+      ? formatEventDate(event.startDate)
+      : `${formatEventDate(event.startDate)}〜${formatEventDate(event.endDate)}`;
+  }
+
+  /** /events.jsonを読み込んでセレクトの選択肢を作る。
+   * 定義がない・読み込めない場合はその旨の表示にして無効化する（表示は壊さない） */
+  async function initEvents() {
+    let emptyMessage = '予定されているイベントはありません';
+    try {
+      const response = await fetch('/events.json');
+      if (!response.ok) {
+        throw new Error(`イベント定義の取得に失敗しました（HTTP ${response.status}）`);
+      }
+      const body = await response.json();
+      if (body && Array.isArray(body.events)) {
+        const today = nowInJst().date;
+        eventList = body.events
+          // 形式が不正な項目は表示しない（定義ミスで画面全体を壊さないための防御。
+          // 形式はtest/events.test.tsがCIでも検証する）
+          .filter(
+            (event) =>
+              event &&
+              typeof event.name === 'string' &&
+              event.name !== '' &&
+              typeof event.place === 'string' &&
+              event.place !== '' &&
+              isValidZipText(event.zip) &&
+              isValidDateText(event.startDate) &&
+              (event.endDate === undefined || isValidDateText(event.endDate)) &&
+              (event.startTime === undefined || isValidTimeText(event.startTime)) &&
+              (event.endTime === undefined || isValidTimeText(event.endTime)),
+          )
+          .map((event) => ({ ...event, endDate: event.endDate ?? event.startDate }))
+          // 終了済みのイベントは表示せず、開催が近い順に並べる（日付はJST基準で比較。
+          // YYYY-MM-DD形式のため文字列比較で日付の前後を正しく判定できる）
+          .filter((event) => event.endDate >= event.startDate && event.endDate >= today)
+          .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+      }
+    } catch {
+      emptyMessage = 'イベント情報を読み込めませんでした';
+    }
+    eventSelect.replaceChildren();
+    if (eventList.length === 0) {
+      eventSelect.appendChild(new Option(emptyMessage, ''));
+      return;
+    }
+    eventList.forEach((event, index) => {
+      eventSelect.appendChild(
+        new Option(`${event.name}（${formatEventPeriod(event)}・${event.place}）`, String(index)),
+      );
+    });
+    eventSelect.disabled = false;
+    eventButton.disabled = false;
+  }
+
+  /** 郵便番号から開催地の座標を1件解決する（候補が無ければnull）。
+   * 郵便番号→市区町村名→座標の変換はWorker側（/api/geocode）が担う */
+  async function geocodeZip(zip) {
+    const response = await fetch(`/api/geocode?q=${encodeURIComponent(zip)}`).catch(() => {
+      throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error((body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`);
+    }
+    const first = body && Array.isArray(body.results) ? body.results[0] : null;
+    if (!first || typeof first.latitude !== 'number' || typeof first.longitude !== 'number') {
+      return null;
+    }
+    return { latitude: first.latitude, longitude: first.longitude };
+  }
+
+  /** 対象日のイベント開催時間を活動プランナーへ設定する。
+   * 複数日開催で対象日が初日・最終日でない場合は、その日は終日開催として扱う。
+   * 設定できたときは「12時〜17時」形式の文言を返す（時間の定義がなければnull） */
+  function applyEventPlanTimes(event, targetDate) {
+    if (event.startTime === undefined && event.endTime === undefined) {
+      return null;
+    }
+    const startHour =
+      targetDate === event.startDate && event.startTime !== undefined
+        ? Number.parseInt(event.startTime.slice(0, 2), 10)
+        : 0;
+    // 終了時刻は時間単位へ切り上げる（19:30終了なら20時までを計画に含める）
+    let endHour = 24;
+    if (targetDate === event.endDate && event.endTime !== undefined) {
+      const hour = Number.parseInt(event.endTime.slice(0, 2), 10);
+      endHour = event.endTime.endsWith(':00') ? hour : hour + 1;
+    }
+    if (startHour >= endHour) {
+      return null;
+    }
+    planDate.value = targetDate;
+    planStart.value = String(startHour);
+    planEnd.value = String(endHour);
+    // 前の条件で作った計画は前提が変わるため消す（プランナーは操作起点で作り直す）
+    clearPlan();
+    return `${startHour}時〜${endHour}時`;
+  }
+
+  /** 選択中のイベントの開催地の予報を表示する。
+   * 開催日が取得済みの予報に含まれていればその日のタブへ切り替える */
+  async function showEventForecast() {
+    const event = eventList[Number(eventSelect.value)];
+    if (!event) {
+      return;
+    }
+    // ページを開いたまま日付が変わると、初期化時に作った一覧に終了済みが残る。
+    // 過去日の予報を探して的外れな案内をしないよう、ここで一覧を作り直す
+    if (event.endDate < nowInJst().date) {
+      setStatus(`「${event.name}」は開催が終了しました。イベント一覧を更新しました。`, true);
+      await initEvents();
+      return;
+    }
+    // 表示待ちの間の明示的なタブ操作を、完了後の自動切り替えで上書きしないためのガード
+    const tabSeqAtStart = manualTabSeq;
+    // 開催地は郵便番号から検索する（地点検索と同じ/api/geocode経由。
+    // 古い応答が新しい操作を上書きしないよう、地点検索と同じ世代番号で守る）
+    const seq = ++searchSeq;
+    setStatus(`「${event.name}」の開催地（〒${event.zip}）を検索しています…`, false);
+    let place;
+    try {
+      place = await geocodeZip(event.zip);
+    } catch (error) {
+      if (seq === searchSeq) {
+        setStatus(`エラー: ${error.message}`, true);
+      }
+      return;
+    }
+    if (seq !== searchSeq) {
+      // より新しい操作が始まっているため、この結果は破棄する
+      return;
+    }
+    if (!place) {
+      setStatus(
+        `「${event.name}」の開催地（〒${event.zip}）が見つかりませんでした。地点検索からお探しください。`,
+        true,
+      );
+      return;
+    }
+    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
+    const label = `${event.name}（${event.place}）`;
+    const loaded = await loadForecast(
+      `lat=${place.latitude.toFixed(2)}&lon=${place.longitude.toFixed(2)}`,
+      label,
+      { storedName: label },
+    );
+    if (!loaded) {
+      return;
+    }
+    // 開催中（今日が期間内）なら今日、これからなら初日の予報を見せる
+    const today = nowInJst().date;
+    const targetDate = event.startDate <= today && today <= event.endDate ? today : event.startDate;
+    const index = currentForecast.days.findIndex((d) => d.date === targetDate);
+    const dayTab = TABS.find((t) => t.dayIndex === index);
+    // オフライン表示中も案内は出すが、保存済み予報である注記（安全に関わる）は前置きして残す
+    const prefix = displayedFromCache ? 'オフライン表示（保存済みの予報）: ' : '';
+    if (dayTab) {
+      const planText = applyEventPlanTimes(event, targetDate);
+      // 利用者が待っている間に別のタブを選んでいたら、その操作を尊重して切り替えない
+      if (manualTabSeq === tabSeqAtStart) {
+        activateTab(dayTab.tabId, false);
+      }
+      setStatus(
+        `${prefix}「${event.name}」開催日（${formatDate(targetDate)}）の予報です。` +
+          (planText ? `活動プランナーに開催時間（${planText}）を設定しました。` : ''),
+        false,
+      );
+      return;
+    }
+    const days = daysBetween(today, event.startDate);
+    setStatus(
+      `${prefix}「${event.name}」の開催まであと${days}日です。` +
+        `予報は${FORECAST_DAYS}日先までのため、開催地の直近の予報を表示しています。`,
+      false,
+    );
+  }
+
+  eventButton.addEventListener('click', showEventForecast);
+  initEvents();
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
