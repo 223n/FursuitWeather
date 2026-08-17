@@ -23,6 +23,9 @@
 - `public/app.js`の世代ガード（`requestSeq`・`searchSeq`・
   `cityChangeTimer`・`manualTabSeq`）による「最後の明示操作が勝つ」
   制御を壊さない
+- 画面ラベルの注記（「（共有・…）」など）はURL・共有リンクへ書き戻さず、
+  注記なしの名前を`loadForecast`の`urlName`で渡す（書き戻すと共有の
+  往復ごとに名前が伸びて壊れる）
 - イベント予報の定義`public/events.json`は運営者が編集するデータ
   ファイル。開催地は郵便番号で指定し`/api/geocode`で座標へ解決する。
   形式は`test/events.test.ts`がCIで検証する（書き方は`docs/events.md`）

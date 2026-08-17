@@ -341,3 +341,44 @@ test('エラー時: 固定の日本語文が表示され、生の英語メッセ
   await page.goto('/');
   await expect(page.locator('#status-error')).toContainText('通信に失敗しました');
 });
+
+test('共有URL: 注記は画面だけに出し、URLの地点名には積み重ねない', async ({ page }) => {
+  // 注記付きのラベルをURLへ書き戻すと、共有が1往復するたびに「（共有・…）」が
+  // 増えて名前が伸び、80文字で切られて壊れる（本番ログで発生を確認済み）
+  await page.goto('/?lat=35.68&lon=139.68&name=' + encodeURIComponent('テスト会場'));
+  await waitForForecast(page);
+
+  // 画面には偽装リンクに気付けるよう座標由来の注記を併記する
+  await expect(page.locator('#location-label')).toContainText('テスト会場（共有・');
+
+  // URLに書き戻る名前は注記なしのまま
+  const name = await page.evaluate(() => new URLSearchParams(window.location.search).get('name'));
+  expect(name).toBe('テスト会場');
+
+  // 共有ボタンが作るURLも同じ（クリップボード経由の分岐を使う）
+  await page.evaluate(() => {
+    delete window.navigator.share;
+    window.__copied = null;
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text) => {
+          window.__copied = text;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  await page.click('#share-button');
+  const shared = await page.evaluate(() => window.__copied);
+  expect(new URL(shared).searchParams.get('name')).toBe('テスト会場');
+});
+
+test('共有URL: 地点名が無ければURLにも名前を載せない', async ({ page }) => {
+  await page.goto('/?lat=35.68&lon=139.68');
+  await waitForForecast(page);
+
+  await expect(page.locator('#location-label')).toContainText('共有された地点（');
+  const search = await page.evaluate(() => window.location.search);
+  expect(new URLSearchParams(search).has('name')).toBe(false);
+});

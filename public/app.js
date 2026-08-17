@@ -839,9 +839,15 @@
    * @param {object} [options]
    * @param {number | null} [options.cityIndex] 地点セレクト由来の場合のCITIESインデックス（記憶用）
    * @param {boolean} [options.persist] falseなら記憶もURL反映もしない（現在地用）
-   * @param {string | null} [options.storedName] 記憶に使う名前（URL由来の名前を信頼しない場合に指定） */
+   * @param {string | null} [options.storedName] 記憶に使う名前（URL由来の名前を信頼しない場合に指定）
+   * @param {string | null} [options.urlName] URL・共有リンクに載せる名前。
+   *   省略時はlocationNameを使う。locationNameに画面だけの注記（「（共有・…）」など）を
+   *   付ける場合は、注記なしの名前をここで渡すこと。注記付きのままURLへ書き戻すと、
+   *   その共有リンクを開くたびに注記が積み重なって名前が伸び、80文字で切られて壊れる */
   async function loadForecast(query, locationName, options = {}) {
-    const { cityIndex = null, persist = true, storedName = null } = options;
+    const { cityIndex = null, persist = true, storedName = null, urlName = null } = options;
+    // URL・共有リンクに載せる名前（注記なし）。空文字ならURLに名前を載せない
+    const shareName = urlName ?? locationName;
     // 確定ロードは保留中のセレクトデバウンスと検索応答を無効化し、後から
     // 古い地点選択・検索候補が発火して最後の明示操作を上書きするのを防ぐ
     clearTimeout(cityChangeTimer);
@@ -910,9 +916,11 @@
         setStatus('予報を取得しました', false);
       }
       setLocationLabel(locationName);
-      // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）
+      // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）。
+      // 名前は画面用ラベルではなく注記なしのshareNameを使う（共有のたびに注記が
+      // 積み重なるのを防ぐ）
       displayedQuery = query;
-      displayedName = locationName;
+      displayedName = shareName;
       // お気に入り登録には記憶と同じ名前を使う（共有URL由来の名前を鵜呑みにしないため）。
       // 現在地（persist: false）とデモはプライバシー約束のため登録不可にする
       displayedStorable = persist && query !== 'demo=1';
@@ -926,7 +934,9 @@
           // 記憶する名前はstoredName優先（共有URL由来の名前を鵜呑みにしないため）
           writeStoredLocation(query, storedName ?? locationName, cityIndex);
           const urlParams = new URLSearchParams(query);
-          urlParams.set('name', locationName);
+          if (shareName) {
+            urlParams.set('name', shareName);
+          }
           window.history.replaceState(null, '', `?${urlParams.toString()}`);
         } else {
           // 現在地は「位置情報は保存しません」の約束どおり記憶もURL反映もしない。
@@ -1030,8 +1040,10 @@
           // 「共有」のURLに自宅を特定できる精度の位置が流れない
           `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`,
           describeCurrentLocation(lat, lon),
-          // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）
-          { persist: false },
+          // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）。
+          // 共有リンクの名前は座標由来の説明だけにする（受け取った人にとっては
+          // 「現在地」ではないうえ、画面用の語がURLへ流れると共有のたびに積み重なる）
+          { persist: false, urlName: nearestCityText(lat, lon) },
         );
       },
       () => {
@@ -1691,6 +1703,10 @@
     // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
     loadForecast(`lat=${sharedLat.toFixed(2)}&lon=${sharedLon.toFixed(2)}`, displayLabel, {
       storedName: coordName,
+      // URL・共有リンクへは注記なしの名前だけを書き戻す。displayLabelをそのまま
+      // 載せると、共有が1往復するたびに「（共有・…）」が積み重なって名前が伸び、
+      // 80文字で切られて壊れる（名前が無ければURLにも載せない）
+      urlName: sharedName,
     });
   } else {
     const stored = readStoredLocation();
