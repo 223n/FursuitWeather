@@ -30,11 +30,12 @@ export function isHtmlPath(pathname: string): boolean {
  *    スクリプトだけを信頼する。外部スクリプト（アクセス解析）もHTML内のタグに
  *    nonceが付くことで読み込まれる。この段が効くとき、以降はすべて無視される
  * 2. `https:` `http:`（nonceは解釈するが`'strict-dynamic'`を解釈しない環境）:
- *    ホスト許可リストとして働く。1より緩いが、nonce付きスクリプトが動的に
- *    読み込むスクリプトが黙ってブロックされるのを防ぐ後方互換
- *    （`upgrade-insecure-requests`があるため`http:`の取得はhttpsへ格上げされる）
- * 3. `'unsafe-inline'`（nonceも解釈しない古い環境）: 最後の後方互換。
- *    nonce対応ブラウザでは無視される
+ *    スキーム指定として働き、httpsで配信されるスクリプトはすべて通る。1より
+ *    緩いが、nonce付きスクリプトが動的に読み込むスクリプトが黙ってブロック
+ *    されるのを防ぐ後方互換。この段では`'unsafe-inline'`はnonceがあるため無視され、
+ *    `http:`の取得は`upgrade-insecure-requests`でhttpsへ格上げされる
+ * 3. `'unsafe-inline'`（nonceも解釈しない古い環境）: nonceによる無効化が
+ *    効かないため、2のスキーム指定と同時に効く。最後の後方互換
  *
  * Trusted Typesのポリシー名はpublic/app.jsのcreatePolicyと一致させること
  */

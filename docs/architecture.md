@@ -178,15 +178,21 @@ style-src  'self' 'nonce-<同じ値>'
 
 | 環境 | 効く指定 |
 |------|----------|
-| `'strict-dynamic'`対応（CSP3） | nonce + `'strict-dynamic'`。以降のスキームと`'unsafe-inline'`は無視される |
-| nonceのみ対応（CSP2） | nonce + `https:` `http:`（ホスト許可リストとして働く） |
-| nonce非対応（CSP1） | `'unsafe-inline'` |
+| `'strict-dynamic'`対応（CSP3） | nonce + `'strict-dynamic'`のみ。スキームと`'unsafe-inline'`は無視される |
+| nonce対応・`'strict-dynamic'`非対応（CSP2） | nonce + `https:` `http:`。`'unsafe-inline'`はnonceがあるため無視される |
+| nonce非対応（CSP1） | `https:` `http:` + `'unsafe-inline'`。nonceによる無効化が効かないため両方が通る |
+
+`https:` `http:`はスキーム指定（scheme-source）で、`'self'`のような
+ホスト指定より広く「httpsで配信されるスクリプトなら通す」という意味です。
+CSP1しか解釈しない環境では、これと`'unsafe-inline'`が同時に効くため
+実質素通りになりますが、その世代のブラウザはもともと`'strict-dynamic'`も
+nonceも解釈できないので、併記の有無にかかわらず守れません。
 
 併記しないと、`'strict-dynamic'`を解釈しない環境でnonce付きスクリプトが
-動的に読み込むスクリプトが黙ってブロックされます。`http:`は
-`upgrade-insecure-requests`によりhttpsへ格上げされるため、平文通信の
-入口にはなりません。並び順はCSPの意味を変えませんが、段階が読み取れるよう
-厳しい順に書いています。
+動的に読み込むスクリプトが黙ってブロックされます。`http:`はCSP3・CSP2の
+環境では無視されるか`upgrade-insecure-requests`でhttpsへ格上げされ、
+そもそもHSTSにより平文では接続されません。並び順はCSPの意味を変えませんが、
+段階が読み取れるよう厳しい順に書いています。
 
 **nonceは必ずリクエストごとに変える必要があります。** HTMLに書かれた値は
 攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて

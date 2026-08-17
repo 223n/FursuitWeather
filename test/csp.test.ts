@@ -50,9 +50,9 @@ describe('buildHtmlCsp', () => {
     expect(directive('script-src').split(/\s+/)).toEqual([
       "'nonce-test-nonce-value'", // CSP3: これと'strict-dynamic'が効く環境では以降は無視される
       "'strict-dynamic'",
-      'https:', // CSP2（nonceは解釈するが'strict-dynamic'は解釈しない環境）向け
+      'https:', // CSP2以前（'strict-dynamic'を解釈しない環境）向け
       'http:',
-      "'unsafe-inline'", // CSP1（nonce非対応）向け
+      "'unsafe-inline'", // CSP1（nonce非対応）向け。この環境では上のスキームも同時に効く
     ]);
   });
 
