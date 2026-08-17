@@ -53,8 +53,15 @@ npm run test:coverage
 未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
 防御フォールバックのみです。
 `public/app.js`・`public/wbgt-tool.js`はブラウザ実行のためカバレッジ
-対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、動作は
-リリース時にPlaywrightで実機確認しています（手順は
+対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、実挙動は
+E2Eテスト（`e2e/`配下）が実ブラウザで検証します。
+
+```bash
+npm run test:e2e   # Playwright（APIはモック。wrangler devを自動起動）
+```
+
+E2EテストはCI（`ci.yml`のe2eジョブ）でも実行されます。
+axe-core監査とCLS測定はリリース時の手動確認です（手順は
 [アクセシビリティ設計](accessibility.md)の検証方法を参照）。
 
 ## ビルド

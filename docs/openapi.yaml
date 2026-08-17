@@ -1,0 +1,265 @@
+openapi: 3.1.0
+# FursuitWeather 公開APIのOpenAPI仕様
+# 人向けの解説は docs/api.md を参照。数値・列挙の一部は
+# test/htmlSync.test.ts が src/constants.ts と同期検証する
+info:
+  title: FursuitWeather API
+  description: |
+    着ぐるみ天気予報（FursuitWeather）の公開APIです。
+    気象庁MSM/GSMモデル由来の気象データから、着ぐるみ活動の適否
+    （WBGTベース）を判定して返します。CORS対応のため他のサイト・
+    アプリからも利用できます。大量アクセスはデータ提供元
+    （Open-Meteo）の無料枠を圧迫するためお控えください。
+  version: 1.0.0
+  license:
+    name: Apache License 2.0
+    url: https://github.com/223n/FursuitWeather/blob/main/LICENSE
+servers:
+  - url: https://fursuit-weather.223n.tech
+paths:
+  /api/forecast:
+    get:
+      summary: 着ぐるみ活動予報を取得する
+      description: |
+        指定した座標の時間別・日別の着ぐるみ活動判定を返します。
+        正常レスポンスは`Cache-Control: public, max-age=600`で
+        10分間ブラウザキャッシュされます。
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: 緯度
+          schema: { type: number, minimum: -90, maximum: 90 }
+        - name: lon
+          in: query
+          required: true
+          description: 経度
+          schema: { type: number, minimum: -180, maximum: 180 }
+        - name: days
+          in: query
+          required: false
+          description: 予報日数（気象庁MSMの予報範囲のため最大4日）
+          schema: { type: integer, minimum: 1, maximum: 4, default: 4 }
+        - name: demo
+          in: query
+          required: false
+          description: >-
+            `1`でデモデータを返す。このとき`lat`・`lon`・`days`は
+            検証されず無視され、常に当日からの2日分を返す
+          schema: { type: string, enum: ['1'] }
+      responses:
+        '200':
+          description: 予報
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ForecastResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
+  /api/geocode:
+    get:
+      summary: 都市名・郵便番号から地点候補を検索する
+      description: |
+        日本国内の地点候補を最大5件返します。郵便番号はzipcloudで
+        市区町村名へ変換してから検索します。レスポンスは`no-store`で
+        キャッシュされません。
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: 都市名または郵便番号（ハイフンなし・全角も可）
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: 地点候補（該当なしは空配列）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GeocodeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
+components:
+  responses:
+    BadRequest:
+      description: パラメータの検証エラー
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    MethodNotAllowed:
+      description: GET・OPTIONS以外のメソッド
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UpstreamError:
+      description: 上流APIの障害・タイムアウト・レスポンス形式異常
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      description: >-
+        エラーレスポンス（全エンドポイント共通）。`Cache-Control:
+        no-store`が付く
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: 利用者向けの日本語メッセージ
+    ForecastResponse:
+      type: object
+      required: [location, generatedAt, model, attribution, notices, hours, days]
+      properties:
+        location:
+          type: object
+          description: 気象モデルの格子点に丸められた予報地点
+          properties:
+            latitude: { type: number }
+            longitude: { type: number }
+            timezone: { type: string }
+        generatedAt:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻（UTC）
+        model:
+          type: string
+          description: 使用した気象モデル（デモ時は`demo`）
+        attribution:
+          type: object
+          description: データ出典表記。表示時は出典の明記が必要
+          properties:
+            weatherData: { type: string }
+            weatherDataUrl: { type: string }
+            license: { type: string }
+        notices:
+          type: array
+          items: { type: string }
+          description: 通年の注意事項
+        hours:
+          type: array
+          description: >-
+            1時間ごとの予報。欠測の時間は配列から除外されるため
+            連続は保証されない（`time`で突き合わせること）
+          items: { $ref: '#/components/schemas/HourForecast' }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/DayForecast' }
+    HourForecast:
+      type: object
+      properties:
+        time:
+          type: string
+          description: ローカル時刻（Asia/Tokyo、例 2026-08-15T09:00）
+        weather: { $ref: '#/components/schemas/HourlyWeather' }
+        weatherLabel: { type: string }
+        outdoor: { $ref: '#/components/schemas/Assessment' }
+        indoor:
+          allOf:
+            - $ref: '#/components/schemas/Assessment'
+            - type: object
+              properties:
+                cooling:
+                  type: string
+                  enum: [none, recommended, required]
+                coolingLabel: { type: string }
+    HourlyWeather:
+      type: object
+      properties:
+        temperature: { type: number, description: 気温（℃） }
+        humidity: { type: number, description: 相対湿度（%） }
+        apparentTemperature: { type: number, description: 体感温度（℃） }
+        precipitation: { type: number, description: 降水量（mm） }
+        precipitationProbability:
+          type: [number, 'null']
+          description: 降水確率（%）。補完できない場合はnull
+        weatherCode:
+          type: integer
+          description: WMO天気コード。欠測時は-1
+        solarRadiation: { type: number, description: 全天日射量（W/m²） }
+        windSpeed: { type: number, description: 風速（m/s） }
+    Assessment:
+      type: object
+      description: 着ぐるみ活動の判定（屋外・屋内共通の形）
+      properties:
+        wbgt: { type: number, description: 素のWBGT推定値（℃） }
+        suitWbgt: { type: number, description: 着衣補正（+11℃）後のWBGT（℃） }
+        level:
+          type: string
+          description: レベルID。低温側はoutdoor系のみに現れる
+          enum:
+            - safe
+            - caution
+            - warning
+            - severe
+            - danger
+            - optimal
+            - coldCaution
+            - coldWarning
+            - coldDanger
+        label: { type: string, description: 日本語ラベル }
+        grade:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: 深刻度（0=快適〜4=危険）
+        activityMinutes:
+          type: integer
+          description: 連続活動時間の上限目安（分）。0は着用中止
+        advice: { type: string }
+    LevelSummary:
+      type: object
+      properties:
+        level: { type: string }
+        label: { type: string }
+        grade: { type: integer }
+    DayForecast:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        temperatureMin: { type: number }
+        temperatureMax: { type: number }
+        weatherCode: { type: integer, description: 日中の代表天気コード }
+        weatherLabel: { type: string }
+        outdoorWorst: { $ref: '#/components/schemas/LevelSummary' }
+        outdoorBest: { $ref: '#/components/schemas/LevelSummary' }
+        recommendedHours:
+          type: array
+          items: { type: string }
+          description: >-
+            屋外活動に適した時間帯（HH:00形式）。日中（9〜18時）のうち
+            深刻度1以下かつ降水量0の時間帯
+        coolingRequired: { type: boolean }
+        maxWbgt:
+          type: number
+          description: >-
+            素のWBGT（着衣補正前）の日最大値（℃）。33以上は環境省の
+            熱中症警戒アラートの発表基準に相当
+        laundry: { $ref: '#/components/schemas/LaundryAssessment' }
+    LaundryAssessment:
+      type: object
+      properties:
+        score: { type: integer, minimum: 0, maximum: 100 }
+        level:
+          type: string
+          enum: [noDryRain, noDryCold, indoorDry, fair, good, veryGood, excellent]
+        label: { type: string }
+        fursuitDryingHours:
+          type: integer
+          description: 着ぐるみ全身洗いの乾燥目安（時間）
+        moldWarning: { type: boolean }
+        advice: { type: string }
+    GeocodeResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          maxItems: 5
+          description: 日本国内の地点候補（最大5件）
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              admin1: { type: string, description: 都道府県名（空のことがある） }
+              latitude: { type: number }
+              longitude: { type: number }

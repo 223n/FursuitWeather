@@ -29,6 +29,30 @@
   --level-4-surface: #F6D7D0;
   --level-cold-accent: #0072B2;
   --level-cold-surface: #E1EFF8;
+
+  /* バッジ文字色（薄色背景に対しWCAG AAを満たす濃色） */
+  --level-0-text: #006147;
+  --level-1-text: #6B4700;
+  --level-2-text: #7A3100;
+  --level-3-text: #99260C;
+  --level-4-text: #6E1100;
+  --level-cold-text: #005180;
+
+  /* そのほかの配色トークン（ダークモードで一括で切り替える） */
+  --color-header-bg: #0072B2;
+  --color-header-text: #FFFFFF;
+  --color-on-accent: #FFFFFF;
+  --color-focus: #A66E00;
+  --color-icon-warm: #A66E00;
+  --color-border-subtle: var(--color-border-subtle);
+  --color-border-table: #CCCCCC;
+  --color-night-row: #F2F2F2;
+  --color-skeleton: #E5E2DE;
+  --color-code-bg: #E7EEF4;
+  --color-code-text: #094F73;
+
+  /* ライト・ダーク両対応をUA（フォーム部品など）にも伝える */
+  color-scheme: light dark;
 }
 
 * {
@@ -55,10 +79,10 @@
   left: 0.5rem;
   z-index: 10;
   padding: 0.5rem 1rem;
-  background-color: #FFFFFF;
-  color: #0072B2;
+  background-color: var(--color-background);
+  color: var(--color-blue);
   font-weight: 700;
-  border: 2px solid #0072B2;
+  border: 2px solid var(--color-blue);
   border-radius: 6px;
 }
 
@@ -80,18 +104,18 @@
 .weather-sun,
 .weather-cloud-sun,
 .weather-cloud-bolt {
-  color: #A66E00;
+  color: var(--color-icon-warm);
 }
 
 .weather-cloud,
 .weather-smog,
 .weather-circle-question {
-  color: #555555;
+  color: var(--color-text-muted);
 }
 
 .weather-cloud-rain,
 .weather-snowflake {
-  color: #0072B2;
+  color: var(--color-blue);
 }
 
 .weather-line-content {
@@ -113,8 +137,8 @@ body {
 }
 
 .site-header {
-  background-color: var(--color-blue);
-  color: #FFFFFF;
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
   padding: 1.25rem 1rem;
 }
 
@@ -136,7 +160,7 @@ main {
 
 section {
   background-color: var(--color-background);
-  border: 1px solid #DDDDDD;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -203,7 +227,7 @@ button {
 
 button:hover {
   background-color: var(--color-blue);
-  color: #FFFFFF;
+  color: var(--color-on-accent);
 }
 
 /* フォーカスリングは白背景に対して3:1以上のコントラストを確保した濃色を使う
@@ -211,7 +235,7 @@ button:hover {
 select:focus,
 button:focus,
 input[type='search']:focus {
-  outline: 3px solid #A66E00;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -229,7 +253,7 @@ input[type='number'] {
 }
 
 input[type='number']:focus {
-  outline: 3px solid #a66e00;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -254,6 +278,24 @@ input[type='number']:focus {
 
 .wbgt-result-list li {
   margin: 0.35rem 0;
+}
+
+/* お気に入り地点のチップ一覧。初期化時にlocalStorageから描画されるため、
+ * 1行分の高さを確保してレイアウトシフトを抑える（上限6件・折返し時は許容） */
+.favorites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  align-items: center;
+}
+
+.favorites-list button {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
 }
 
 /* 検索結果の候補一覧。他のコントロールボタンと見分けが付くよう、
@@ -286,6 +328,67 @@ input[type='number']:focus {
   margin-bottom: 1rem;
 }
 
+/* 活動プランナーの結果（利用者の操作起点で表示されるためCLS対策の対象外） */
+.plan-result {
+  margin-top: 0.75rem;
+}
+
+.plan-hours {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.plan-hours li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.plan-total {
+  font-weight: 700;
+}
+
+.plan-notes {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+/* いまの判定カード。読み込み前後で高さが揺れないようmin-heightを確保する */
+.now-card {
+  min-height: 8.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.now-headline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.now-time {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.now-minutes {
+  font-weight: 700;
+}
+
+.now-advice {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 .status-box {
   grid-area: 1 / 1;
   padding: 0.75rem 1rem;
@@ -294,12 +397,12 @@ input[type='number']:focus {
 }
 
 #status:not(:empty) {
-  background-color: #E1EFF8;
+  background-color: var(--level-cold-surface);
   border-left-color: var(--color-blue);
 }
 
 #status-error:not(:empty) {
-  background-color: #FBE3DD;
+  background-color: var(--level-3-surface);
   border-left-color: var(--color-red);
 }
 
@@ -311,7 +414,7 @@ input[type='number']:focus {
 }
 
 .day-card {
-  border: 2px solid #DDDDDD;
+  border: 2px solid var(--color-border-subtle);
   border-radius: 8px;
   padding: 0.75rem;
   background-color: var(--color-background);
@@ -462,7 +565,7 @@ input[type='number']:focus {
 }
 
 .legend-details summary:focus {
-  outline: 3px solid #A66E00;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -490,7 +593,7 @@ input[type='number']:focus {
 }
 
 .legend-item {
-  border: 1px solid #DDDDDD;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
   padding: 0.6rem;
 }
@@ -503,37 +606,37 @@ input[type='number']:focus {
 
 .badge.grade-0 {
   background-color: var(--level-0-surface);
-  color: #006147;
+  color: var(--level-0-text);
   border-color: var(--level-0-accent);
 }
 
 .badge.grade-1 {
   background-color: var(--level-1-surface);
-  color: #6B4700;
+  color: var(--level-1-text);
   border-color: var(--level-1-accent);
 }
 
 .badge.grade-2 {
   background-color: var(--level-2-surface);
-  color: #7A3100;
+  color: var(--level-2-text);
   border-color: var(--level-2-accent);
 }
 
 .badge.grade-3 {
   background-color: var(--level-3-surface);
-  color: #99260C;
+  color: var(--level-3-text);
   border-color: var(--level-3-accent);
 }
 
 .badge.grade-4 {
   background-color: var(--level-4-surface);
-  color: #6E1100;
+  color: var(--level-4-text);
   border-color: var(--level-4-accent);
 }
 
 .badge.cold {
   background-color: var(--level-cold-surface);
-  color: #005180;
+  color: var(--level-cold-text);
   border-color: var(--level-cold-accent);
 }
 
@@ -555,7 +658,7 @@ input[type='number']:focus {
 .skeleton-line {
   height: 1rem;
   border-radius: 4px;
-  background-color: #E5E2DE;
+  background-color: var(--color-skeleton);
   margin: 1rem 0;
   animation: skeleton-pulse 1.2s ease-in-out infinite;
 }
@@ -602,7 +705,7 @@ table {
 /* 表のセル（既定は折り返しあり・左揃え。長い説明文が横長セルにならないようにする） */
 th,
 td {
-  border: 1px solid #CCCCCC;
+  border: 1px solid var(--color-border-table);
   padding: 0.4rem 0.5rem;
   text-align: left;
 }
@@ -636,12 +739,25 @@ th {
 }
 
 tbody tr.night {
-  background-color: #F2F2F2;
+  background-color: var(--color-night-row);
 }
 
 /* 注意事項・フッター */
 #notices-list li {
   margin-bottom: 0.4rem;
+}
+
+/* 熱中症警戒アラート基準相当の注意（注意事項欄の先頭で枠付きで目立たせる） */
+.alert-notice {
+  list-style: none;
+  border: 2px solid var(--level-3-accent);
+  border-radius: 6px;
+  background-color: var(--level-3-surface);
+  padding: 0.5rem 0.75rem;
+}
+
+.alert-notice .fa-icon {
+  color: var(--level-3-accent);
 }
 
 .about ul {
@@ -676,7 +792,7 @@ main a {
 
 .formula {
   background-color: var(--color-surface);
-  border: 1px solid #DDDDDD;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 6px;
   padding: 0.75rem 1rem;
   overflow-x: auto;
@@ -698,8 +814,8 @@ main a {
 /* インラインコード（APIフィールド名など）。Markdownの`コード`表記と同様に
  * 背景色+文字色で「要素名・コード値」であることを視覚的に区別する */
 code {
-  background-color: #E7EEF4;
-  color: #094F73;
+  background-color: var(--color-code-bg);
+  color: var(--color-code-text);
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 0.92em;
@@ -737,4 +853,60 @@ code {
 section h3 {
   font-size: 1.05rem;
   margin: 1.25rem 0 0.5rem;
+}
+
+/* ダークモード: OS設定に追従する。CUDの考え方（色+記号の併記）はそのまま、
+ * 濃色背景+明色の縁・文字に切り替える。本文4.5:1以上・UI境界3:1以上を
+ * 確保した値を使う（検証はdocs/accessibility.mdの手順を参照） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-blue: #56B4E9; /* CUD空色。暗背景でのアクセント・リンク色 */
+    --color-orange: #E69F00;
+    --color-green: #36C48F;
+    --color-red: #F07C6C;
+
+    --color-text: #E8E8E8;
+    --color-text-muted: #B8B8B8;
+    --color-background: #1E1E1E;
+    --color-surface: #141414;
+    --color-border: #9A9A9A;
+
+    --level-0-accent: #34D399;
+    --level-0-surface: #0E3327;
+    --level-0-text: #C7F0DF;
+    --level-1-accent: #E5B84B;
+    --level-1-surface: #3A2E10;
+    --level-1-text: #F4E3B2;
+    --level-2-accent: #F0985A;
+    --level-2-surface: #3D2413;
+    --level-2-text: #F6D9BE;
+    --level-3-accent: #F07C5C;
+    --level-3-surface: #401A12;
+    --level-3-text: #F6CFC2;
+    --level-4-accent: #F2685A;
+    --level-4-surface: #3C1210;
+    --level-4-text: #F4C4BC;
+    --level-cold-accent: #56B4E9;
+    --level-cold-surface: #10293A;
+    --level-cold-text: #C4E3F7;
+
+    --color-header-bg: #004B76; /* 明るすぎる青帯を避けた濃紺 */
+    --color-header-text: #FFFFFF;
+    --color-on-accent: #00293F; /* 明るい青の上に載せる濃色文字 */
+    --color-focus: #E69F00; /* 暗背景では明るい橙が3:1以上を満たす */
+    --color-icon-warm: #E5B84B;
+    --color-border-subtle: #3A3A3A;
+    --color-border-table: #4A4A4A;
+    --color-night-row: #262626;
+    --color-skeleton: #333333;
+    --color-code-bg: #1C3440;
+    --color-code-text: #A8D8F0;
+  }
+
+  /* 明色前提のSVG図は白地のカードに載せて可読性を保つ */
+  .diagram {
+    background-color: #FFFFFF;
+    border-radius: 8px;
+    padding: 0.5rem;
+  }
 }

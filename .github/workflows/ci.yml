@@ -37,3 +37,27 @@ jobs:
       # 失敗をマージ前に検出する。成果物はコミットしない（検証のみ）
       - name: ビルドを検証
         run: npm run build
+
+  # フロントエンド（public/のブラウザJS）の実挙動をモックAPIで検証する。
+  # 上流ネットワークへは接続しない（e2e/のテストがAPIをすべてモックする）
+  e2e:
+    name: E2Eテスト（Playwright）
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: Chromiumをインストール
+        run: npx playwright install --with-deps chromium
+
+      - name: E2Eテストを実行
+        run: npm run test:e2e

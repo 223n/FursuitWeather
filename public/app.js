@@ -93,6 +93,10 @@
   /** 表示に成功した地点のクエリと名前（共有ボタンはこちらを使う。失敗中のlastQueryとは別） */
   let displayedQuery = null;
   let displayedName = null;
+  /** 表示中の地点がお気に入りに登録可能か（現在地=persist:falseは不可）と、登録に使う情報 */
+  let displayedStorable = false;
+  let displayedStoredName = null;
+  let displayedCityIndex = null;
   /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
   let requestSeq = 0;
   /** 進行中の地点検索の識別番号（古い検索応答で候補が汚染されるのを防ぐ） */
@@ -177,6 +181,51 @@
       );
     } catch {
       // 保存できなくても予報表示自体には影響しないため無視する
+    }
+  }
+
+  // お気に入り地点（このブラウザ内にのみ保存する）。
+  // 現在地はプライバシー約束（位置情報は保存しません）のため登録できない
+  const FAVORITES_STORAGE_KEY = 'fursuitweather:favorites';
+  const MAX_FAVORITES = 6;
+
+  /** お気に入り一覧を読み出す。形式が不正・破損している場合は空配列を返す */
+  function readFavorites() {
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (!raw) {
+        return [];
+      }
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) {
+        return [];
+      }
+      return list
+        .filter(
+          (item) =>
+            item &&
+            typeof item.query === 'string' &&
+            /^lat=-?[\d.]+&lon=-?[\d.]+$/.test(item.query) &&
+            typeof item.name === 'string' &&
+            item.name !== '',
+        )
+        .slice(0, MAX_FAVORITES)
+        .map((item) => ({
+          query: item.query,
+          name: item.name,
+          cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** お気に入り一覧を保存する */
+  function writeFavorites(list) {
+    try {
+      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(list));
+    } catch {
+      // 保存できなくても表示自体には影響しないため無視する
     }
   }
 
@@ -427,6 +476,8 @@
       selectedDate = day.date;
       updateSelectedCard();
       renderHours();
+      // 別の日の古い計画が残らないよう、日付の切り替えで消す
+      clearPlan();
     };
     titleButton.addEventListener('click', selectDay);
     // カードのどこをクリックしても選択できるようにする（ボタン自身のクリックは二重処理しない）
@@ -454,6 +505,60 @@
   function nowInJst() {
     const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
     return { date: jst.toISOString().slice(0, 10), hour: jst.getUTCHours() };
+  }
+
+  // いまの判定: 現在時刻（JST）の時間別判定を大きく1枚で表示する
+  const nowCard = document.getElementById('now-card');
+
+  /** 時刻文字列（YYYY-MM-DDTHH:MM）から時の数値を取り出す */
+  function hourNumberOf(time) {
+    return Number.parseInt(time.slice(11, 13), 10);
+  }
+
+  /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
+  function renderNowCard() {
+    const now = nowInJst();
+    const todayHours = currentForecast.hours.filter((h) => h.time.startsWith(now.date));
+    const target =
+      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+    if (!target) {
+      const message = document.createElement('p');
+      message.className = 'hint';
+      message.textContent =
+        '本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。';
+      nowCard.replaceChildren(message);
+      return;
+    }
+
+    const hourNumber = hourNumberOf(target.time);
+    const timeLine = document.createElement('p');
+    timeLine.className = 'now-time';
+    // 現在時刻ちょうどのデータがない場合（深夜の欠測など）は代替時刻を明示する
+    timeLine.textContent =
+      `${hourNumber === now.hour ? `${hourNumber}時` : `本日${hourNumber}時（直近の時間帯）`}` +
+      `・${target.weatherLabel}・${target.weather.temperature.toFixed(1)}℃`;
+
+    const headline = document.createElement('div');
+    headline.className = 'now-headline';
+    headline.appendChild(createBadge(target.outdoor, true));
+    const minutes = document.createElement('span');
+    minutes.className = 'now-minutes';
+    minutes.textContent =
+      target.outdoor.activityMinutes > 0
+        ? `連続${target.outdoor.activityMinutes}分まで`
+        : '着用中止';
+    headline.appendChild(minutes);
+
+    const advice = document.createElement('p');
+    advice.className = 'now-advice';
+    advice.textContent = target.outdoor.advice;
+
+    const indoor = document.createElement('p');
+    indoor.className = 'now-time';
+    indoor.textContent = `屋内（空調なし想定）: ${target.indoor.coolingLabel}`;
+
+    nowCard.replaceChildren(timeLine, headline, advice, indoor);
   }
 
   function renderHours() {
@@ -534,6 +639,26 @@
   /** 注意事項を描画する */
   function renderNotices() {
     noticesList.replaceChildren();
+    // 素のWBGT（着衣補正前）が熱中症警戒アラートの発表基準（33以上）に達する日は、
+    // 公式の発表状況への導線つきで最上部に注意を出す（判定はサーバーのmaxWbgtを使う）
+    const alertDays = currentForecast.days
+      .filter((d) => typeof d.maxWbgt === 'number' && d.maxWbgt >= 33)
+      .map((d) => formatDate(d.date));
+    if (alertDays.length > 0) {
+      const item = document.createElement('li');
+      item.className = 'alert-notice';
+      const icon = faIcon('triangle-exclamation', 'btn-icon');
+      const text = document.createTextNode(
+        `${alertDays.join('、')}は暑さ指数（WBGT）33以上が予測されています。` +
+          '環境省の熱中症警戒アラートの発表基準に相当する暑さです。公式の発表状況は',
+      );
+      const link = document.createElement('a');
+      link.href = 'https://www.wbgt.env.go.jp/alert.php';
+      link.rel = 'noopener';
+      link.textContent = '環境省 熱中症予防情報サイト';
+      item.append(icon, text, link, document.createTextNode('をご確認ください。'));
+      noticesList.appendChild(item);
+    }
     for (const notice of currentForecast.notices) {
       const item = document.createElement('li');
       item.textContent = notice;
@@ -602,11 +727,30 @@
 
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
-      setStatus('予報を取得しました', false);
+      // オフライン時はService Workerが保存済みの予報で応答するため、
+      // その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
+      if (response.headers.get('X-Served-From-Cache') === '1') {
+        const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
+        const timeText = Number.isNaN(cachedAt.getTime())
+          ? '以前'
+          : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
+        setStatus(
+          `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`,
+          false,
+        );
+      } else {
+        setStatus('予報を取得しました', false);
+      }
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）
       displayedQuery = query;
       displayedName = locationName;
+      // お気に入り登録には記憶と同じ名前を使う（共有URL由来の名前を鵜呑みにしないため）。
+      // 現在地（persist: false）とデモはプライバシー約束のため登録不可にする
+      displayedStorable = persist && query !== 'demo=1';
+      displayedStoredName = storedName ?? locationName;
+      displayedCityIndex = cityIndex;
+      updateFavoriteToggle();
       if (query !== 'demo=1') {
         if (persist) {
           // 次回アクセス時に同じ地点を表示できるよう記憶し、表示中の地点をURLにも
@@ -622,8 +766,11 @@
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
+      renderNowCard();
       renderDayCards();
       renderNotices();
+      // 地点や取得結果が変わったら、古い前提の計画を残さない
+      clearPlan();
 
       if (selectedDate) {
         renderHours();
@@ -638,6 +785,7 @@
       setStatus(`エラー: ${error.message}`, true);
       // 予報を表示できないときは読み込み中のプレースホルダーを消す
       if (!currentForecast) {
+        nowCard.replaceChildren();
         dayCardsElement.replaceChildren();
         hoursBody.replaceChildren();
       }
@@ -759,6 +907,78 @@
     }
   });
 
+  // お気に入り地点: チップで即切り替え、トグルボタンで表示中の地点を追加/解除する
+  const favoritesList = document.getElementById('favorites-list');
+  const favoriteToggleButton = document.getElementById('favorite-toggle-button');
+
+  /** お気に入りチップ一覧を描画し直す */
+  function renderFavorites() {
+    const items = readFavorites().map((fav) => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.appendChild(faIcon('location-dot', 'btn-icon'));
+      button.appendChild(document.createTextNode(fav.name));
+      button.addEventListener('click', () => {
+        loadForecast(fav.query, fav.name, {
+          cityIndex: fav.cityIndex,
+          storedName: fav.name,
+        });
+      });
+      item.appendChild(button);
+      return item;
+    });
+    favoritesList.replaceChildren(...items);
+  }
+
+  /** トグルボタンの文言と有効/無効を表示中の地点に合わせる */
+  function updateFavoriteToggle() {
+    const registered =
+      displayedStorable && readFavorites().some((fav) => fav.query === displayedQuery);
+    favoriteToggleButton.disabled = !displayedStorable;
+    favoriteToggleButton.replaceChildren(
+      faIcon('star', 'btn-icon'),
+      document.createTextNode(registered ? 'お気に入り解除' : 'お気に入りに追加'),
+    );
+    // 現在地・デモで無効化する理由を補足する（プライバシー約束との整合）
+    favoriteToggleButton.title = displayedStorable
+      ? ''
+      : '現在地とデモ表示はお気に入りに追加できません（位置情報は保存しません）';
+  }
+
+  favoriteToggleButton.addEventListener('click', () => {
+    if (!displayedStorable) {
+      return;
+    }
+    const favorites = readFavorites();
+    const index = favorites.findIndex((fav) => fav.query === displayedQuery);
+    if (index >= 0) {
+      const removed = favorites.splice(index, 1)[0];
+      writeFavorites(favorites);
+      setStatus(`「${removed.name}」をお気に入りから外しました。`, false);
+    } else {
+      if (favorites.length >= MAX_FAVORITES) {
+        setStatus(
+          `お気に入りは${MAX_FAVORITES}件までです。どれかを解除してから追加してください。`,
+          true,
+        );
+        return;
+      }
+      favorites.push({
+        query: displayedQuery,
+        name: displayedStoredName,
+        cityIndex: displayedCityIndex,
+      });
+      writeFavorites(favorites);
+      setStatus(`「${displayedStoredName}」をお気に入りに追加しました。`, false);
+    }
+    renderFavorites();
+    updateFavoriteToggle();
+  });
+
+  // 初期化時にチップを描画する（記憶済みのお気に入りを最初の描画から見せる）
+  renderFavorites();
+
   // 地点検索: 都市名・郵便番号を/api/geocode（Worker経由のジオコーディング）で検索し、
   // 候補をボタンとして表示する。選択で予報を読み込む
   const searchInput = document.getElementById('place-search');
@@ -867,6 +1087,103 @@
     }
   });
 
+  // 活動プランナー: 選択中の日の指定時間帯から、休憩を挟んだ着用計画の目安を作る
+  const planStart = document.getElementById('plan-start');
+  const planEnd = document.getElementById('plan-end');
+  const planResult = document.getElementById('plan-result');
+
+  // 時刻の選択肢を生成する（開始0〜23時、終了1〜24時。既定は10〜16時）
+  for (let hour = 0; hour < 24; hour += 1) {
+    planStart.appendChild(new Option(`${hour}時`, String(hour)));
+    planEnd.appendChild(new Option(`${hour + 1}時`, String(hour + 1)));
+  }
+  planStart.value = '10';
+  planEnd.value = '16';
+
+  /** プランナーの結果を消す（地点・日付が変わったとき、古い前提の計画を残さない） */
+  function clearPlan() {
+    planResult.replaceChildren();
+  }
+
+  /** 選択中の日の指定時間帯の計画を描画する */
+  function renderPlan() {
+    if (!currentForecast || !selectedDate) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    const start = Number(planStart.value);
+    const end = Number(planEnd.value);
+    if (start >= end) {
+      setStatus('終了時刻は開始時刻より後にしてください。', true);
+      return;
+    }
+    const hours = currentForecast.hours.filter((h) => {
+      if (!h.time.startsWith(selectedDate)) {
+        return false;
+      }
+      const hour = hourNumberOf(h.time);
+      return hour >= start && hour < end;
+    });
+    if (hours.length === 0) {
+      const message = document.createElement('p');
+      message.className = 'hint';
+      message.textContent =
+        '選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。';
+      planResult.replaceChildren(message);
+      setStatus('選択した時間帯の予報データがありませんでした。', true);
+      return;
+    }
+
+    const heading = document.createElement('h3');
+    heading.textContent = `${formatDate(selectedDate)} ${start}時〜${end}時の計画`;
+
+    const list = document.createElement('ul');
+    list.className = 'plan-hours';
+    let totalMinutes = 0;
+    const rainHours = [];
+    for (const h of hours) {
+      const hour = hourNumberOf(h.time);
+      const item = document.createElement('li');
+      item.appendChild(createBadge(h.outdoor));
+      const text = document.createElement('span');
+      if (h.outdoor.activityMinutes > 0) {
+        text.textContent = `${hour}時台: 連続${h.outdoor.activityMinutes}分まで（残りは休憩・冷却）`;
+        totalMinutes += h.outdoor.activityMinutes;
+      } else {
+        text.textContent = `${hour}時台: 着用中止`;
+      }
+      item.appendChild(text);
+      list.appendChild(item);
+      if (h.weather.precipitation > 0) {
+        rainHours.push(`${hour}時`);
+      }
+    }
+
+    const total = document.createElement('p');
+    total.className = 'plan-total';
+    total.textContent =
+      totalMinutes > 0
+        ? `この時間帯で着用できる合計の目安: 約${totalMinutes}分（1時間ごとに休憩を挟んだ場合）`
+        : 'この時間帯の屋外での着用は推奨できません。屋内の冷房環境での活動をご検討ください。';
+
+    const notes = document.createElement('ul');
+    notes.className = 'plan-notes hint';
+    if (rainHours.length > 0) {
+      const rainNote = document.createElement('li');
+      rainNote.textContent = `降水の予報がある時間帯: ${rainHours.join('、')}。濡れたファーは乾きにくく冷えの原因になります。`;
+      notes.appendChild(rainNote);
+    }
+    const generalNote = document.createElement('li');
+    generalNote.textContent =
+      'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
+    notes.appendChild(generalNote);
+
+    planResult.replaceChildren(heading, list, total, notes);
+    setStatus('活動計画を作成しました。', false);
+  }
+
+  document.getElementById('plan-button').addEventListener('click', renderPlan);
+
   // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
   const sharedLat = Number.parseFloat(pageParams.get('lat') ?? '');
@@ -905,5 +1222,13 @@
     } else {
       loadSelectedCity();
     }
+  }
+
+  // Service Worker登録（PWA）: オフライン時にシェルと最後に取得した予報を表示できる。
+  // オンライン時は常にネットワーク優先のため、通常表示への影響はない（詳細はsw.js）
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // 登録できない環境（古いブラウザなど）でも通常表示には影響しない
+    });
   }
 })();
