@@ -44,7 +44,12 @@
   --color-on-accent: #FFFFFF;
   --color-focus: #A66E00;
   --color-icon-warm: #A66E00;
-  --color-border-subtle: var(--color-border-subtle);
+  --color-border-subtle: #DDD8D2;
+  /* タブ（ノートのタックインデックス風）の縁と、未選択タブの地色。
+   * 縁はカード地色・ページ地色・タブ地色のいずれに対しても3:1以上
+   * （WCAG 2.1 SC 1.4.11）を確保し、形でも選択状態が分かるようにする */
+  --color-tab-edge: #7C756B;
+  --color-tab-surface: #E7E2DC;
   --color-border-table: #CCCCCC;
   --color-night-row: #F2F2F2;
   --color-skeleton: #E5E2DE;
@@ -201,6 +206,25 @@ h2 {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* 地点の選び方のタブ（主な都市／イベント／検索・現在地／お気に入り）。
+ * パネルは1行ぶんの高さに収まるため、タブ切り替えによる高さの変動は小さい */
+.picker-panel {
+  padding: 0.75rem 0 0.25rem;
+}
+
+/* 表示中の地点と、その地点に対する操作。選ぶ操作と区切って示す */
+.displayed-location {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* お気に入りが未登録のときの案内（チップと同じ行に収める） */
+.favorites-empty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 
 label {
@@ -366,24 +390,28 @@ input[type='number']:focus {
 
 /* タブバー（主要コンテンツの切り替え）。選択中は青の下線+文字色で示し、
  * 色だけに依存しないようaria-selectedと太字・下線の形でも区別する */
+/* タブ（ノートのタックインデックス風）
+ * 未選択のタブは地色を敷いて奥に、選択中のタブは下辺を開いて内容と地続きに
+ * 見せる。選択状態は色だけでなく「つながった形」と太字でも判別できる */
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin-bottom: 0.75rem;
-  border-bottom: 2px solid var(--color-border-subtle);
-  padding-bottom: 0;
+  margin-bottom: 0;
+  padding: 0 0.35rem;
+  border-bottom: 2px solid var(--color-tab-edge);
 }
 
 .tabs [role='tab'] {
-  border: 2px solid transparent;
-  border-bottom: 3px solid transparent;
-  border-radius: 6px 6px 0 0;
-  background: none;
+  border: 2px solid var(--color-tab-edge);
+  border-radius: 8px 8px 0 0;
+  /* タブバーの下線と重ね、選択時に下辺を消して内容とつなげる */
+  margin-bottom: -2px;
+  background-color: var(--color-tab-surface);
   color: var(--color-text-muted);
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.95rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.45rem 0.8rem;
   cursor: pointer;
 }
 
@@ -394,17 +422,36 @@ input[type='number']:focus {
 
 .tabs [role='tab'][aria-selected='true'] {
   color: var(--color-blue);
-  border-bottom-color: var(--color-blue);
+  font-weight: 700;
+  /* 下の内容と同じ地色にし、下辺の線を消して1枚の紙のように見せる */
   background-color: var(--color-background);
+  border-bottom-color: var(--color-background);
+}
+
+/* タブの内容（パネル）はタブバーと隙間なくつなげ、上側の角丸を落とす */
+[role='tabpanel'] {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 /* いまの判定カード。読み込み前後で高さが揺れないようmin-heightを確保する */
+/* いまの判定カード。読み込み中のスケルトンと実データで高さが変わらないよう、
+ * 実データ4行分（時刻・判定・アドバイス・屋内）の高さを常に確保する
+ * （スケルトンはこの高さに収まる行数にしてある） */
 .now-card {
-  min-height: 8.2rem;
+  min-height: 9.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   justify-content: center;
+}
+
+/* 狭い画面ではアドバイス文が折り返して縦に伸びるため、その分を確保する */
+@media (max-width: 48rem) {
+  .now-card {
+    min-height: 11rem;
+  }
 }
 
 .now-headline {
@@ -944,6 +991,8 @@ section h3 {
     --color-focus: #E69F00; /* 暗背景では明るい橙が3:1以上を満たす */
     --color-icon-warm: #E5B84B;
     --color-border-subtle: #3A3A3A;
+    --color-tab-edge: #7D7D7D;
+    --color-tab-surface: #2A2A2A;
     --color-border-table: #4A4A4A;
     --color-night-row: #262626;
     --color-skeleton: #333333;

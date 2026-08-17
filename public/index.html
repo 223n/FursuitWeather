@@ -123,49 +123,66 @@
     <p id="sr-announce" class="sr-only" role="status" aria-live="polite"></p>
 
     <section class="controls" aria-label="地点の選択">
-      <div class="control-row">
-        <label for="city-select">地点</label>
-        <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
-             並び順はapp.jsのCITIES配列と同期させること -->
-        <select id="city-select">
-          <option value="0">札幌</option>
-          <option value="1">仙台</option>
-          <option value="2" selected>東京</option>
-          <option value="3">新潟</option>
-          <option value="4">金沢</option>
-          <option value="5">名古屋</option>
-          <option value="6">大阪</option>
-          <option value="7">広島</option>
-          <option value="8">高松</option>
-          <option value="9">福岡</option>
-          <option value="10">鹿児島</option>
-          <option value="11">那覇</option>
-        </select>
-        <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
-        <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
-        <button type="button" id="reload-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-arrows-rotate"/></svg>予報を更新</button>
+      <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
+           選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
+           表示中の地点に対する操作（更新・共有・お気に入り登録）は下の枠へ分離する -->
+      <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
+        <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
+        <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
+        <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
+        <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
       </div>
-      <div class="control-row">
-        <label for="place-search">地点検索</label>
-        <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off">
-        <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
-        <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>表示地点の予報を共有</button>
+      <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
+        <div class="control-row">
+          <label for="city-select">都市</label>
+          <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
+               並び順はapp.jsのCITIES配列と同期させること -->
+          <select id="city-select">
+            <option value="0">札幌</option>
+            <option value="1">仙台</option>
+            <option value="2" selected>東京</option>
+            <option value="3">新潟</option>
+            <option value="4">金沢</option>
+            <option value="5">名古屋</option>
+            <option value="6">大阪</option>
+            <option value="7">広島</option>
+            <option value="8">高松</option>
+            <option value="9">福岡</option>
+            <option value="10">鹿児島</option>
+            <option value="11">那覇</option>
+          </select>
+          <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
+        </div>
       </div>
       <!-- イベント予報: あらかじめ定義したイベント（events.json）から開催地の予報を表示する。
-           行自体は静的+セレクトの幅を固定し、選択肢の読み込みによるシフトを抑える。
+           セレクトの幅は固定し、選択肢の読み込みによるレイアウトシフトを抑える。
            選択肢はJSが読み込み時に差し替える（終了済みイベントは表示しない） -->
-      <div class="control-row event-row">
-        <label for="event-select">イベント</label>
-        <select id="event-select" disabled>
-          <option value="">イベント情報を読み込んでいます…</option>
-        </select>
-        <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+      <div id="picker-event" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-event" tabindex="0" hidden>
+        <div class="control-row event-row">
+          <label for="event-select">イベント</label>
+          <select id="event-select" disabled>
+            <option value="">イベント情報を読み込んでいます…</option>
+          </select>
+          <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+        </div>
+      </div>
+      <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
+        <div class="control-row">
+          <label for="place-search">検索</label>
+          <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off">
+          <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
+          <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
+        </div>
       </div>
       <!-- お気に入り地点。チップはlocalStorageから初期化時に描画される。
-           行自体は静的+リストにmin-heightを確保し、チップ出現によるシフトを抑える -->
-      <div class="control-row favorites-row">
-        <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
-        <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点"></ul>
+           未登録時の案内は初期描画から高さを確保するため静的に記載し
+           （文言はapp.jsのrenderFavoritesと同期）、登録があればJSが置き換える -->
+      <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
+        <div class="control-row favorites-row">
+          <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
+            <li class="favorites-empty">（下の「お気に入りに追加」で登録できます）</li>
+          </ul>
+        </div>
       </div>
       <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
            候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
@@ -173,10 +190,18 @@
         <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
         <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
       </div>
-      <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
-      <p id="location-label" class="location-label"></p>
+      <!-- 表示中の地点と、その地点に対する操作。上の「選ぶ」操作と区切り線で分ける -->
+      <div class="displayed-location">
+        <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
+        <p id="location-label" class="location-label"></p>
+        <div class="control-row" role="group" aria-label="表示中の地点の操作">
+          <button type="button" id="reload-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-arrows-rotate"/></svg>予報を更新</button>
+          <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>
+          <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
+        </div>
+      </div>
       <p class="control-note">
-        現在地の取得にはブラウザの位置情報の許可が必要です。位置情報は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません。
+        現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
         最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
       </p>
     </section>
@@ -190,65 +215,25 @@
 
     <!-- タブ: 主要コンテンツを切り替えて縦の長さを抑える（WAI-ARIAタブパターン、
          矢印キーで移動+自動選択）。時間別の3タブは同じパネルを日付を変えて共有する -->
-    <div class="tabs" role="tablist" aria-label="予報の表示切り替え">
-      <button type="button" role="tab" id="tab-now" aria-selected="true" aria-controls="now-section">現在の天気</button>
-      <button type="button" role="tab" id="tab-days" aria-selected="false" aria-controls="days-section" tabindex="-1">3日間の天気</button>
-      <button type="button" role="tab" id="tab-day-0" aria-selected="false" aria-controls="hours-section" tabindex="-1">今日の天気</button>
-      <button type="button" role="tab" id="tab-day-1" aria-selected="false" aria-controls="hours-section" tabindex="-1">明日の天気</button>
-      <button type="button" role="tab" id="tab-day-2" aria-selected="false" aria-controls="hours-section" tabindex="-1">明後日の天気</button>
-      <button type="button" role="tab" id="tab-planner" aria-selected="false" aria-controls="planner-section" tabindex="-1">活動プランナー</button>
+    <div class="tabs" id="forecast-tabs" role="tablist" aria-label="予報の表示切り替え">
+      <button type="button" role="tab" id="tab-now" aria-selected="true" aria-controls="now-section"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-clock"/></svg>現在の天気</button>
+      <button type="button" role="tab" id="tab-days" aria-selected="false" aria-controls="days-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>3日間の天気</button>
+      <button type="button" role="tab" id="tab-day-0" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>今日の天気</button>
+      <button type="button" role="tab" id="tab-day-1" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>明日の天気</button>
+      <button type="button" role="tab" id="tab-day-2" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>明後日の天気</button>
+      <button type="button" role="tab" id="tab-planner" aria-selected="false" aria-controls="planner-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>活動プランナー</button>
     </div>
 
     <!-- いまの判定: 現在時刻の判定を大きく1枚で表示する（現場でひと目で分かる用途）。
          読み込み前はスケルトンで高さを確保し、CLSを防ぐ -->
     <section id="now-section" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
       <h2 id="now-heading">いまの判定</h2>
+      <!-- 読み込み中のスケルトン。行数は.now-cardのmin-heightに収まる範囲にし、
+           実データへの置換で高さが変わらないようにする（CLS対策） -->
       <div id="now-card" class="now-card">
         <div class="skeleton-line w40"></div>
-        <div class="skeleton-line w60"></div>
         <div class="skeleton-line w80"></div>
       </div>
-    </section>
-
-    <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
-         見出しナビゲーションから消える環境があるため） -->
-    <section class="legend" aria-labelledby="legend-heading">
-      <h2 id="legend-heading">判定の見方</h2>
-      <details class="legend-details">
-        <summary>説明を開閉</summary>
-      <p class="hint">
-        段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
-        低温側の判定には温度計マークが付きます。
-      </p>
-      <!-- 凡例のラベル・連続活動時間はsrc/constants.tsのHEAT_BANDSと手動同期
-           （test/htmlSync.test.tsがずれを検出する） -->
-      <div class="legend-grid">
-        <div class="legend-item">
-          <span class="badge badge-large grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span>
-          <p>連続45分まで。適宜水分補給を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span>
-          <p>連続30分まで。積極的に水分補給を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span>
-          <p>連続20分まで。ヘッドを外して冷却を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span>
-          <p>連続10分以内。冷房環境へ退避を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-ban"/></svg></span>危険</span>
-          <p>着用中止。熱中症の危険が非常に高い状態。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large cold grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-temperature-low"/></svg>○</span>低温注意</span>
-          <p>低温側は温度計マーク付き。凍結・汗冷えに注意。</p>
-        </div>
-      </div>
-      </details>
     </section>
 
     <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
@@ -343,6 +328,47 @@
       <div id="plan-result" class="plan-result"></div>
     </section>
 
+    <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
+         見出しナビゲーションから消える環境があるため） -->
+    <section class="legend" aria-labelledby="legend-heading">
+      <h2 id="legend-heading">判定の見方</h2>
+      <details class="legend-details">
+        <summary>説明を開閉</summary>
+      <p class="hint">
+        段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
+        低温側の判定には温度計マークが付きます。
+      </p>
+      <!-- 凡例のラベル・連続活動時間はsrc/constants.tsのHEAT_BANDSと手動同期
+           （test/htmlSync.test.tsがずれを検出する） -->
+      <div class="legend-grid">
+        <div class="legend-item">
+          <span class="badge badge-large grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span>
+          <p>連続45分まで。適宜水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span>
+          <p>連続30分まで。積極的に水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span>
+          <p>連続20分まで。ヘッドを外して冷却を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span>
+          <p>連続10分以内。冷房環境へ退避を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-ban"/></svg></span>危険</span>
+          <p>着用中止。熱中症の危険が非常に高い状態。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large cold grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-temperature-low"/></svg>○</span>低温注意</span>
+          <p>低温側は温度計マーク付き。凍結・汗冷えに注意。</p>
+        </div>
+      </div>
+      </details>
+    </section>
+
     <section id="notices-section" aria-label="注意事項">
       <h2>活動時の注意</h2>
       <!-- 初期表示から高さを確保するため静的に記載する（内容はsrc/constants.tsの
@@ -381,7 +407,7 @@
       <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.1</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.2</a>
     </p>
   </footer>
 
