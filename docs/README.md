@@ -12,6 +12,7 @@ FursuitWeather（着ぐるみ天気予報）の開発ドキュメントです。
 | [API仕様](api.md) | `GET /api/forecast` のパラメータとレスポンスJSONの仕様 |
 | [アーキテクチャ](architecture.md) | システム構成、エッジ配信、2段階キャッシュ |
 | [開発ガイド](development.md) | セットアップ、テスト、デプロイ、CI、カスタムドメイン |
+| [リリース手順](release.md) | バージョニング方針、タグ作成、GitHubリリースの自動作成 |
 | [アクセシビリティ設計](accessibility.md) | 色覚多様性対応、スクリーンリーダー対応、CLS対策 |
 | [参考資料・出典](references.md) | 判定式・しきい値・データの出典と参考資料の一覧 |
 

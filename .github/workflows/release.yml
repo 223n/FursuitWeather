@@ -1,0 +1,37 @@
+name: Release
+
+# バージョンタグ（v*）のpushでGitHubリリースを自動作成する
+# リリースノートは前回リリース以降のマージ済みPRから自動生成される。
+# 本番デプロイはmainへのマージ時（deploy.yml）に行われ、タグ・リリースは
+# デプロイとは独立した「記録」の役割（手順はdocs/release.mdを参照）
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: GitHubリリースを作成
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      # タグの付け間違い（package.jsonとの不一致）をリリース作成前に検出する
+      - name: タグとpackage.jsonのバージョン一致を確認
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "${tag_version}" != "${pkg_version}" ]; then
+            echo "タグ v${tag_version} と package.json の ${pkg_version} が一致しません" >&2
+            exit 1
+          fi
+
+      - name: GitHubリリースを作成（ノートは自動生成）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag
