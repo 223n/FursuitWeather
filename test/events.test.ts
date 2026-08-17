@@ -1,7 +1,7 @@
 // public/events.json（イベント予報の定義ファイル）の形式検証
 //
 // events.jsonは運営者が手で編集するデータファイルのため、定義ミス
-// （必須項目の欠落・座標や日付の書式誤り）をCIで検出する。
+// （必須項目の欠落・郵便番号や日付の書式誤り）をCIで検出する。
 // フロント（public/app.js）は不正な項目を黙って表示から除外する防御を
 // 持つが、このテストが先に落ちることで「登録したのに表示されない」を防ぐ。
 // 形式の説明はdocs/events.mdを参照。
@@ -12,10 +12,11 @@ import eventsFile from '../public/events.json';
 interface EventEntry {
   name: string;
   place: string;
-  lat: number;
-  lon: number;
+  zip: string;
   startDate: string;
   endDate?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 const events = (eventsFile as { events: EventEntry[] }).events;
@@ -39,20 +40,32 @@ describe('public/events.json', () => {
       const context = `イベント: ${JSON.stringify(event)}`;
       expect(typeof event.name === 'string' && event.name !== '', context).toBe(true);
       expect(typeof event.place === 'string' && event.place !== '', context).toBe(true);
-      expect(
-        Number.isFinite(event.lat) && event.lat >= -90 && event.lat <= 90,
-        context,
-      ).toBe(true);
-      expect(
-        Number.isFinite(event.lon) && event.lon >= -180 && event.lon <= 180,
-        context,
-      ).toBe(true);
+      // 郵便番号はハイフン区切り（123-4567）か7桁の数字（どちらも/api/geocodeが受け付ける）
+      expect(typeof event.zip === 'string' && /^\d{3}-?\d{4}$/.test(event.zip), context).toBe(true);
       expect(isRealDate(event.startDate), context).toBe(true);
       if (event.endDate !== undefined) {
         expect(isRealDate(event.endDate), context).toBe(true);
         // 終了日は開始日以降（YYYY-MM-DD形式のため文字列比較で正しく判定できる）
         expect(event.endDate >= event.startDate, context).toBe(true);
       }
+      for (const time of [event.startTime, event.endTime]) {
+        if (time !== undefined) {
+          expect(/^([01]\d|2[0-3]):[0-5]\d$/.test(time), context).toBe(true);
+        }
+      }
+      // 単日開催で開始・終了の時刻がそろっている場合は、終了が開始より後であること
+      if (
+        event.startTime !== undefined &&
+        event.endTime !== undefined &&
+        (event.endDate ?? event.startDate) === event.startDate
+      ) {
+        expect(event.endTime > event.startTime, context).toBe(true);
+      }
     }
+  });
+
+  it('イベント名が重複していない（選択時に取り違えないため）', () => {
+    const names = events.map((event) => event.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });

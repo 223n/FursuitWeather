@@ -161,7 +161,9 @@ test('活動プランナー: 日付と時間帯を選んで計画を表示する
   await expect(page.locator('#plan-result h3')).toContainText(`${day}日`);
 });
 
-test('イベント: リストから選ぶと開催地の予報と開催日のタブが表示される', async ({ page }) => {
+test('イベント: リストから選ぶと郵便番号で開催地を引き、開催日のタブが表示される', async ({
+  page,
+}) => {
   // 予報データ（デモ）はJSTの当日から始まるため、日付もJST基準で作る
   const jstDate = (offsetDays) =>
     new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
@@ -173,21 +175,33 @@ test('イベント: リストから選ぶと開催地の予報と開催日のタ
           {
             name: 'サマーコン',
             place: '東京ビッグサイト',
-            lat: 35.6297,
-            lon: 139.7947,
+            zip: '135-0063',
             startDate: jstDate(0),
+            startTime: '11:00',
+            endTime: '17:30',
           },
           {
             name: 'ウィンターフェス',
             place: '幕張メッセ',
-            lat: 35.6474,
-            lon: 140.0343,
+            zip: '261-0023',
             startDate: jstDate(10),
           },
         ],
       }),
     }),
   );
+  // 郵便番号は/api/geocode（zipcloud→地名検索）経由で座標に解決される
+  const byZip = {
+    '135-0063': { name: '江東区', latitude: 35.6297, longitude: 139.7947 },
+    '261-0023': { name: '千葉市美浜区', latitude: 35.6474, longitude: 140.0343 },
+  };
+  await page.route('**/api/geocode*', (route) => {
+    const query = new URL(route.request().url()).searchParams.get('q');
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ results: byZip[query] ? [byZip[query]] : [] }),
+    });
+  });
 
   await page.goto('/');
   await waitForForecast(page);
@@ -199,12 +213,38 @@ test('イベント: リストから選ぶと開催地の予報と開催日のタ
   await expect(page.locator('#tab-day-0')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
   await expect(page).toHaveURL(/lat=35\.63&lon=139\.79/);
+  // 開催時間はプランナーへ設定される（終了17:30は18時へ切り上げ）
+  await expect(page.locator('#plan-start')).toHaveValue('11');
+  await expect(page.locator('#plan-end')).toHaveValue('18');
 
-  // 開催日が予報範囲外のイベント → 直近の予報を表示し、範囲外である旨を案内する
+  // 開催日が予報範囲外のイベント → 直近の予報を表示し、開催までの日数を案内する
   await page.selectOption('#event-select', '1');
   await page.click('#event-button');
   await expect(page.locator('#location-label')).toContainText('ウィンターフェス（幕張メッセ）');
-  await expect(page.locator('#status')).toContainText('まだ予報の範囲外です');
+  await expect(page.locator('#status')).toContainText('開催まであと10日です');
+});
+
+test('イベント: 郵便番号で開催地が見つからないときは日本語の案内を出す', async ({ page }) => {
+  const jstDate = (offsetDays) =>
+    new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
+  await page.route('**/events.json', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        events: [
+          { name: '謎の集会', place: '未定の会場', zip: '999-9999', startDate: jstDate(1) },
+        ],
+      }),
+    }),
+  );
+  await page.route('**/api/geocode*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ results: [] }) }),
+  );
+
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#event-button');
+  await expect(page.locator('#status-error')).toContainText('見つかりませんでした');
 });
 
 test('イベント: 定義が空のときはセレクトとボタンが無効のまま', async ({ page }) => {

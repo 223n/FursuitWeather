@@ -1,3 +1,120 @@
 {
-  "events": []
+  "events": [
+    {
+      "name": "けもケット17",
+      "place": "TRC東京流通センター",
+      "zip": "143-0006",
+      "startDate": "2026-09-20",
+      "startTime": "12:00",
+      "endTime": "17:00"
+    },
+    {
+      "name": "やまいぬカフェ　秋まつり",
+      "place": "やまいぬカフェ",
+      "zip": "771-5179",
+      "startDate": "2026-10-03",
+      "startTime": "09:00",
+      "endTime": "22:00"
+    },
+    {
+      "name": "しがもふEX",
+      "place": "びわ湖大津プリンスホテル",
+      "zip": "520-0801",
+      "startDate": "2026-10-03",
+      "startTime": "10:30",
+      "endTime": "19:00"
+    },
+    {
+      "name": "獣身売買5",
+      "place": "レンタルスペースastratto",
+      "zip": "531-0073",
+      "startDate": "2026-10-18",
+      "startTime": "10:00",
+      "endTime": "19:00"
+    },
+    {
+      "name": "Kemocon 19",
+      "place": "御殿場高原　時之栖",
+      "zip": "412-0033",
+      "startDate": "2026-11-06",
+      "endDate": "2026-11-08",
+      "startTime": "15:00",
+      "endTime": "21:00"
+    },
+    {
+      "name": "寺もふ12",
+      "place": "釈迦文院",
+      "zip": "648-0211",
+      "startDate": "2026-11-07",
+      "endDate": "2026-11-08",
+      "startTime": "10:00",
+      "endTime": "15:00"
+    },
+    {
+      "name": "ケモノ茶屋2",
+      "place": "大阪市立平野区民ホール",
+      "zip": "547-0031",
+      "startDate": "2026-11-15",
+      "startTime": "11:00",
+      "endTime": "18:00"
+    },
+    {
+      "name": "ケモノセントラル2",
+      "place": "プリニーの市民会館",
+      "zip": "504-0813",
+      "startDate": "2026-11-23",
+      "startTime": "09:30",
+      "endTime": "19:30"
+    },
+    {
+      "name": "アワジール10",
+      "place": "洲本文化体育館",
+      "zip": "656-0021",
+      "startDate": "2026-12-13",
+      "startTime": "10:00",
+      "endTime": "20:00"
+    },
+    {
+      "name": "JMoF 2027 - セントレア漂流記",
+      "place": "愛知県国際展示場 AICHI SKY EXPO",
+      "zip": "479-0881",
+      "startDate": "2027-01-08",
+      "endDate": "2027-01-10",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "name": "ちるこん16",
+      "place": "さっぽろテレビ塔",
+      "zip": "060-0042",
+      "startDate": "2027-02-20",
+      "startTime": "10:00",
+      "endTime": "20:00"
+    },
+    {
+      "name": "ハレの国モフ2",
+      "place": "岡山市サウスヴィレッジ",
+      "zip": "709-1215",
+      "startDate": "2027-03-06",
+      "startTime": "10:00",
+      "endTime": "18:00"
+    },
+    {
+      "name": "静岡ケモノスクエア11",
+      "place": "グランシップ（静岡県コンベンションアーツセンター）",
+      "zip": "422-8019",
+      "startDate": "2027-05-30",
+      "startTime": "10:00",
+      "endTime": "19:00"
+    },
+    {
+      "name": "Osaka Furry Fun Festa 2027",
+      "place": "インデックス大阪",
+      "zip": "559-0034",
+      "startDate": "2027-07-31",
+      "endDate": "2027-08-01",
+      "startTime": "11:00",
+      "endTime": "18:00"
+    }
+  ]
 }
