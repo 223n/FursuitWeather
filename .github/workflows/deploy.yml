@@ -10,6 +10,11 @@ on:
     branches:
       - main
 
+# 最小権限: コードの読み取りのみ。デプロイの認証はCloudflareのSecretsで行うため
+# GITHUB_TOKENへの書き込み権限は不要（公開リポジトリ化に備えた明示指定）
+permissions:
+  contents: read
+
 # 短時間に連続pushしたとき、所要時間の揺らぎで古いコミットのデプロイが
 # 後から完走して本番を巻き戻さないよう、「最後のpushが勝つ」に揃える
 concurrency:
