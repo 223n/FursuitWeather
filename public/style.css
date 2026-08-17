@@ -657,6 +657,11 @@ tbody tr.night {
   color: var(--color-text-muted);
 }
 
+/* フッターのバージョン表記（リリース一覧へのリンク）。控えめに一回り小さく */
+.version-note {
+  font-size: 0.75rem;
+}
+
 .site-footer a,
 main a {
   color: var(--color-blue);

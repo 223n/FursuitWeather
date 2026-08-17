@@ -10,8 +10,10 @@
 // 場合はこのテストも合わせて更新すること。
 
 import { describe, expect, it } from 'vitest';
+import pkg from '../package.json';
 import apiMd from '../docs/api.md?raw';
 import logicMd from '../docs/logic.md?raw';
+import notFoundHtml from '../public/404.html?raw';
 import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
@@ -298,6 +300,16 @@ describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
     expect(preloadMatch![1]).toBe(
       `lat=${Number(defaultCity[2]).toFixed(2)}&lon=${Number(defaultCity[3]).toFixed(2)}`,
     );
+  });
+});
+
+describe('フッターのバージョン表記の同期', () => {
+  it('全ページのバージョン表記はpackage.jsonのversionと一致する', () => {
+    // フッターの表記は手動更新のため、リリース時の更新漏れをここで検出する
+    // （リリース手順はdocs/release.mdを参照）
+    for (const page of [html, aboutHtml, notFoundHtml]) {
+      expect(page).toContain(`>v${pkg.version}</a>`);
+    }
   });
 });
 
