@@ -1,11 +1,15 @@
 name: Release
 
-# バージョンタグ（v*）のpushでGitHubリリースを自動作成する
+# GitHubリリースを自動作成する。起動方法は2つ:
+# - バージョンタグ（v*）のpush（タグとpackage.jsonの不一致は失敗させる）
+# - Actionsタブ等からの手動実行（package.jsonのバージョンでタグを作成してから
+#   リリースを作成する。ローカルからタグをpushできない環境向け）
 # リリースノートは前回リリース以降のマージ済みPRから自動生成される。
 # 本番デプロイはmainへのマージ時（deploy.yml）に行われ、タグ・リリースは
 # デプロイとは独立した「記録」の役割（手順はdocs/release.mdを参照）
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -21,17 +25,29 @@ jobs:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
 
-      # タグの付け間違い（package.jsonとの不一致）をリリース作成前に検出する
-      - name: タグとpackage.jsonのバージョン一致を確認
+      # タグpush時: タグの付け間違い（package.jsonとの不一致）を検出する
+      # 手動実行時: package.jsonのバージョンでタグを作成してpushする
+      # （GITHUB_TOKENによるタグpushはワークフローを再帰起動しないため二重実行にならない）
+      - name: バージョンを決定してタグを確認・作成
+        id: version
         run: |
-          tag_version="${GITHUB_REF_NAME#v}"
           pkg_version="$(node -p "require('./package.json').version")"
-          if [ "${tag_version}" != "${pkg_version}" ]; then
-            echo "タグ v${tag_version} と package.json の ${pkg_version} が一致しません" >&2
-            exit 1
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="v${pkg_version}"
+            if ! git ls-remote --exit-code origin "refs/tags/${tag}" > /dev/null; then
+              git tag "${tag}"
+              git push origin "${tag}"
+            fi
+          else
+            tag="${GITHUB_REF_NAME}"
+            if [ "${tag#v}" != "${pkg_version}" ]; then
+              echo "タグ ${tag} と package.json の ${pkg_version} が一致しません" >&2
+              exit 1
+            fi
           fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
       - name: GitHubリリースを作成（ノートは自動生成）
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+        run: gh release create "${{ steps.version.outputs.tag }}" --generate-notes --verify-tag
