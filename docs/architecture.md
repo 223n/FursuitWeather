@@ -130,11 +130,16 @@ test/                   vitestテスト
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | 位置情報は自サイトのみ、カメラ・マイク・決済は禁止 |
 
+HTMLページのCSPだけは`_headers`ではなくWorkerが付けます（次節）。
+`_headers`のCSPは、JS・CSS・画像などのアセットと、Workerを通らない経路で
+配信されるHTMLの保険として残しています。
+
 CSPの要点は次のとおりです。
 
-- **スクリプト**: `script-src 'self'`。インラインスクリプトは持たず、
-  `'unsafe-inline'`・`'unsafe-eval'`は付けません（付けると本当に
-  有効化されてしまうため、後方互換の併記も禁止）
+- **スクリプト**: HTMLページはnonce方式（次節）。アセット側の`_headers`は
+  `script-src 'self'`。いずれも`'unsafe-eval'`は付けず、`'unsafe-inline'`も
+  nonce/hashのある文脈でしか併記しません（nonce/hashが無い状態で書くと
+  本当に有効化されてしまうため）
 - **スタイル**: レンダリングブロック回避のためCSSをHTMLへインライン化して
   いるので、ビルド（`scripts/inline-css.mjs`）が埋め込むCSSのsha256を
   計算し、`_headers`のプレースホルダー`__INLINE_STYLE_HASH__`へ差し込みます。
@@ -146,6 +151,39 @@ CSPの要点は次のとおりです。
   `TrustedScriptURL`を要求するため、自分の`sw.js`以外を返さない専用
   ポリシー（`fursuitweather-sw`）を`public/app.js`が作ります。
   ポリシー名は`_headers`の`trusted-types`ディレクティブと一致させます
+
+### HTMLページのnonce方式CSP
+
+ホスト許可リスト（`script-src 'self'`）は「同一オリジンに置かれたJSなら
+何でも実行できる」ことを意味し、許可リスト方式そのものが弱点として
+指摘されます。HTMLページでは、リクエストごとに異なるnonceを発行して
+「このページが載せたタグだけ」を実行できるようにしています。
+
+```
+script-src 'nonce-<毎回変わる値>' 'strict-dynamic' 'unsafe-inline'
+style-src  'self' 'nonce-<同じ値>'
+```
+
+- Workerが`HTMLRewriter`で`script`・`style`タグへnonceを付け、同じ値を
+  CSPヘッダーにも入れます（`src/index.ts`の`withNonce`）
+- `'strict-dynamic'`があるとホスト許可リストは無視されるため、外部
+  スクリプト（アクセス解析）もHTML内のタグにnonceが付くことで読み込まれます
+- `'unsafe-inline'`はnonceを解釈できない古いブラウザ向けの後方互換で、
+  nonce対応ブラウザでは無視されます
+- JSON-LDは実行されないデータブロックのためnonceを付けません
+- nonceは毎回変わるため、共有キャッシュに載らないよう`Cache-Control:
+  no-store`を付けます
+
+**nonceは必ずリクエストごとに変える必要があります。** HTMLに書かれた値は
+攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて
+突破されます。このため、HTMLは静的アセットとして配信せずWorkerを通します
+（アセット配信は無料枠のリクエスト数を消費しないので、対象はHTMLだけに
+絞っています）。
+
+対象パスは`src/csp.ts`の`HTML_PATHS`と`wrangler.jsonc`の
+`run_worker_first`の両方に書く必要があり、`test/csp.test.ts`が両者の
+一致を検証します（ずれるとnonceの無いCSPで配信され、タグのnonceと
+食い違って実行がブロックされます）。
 
 ### 外部スクリプト（アクセス解析）
 
