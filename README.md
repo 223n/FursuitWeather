@@ -1,5 +1,8 @@
 # FursuitWeather
 
+[![CI](https://github.com/223n/FursuitWeather/actions/workflows/ci.yml/badge.svg)](https://github.com/223n/FursuitWeather/actions/workflows/ci.yml)
+[![Deploy](https://github.com/223n/FursuitWeather/actions/workflows/deploy.yml/badge.svg)](https://github.com/223n/FursuitWeather/actions/workflows/deploy.yml)
+
 着ぐるみ天気予報 - 気象データから着ぐるみ（fursuit）で活動するのに
 適切かどうかを予報するWebサービスです。
 
@@ -7,8 +10,8 @@
 
 ## 概要
 
-気象庁MSM/GSMモデル由来の気象データ（気温・湿度・日射量・風速）をもとに、
-以下を予報します。
+気象庁MSM/GSMモデル由来の気象データ（気温・湿度・日射量・風速・
+降水量など）をもとに、以下を予報します。
 
 - **屋外活動指数**: 暑さ指数（WBGT）ベースの5段階判定
 - **屋内活動指数**: 空調のない会場を想定した参考値と冷房要否（冷房必須/推奨/不要）
@@ -19,7 +22,22 @@
 厚生労働省の着衣補正値（フード付き蒸気不透過つなぎ服 = +11℃）を加えて
 行います。詳細は[判定ロジック](docs/logic.md)を参照してください。
 
+## 主な機能
+
+- **地点検索**: 都市名・郵便番号から地点を検索（郵便番号はzipcloudで
+  住所へ変換。「蒲郡」のような短い地名は接尾辞を補って再検索）
+- **現在地**: GPSで現在地の予報を表示。座標は約1kmに丸め、保存も
+  URLへの反映もしない設計
+- **地点の記憶**: 最後に表示した地点（現在地を除く）をブラウザ内にのみ
+  保存し、次回のアクセス時に自動表示
+- **予報の共有**: 表示中の地点の予報をURLで共有（座標は約1km精度）
+- **降水確率**: 時間別予報に降水確率を表示（Open-Meteo標準予報APIから補完）
+- **実測WBGTツール**: WBGT計の実測値から着ぐるみ判定を確認できる
+  簡易ツール（[説明ページ](https://fursuit-weather.223n.tech/about)内）
+
 ## クイックスタート
+
+Node.js 22以上が必要です。
 
 ```bash
 npm install
@@ -42,10 +60,11 @@ npm run lint    # ESLint + tsc
 | ドキュメント | 内容 |
 |--------------|------|
 | [判定ロジック](docs/logic.md) | WBGT・着衣補正・低温判定・冷房要否・洗濯乾燥指数の仕組みと根拠 |
-| [API仕様](docs/api.md) | `GET /api/forecast` のパラメータとレスポンスJSONの仕様 |
-| [アーキテクチャ](docs/architecture.md) | システム構成、エッジ配信、2段階キャッシュ |
-| [開発ガイド](docs/development.md) | セットアップ、テスト、デプロイ、CI、カスタムドメイン |
-| [アクセシビリティ設計](docs/accessibility.md) | 色覚多様性対応、スクリーンリーダー対応、CLS対策 |
+| [API仕様](docs/api.md) | `GET /api/forecast`・`GET /api/geocode` のパラメータ・レスポンス・エラーの仕様 |
+| [アーキテクチャ](docs/architecture.md) | システム構成、ソースコード構成、キャッシュ設計、エラー処理、プライバシー設計 |
+| [開発ガイド](docs/development.md) | セットアップ、テスト、ビルド、CI/CD、カスタムドメイン |
+| [アクセシビリティ設計](docs/accessibility.md) | 色覚多様性対応、スクリーンリーダー対応、キーボード操作、CLS対策 |
+| [リリース手順](docs/release.md) | バージョニング方針、タグ作成、GitHubリリースの自動作成 |
 | [参考資料・出典](docs/references.md) | 判定式・しきい値・データの出典と参考資料の一覧 |
 
 利用者向けの説明（判定の仕組み・API・免責事項）は
@@ -58,6 +77,7 @@ npm run lint    # ESLint + tsc
   （CC BY 4.0、気象庁MSM/GSMモデル由来、非商用利用）
 - WBGT推定式: [環境省 熱中症予防情報サイト](https://www.wbgt.env.go.jp/)
 - 着衣補正値: 厚生労働省「職場における熱中症予防基本対策要綱」
+- 郵便番号→住所変換: [zipcloud 郵便番号検索API](https://zipcloud.ibsnet.co.jp/doc/api)
 
 そのほかの出典は[参考資料・出典](docs/references.md)を参照してください。
 

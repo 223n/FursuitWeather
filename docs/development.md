@@ -1,5 +1,12 @@
 # 開発ガイド
 
+開発フローの全体像は次のとおりです。
+
+1. 作業ブランチを作成して変更し、PRを作成する（CIとCodeQLが自動実行）
+1. mainへマージすると本番へ自動デプロイされる
+1. リリースを切るときはバージョンを更新し、タグ作成でGitHubリリースを
+   自動作成する（[リリース手順](release.md)）
+
 ## 必要環境
 
 - Node.js 22以上
@@ -23,10 +30,17 @@ npm test        # vitest
 npm run lint    # ESLint + tsc（typecheck）
 ```
 
-テストは`test/`配下にあります。静的HTML（注意事項・判定凡例・about.htmlの
-しきい値表）や地点セレクトと`src/constants.ts`・`app.js`の同期は
-`test/htmlSync.test.ts`が機械検証します。凡例の文言を変える場合は
-このテストも合わせて更新してください。
+テストは`test/`配下にあります。文言・しきい値の複製箇所は
+`test/htmlSync.test.ts`が機械検証します。検証対象は次のとおりで、
+これらを編集するときはテストも合わせて更新してください。
+
+- 静的HTML（注意事項・判定凡例・about.htmlのしきい値表・テーブルの
+  caption）と`src/constants.ts`
+- 地点セレクト（index.html）と`app.js`のCITIES配列
+- 実測WBGTツール（`public/wbgt-tool.js`）の判定表・しきい値
+- ドキュメント（`docs/api.md`・`docs/logic.md`）と`llms.txt`の数値記述
+- フッターのバージョン表記と`package.json`の`version`
+- API先読み（preload）のURLと初回リクエスト
 
 カバレッジは次のコマンドで計測できます（対象は`src/`）。
 
@@ -38,9 +52,9 @@ npm run test:coverage
 `vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
 未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
 防御フォールバックのみです。
-`public/app.js`はブラウザ実行のためカバレッジ対象外ですが、
-定数同期は`htmlSync.test.ts`で機械検証し、動作はリリース時に
-Playwrightで実機確認しています（手順は
+`public/app.js`・`public/wbgt-tool.js`はブラウザ実行のためカバレッジ
+対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、動作は
+リリース時にPlaywrightで実機確認しています（手順は
 [アクセシビリティ設計](accessibility.md)の検証方法を参照）。
 
 ## ビルド
@@ -53,6 +67,11 @@ npm run build   # minify（app.js・style.cssの圧縮）+ 各HTMLへのCSSイ�
 
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した
 場合は`git checkout`で戻してください。
+
+HTMLページを追加する場合は、`<link rel="stylesheet" href="/style.css">`
+のタグを完全一致で含める必要があります。ビルドは`public/`直下の全HTMLを
+CSSインライン化の対象にし、このタグがないページがあるとビルドを
+失敗させます（`scripts/inline-css.mjs`の安全確認）。
 
 なお`npm run deploy`（手動デプロイ）はビルドを経由しません。緊急時は
 非最適化のまま配信されますが、動作に支障はありません（最適化配信は
@@ -76,12 +95,28 @@ npm run deploy
 1. mainブランチへのpushで自動デプロイされる（Actionsタブの `Deploy`
    ワークフローから手動実行も可能）
 
+### CI/CDワークフロー
+
 ワークフローは`.github/workflows/`にあります。
 
 | ワークフロー | 内容 |
 |--------------|------|
-| `ci.yml` | lint→テスト→ビルド検証（pushとPRで実行） |
+| `ci.yml` | lint→テスト→ビルド検証（PRと、mainへのpushで実行） |
 | `deploy.yml` | lint→テスト→ビルド→wrangler deploy（mainのみ。並走時は最後のpushが勝つ） |
+| `release.yml` | GitHubリリースの自動作成（`v*`タグのpushまたは手動実行。詳細は[リリース手順](release.md)） |
+
+各ワークフローは`permissions`で必要最小限の権限を宣言しています。
+
+このほか、リポジトリの設定として次が有効です。
+
+- **ブランチ保護**: mainへは直接pushできず、PRを経由します。
+  マージにはCIとCodeQLの結果が必要です
+- **CodeQL（コードスキャン）**: GitHubのデフォルトセットアップで
+  運用しているため、ワークフローファイルはリポジトリにありません
+  （設定はGitHubのSecurity設定画面にあります）。PRごとに自動で
+  解析され、完了までマージがブロックされます
+- **Secret scanning + Push protection**: 秘密情報の誤コミットを
+  検出・ブロックします
 
 ### カスタムドメイン
 
