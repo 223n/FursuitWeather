@@ -127,10 +127,10 @@
            選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
            表示中の地点に対する操作（更新・共有・お気に入り登録）は下の枠へ分離する -->
       <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
-        <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city">主な都市</button>
-        <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1">イベント</button>
-        <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1">検索・現在地</button>
-        <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1">お気に入り</button>
+        <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
+        <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
+        <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
+        <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
       </div>
       <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
         <div class="control-row">
@@ -216,12 +216,12 @@
     <!-- タブ: 主要コンテンツを切り替えて縦の長さを抑える（WAI-ARIAタブパターン、
          矢印キーで移動+自動選択）。時間別の3タブは同じパネルを日付を変えて共有する -->
     <div class="tabs" id="forecast-tabs" role="tablist" aria-label="予報の表示切り替え">
-      <button type="button" role="tab" id="tab-now" aria-selected="true" aria-controls="now-section">現在の天気</button>
-      <button type="button" role="tab" id="tab-days" aria-selected="false" aria-controls="days-section" tabindex="-1">3日間の天気</button>
-      <button type="button" role="tab" id="tab-day-0" aria-selected="false" aria-controls="hours-section" tabindex="-1">今日の天気</button>
-      <button type="button" role="tab" id="tab-day-1" aria-selected="false" aria-controls="hours-section" tabindex="-1">明日の天気</button>
-      <button type="button" role="tab" id="tab-day-2" aria-selected="false" aria-controls="hours-section" tabindex="-1">明後日の天気</button>
-      <button type="button" role="tab" id="tab-planner" aria-selected="false" aria-controls="planner-section" tabindex="-1">活動プランナー</button>
+      <button type="button" role="tab" id="tab-now" aria-selected="true" aria-controls="now-section"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-clock"/></svg>現在の天気</button>
+      <button type="button" role="tab" id="tab-days" aria-selected="false" aria-controls="days-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>3日間の天気</button>
+      <button type="button" role="tab" id="tab-day-0" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>今日の天気</button>
+      <button type="button" role="tab" id="tab-day-1" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>明日の天気</button>
+      <button type="button" role="tab" id="tab-day-2" aria-selected="false" aria-controls="hours-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-cloud-sun"/></svg>明後日の天気</button>
+      <button type="button" role="tab" id="tab-planner" aria-selected="false" aria-controls="planner-section" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>活動プランナー</button>
     </div>
 
     <!-- いまの判定: 現在時刻の判定を大きく1枚で表示する（現場でひと目で分かる用途）。
@@ -234,47 +234,6 @@
         <div class="skeleton-line w40"></div>
         <div class="skeleton-line w80"></div>
       </div>
-    </section>
-
-    <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
-         見出しナビゲーションから消える環境があるため） -->
-    <section class="legend" aria-labelledby="legend-heading">
-      <h2 id="legend-heading">判定の見方</h2>
-      <details class="legend-details">
-        <summary>説明を開閉</summary>
-      <p class="hint">
-        段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
-        低温側の判定には温度計マークが付きます。
-      </p>
-      <!-- 凡例のラベル・連続活動時間はsrc/constants.tsのHEAT_BANDSと手動同期
-           （test/htmlSync.test.tsがずれを検出する） -->
-      <div class="legend-grid">
-        <div class="legend-item">
-          <span class="badge badge-large grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span>
-          <p>連続45分まで。適宜水分補給を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span>
-          <p>連続30分まで。積極的に水分補給を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span>
-          <p>連続20分まで。ヘッドを外して冷却を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span>
-          <p>連続10分以内。冷房環境へ退避を。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-ban"/></svg></span>危険</span>
-          <p>着用中止。熱中症の危険が非常に高い状態。</p>
-        </div>
-        <div class="legend-item">
-          <span class="badge badge-large cold grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-temperature-low"/></svg>○</span>低温注意</span>
-          <p>低温側は温度計マーク付き。凍結・汗冷えに注意。</p>
-        </div>
-      </div>
-      </details>
     </section>
 
     <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
@@ -367,6 +326,47 @@
         <button type="button" id="plan-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>計画を立てる</button>
       </div>
       <div id="plan-result" class="plan-result"></div>
+    </section>
+
+    <!-- 見出しはdetailsの外に置く（summary内のh2はスクリーンリーダーの
+         見出しナビゲーションから消える環境があるため） -->
+    <section class="legend" aria-labelledby="legend-heading">
+      <h2 id="legend-heading">判定の見方</h2>
+      <details class="legend-details">
+        <summary>説明を開閉</summary>
+      <p class="hint">
+        段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
+        低温側の判定には温度計マークが付きます。
+      </p>
+      <!-- 凡例のラベル・連続活動時間はsrc/constants.tsのHEAT_BANDSと手動同期
+           （test/htmlSync.test.tsがずれを検出する） -->
+      <div class="legend-grid">
+        <div class="legend-item">
+          <span class="badge badge-large grade-0"><span class="symbol" aria-hidden="true">◎</span>ほぼ安全</span>
+          <p>連続45分まで。適宜水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-1"><span class="symbol" aria-hidden="true">○</span>注意</span>
+          <p>連続30分まで。積極的に水分補給を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-2"><span class="symbol" aria-hidden="true">△</span>警戒</span>
+          <p>連続20分まで。ヘッドを外して冷却を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-3"><span class="symbol" aria-hidden="true">✕</span>厳重警戒</span>
+          <p>連続10分以内。冷房環境へ退避を。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large grade-4"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-ban"/></svg></span>危険</span>
+          <p>着用中止。熱中症の危険が非常に高い状態。</p>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge-large cold grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon"><use href="#fa-temperature-low"/></svg>○</span>低温注意</span>
+          <p>低温側は温度計マーク付き。凍結・汗冷えに注意。</p>
+        </div>
+      </div>
+      </details>
     </section>
 
     <section id="notices-section" aria-label="注意事項">

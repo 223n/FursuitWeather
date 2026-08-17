@@ -1,0 +1,8 @@
+# このリポジトリの支援先。GitHubがリポジトリ画面に「Sponsor」ボタンを表示する。
+# 書式: https://docs.github.com/ja/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+# GitHub Sponsors（GitHub Sponsorsへの登録が必要。未登録のうちはボタンに出ない）
+github: [223n]
+
+# 任意のURL（Amazonほしい物リスト、支援ページなど。最大4件）
+custom: ["https://www.amazon.jp/hz/wishlist/ls/UTRMSYGNW7Q1"]
