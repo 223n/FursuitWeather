@@ -261,6 +261,15 @@ export const GEOCODING_MAX_QUERY_LENGTH = 100;
 /** 地点検索の最大候補数 */
 export const GEOCODING_MAX_RESULTS = 5;
 
+/**
+ * 地名検索が0件だったときに補う市区町村の接尾辞（試行順）
+ * Open-Meteoジオコーディングは2文字以下の検索語を完全一致でしか照合しないため、
+ * 「蒲郡」のように登録名が「蒲郡市」の地点は素の検索で0件になる。
+ * 2文字以下で0件のときに限り、これらを順に補って再検索する
+ * （3文字以上は部分一致が働くため対象外。上流呼び出しの増幅も防ぐ）
+ */
+export const GEOCODING_CITY_SUFFIXES = ['市', '町', '村', '区'];
+
 /** 地点検索レスポンスのキャッシュ時間（秒）。地名データはほぼ変化しないため7日 */
 export const GEOCODING_CACHE_TTL_SECONDS = 604800;
 

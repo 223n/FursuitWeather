@@ -1,5 +1,6 @@
 // 地点検索クライアント
 // 都市名はOpen-Meteoジオコーディングv1 APIで座標を検索する（APIキー不要）。
+// 2文字以下の地名が0件のときは「市」「町」「村」「区」を補って再検索する（短い地名対策）。
 // 日本の郵便番号はOpen-Meteoの検索で確実に引けないため、zipcloud（郵便番号→住所）で
 // 市区町村名へ変換してから地名検索する。変換に失敗した場合は郵便番号のまま
 // ハイフン有無の両形式で直接検索を試す
@@ -7,6 +8,7 @@
 import {
   GEOCODING_BASE_URL,
   GEOCODING_CACHE_TTL_SECONDS,
+  GEOCODING_CITY_SUFFIXES,
   GEOCODING_MAX_RESULTS,
   UPSTREAM_TIMEOUT_MS,
   ZIPCLOUD_BASE_URL,
@@ -128,6 +130,43 @@ async function searchByName(
   return parseGeocodingResponse(data);
 }
 
+/**
+ * 市区町村の接尾辞を補いながら地名検索する
+ * Open-Meteoジオコーディングは2文字以下の検索語を完全一致でしか照合しないため、
+ * 「蒲郡」のように登録名が「蒲郡市」の地点は素の検索で0件になる。
+ * 2文字以下で0件のときに限り「市」「町」「村」「区」を順に補って再検索する。
+ * 3文字以上は部分一致が働くため補完で救えるケースがほぼなく、任意の0件クエリで
+ * 上流呼び出しが増幅されて無料枠を圧迫するのを避けるため対象にしない
+ * （zipcloud由来の市区町村名は正式名称のため、この補完は利用者入力の地名にのみ使う）
+ */
+async function searchByNameWithCitySuffixes(
+  query: string,
+  fetchImpl: typeof fetch,
+): Promise<GeocodeResult[]> {
+  const results = await searchByName(query, fetchImpl);
+  if (results.length > 0 || [...query].length > 2) {
+    return results;
+  }
+  // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに
+  // 利用者を数十秒待たせない（各呼び出しの個別タイムアウトとは別枠）
+  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
+  for (const suffix of GEOCODING_CITY_SUFFIXES) {
+    if (Date.now() >= deadline) {
+      console.error('地点検索の接尾辞補完を時間切れで打ち切り:', query);
+      break;
+    }
+    // 「大村」→「大村村」のように同じ接尾辞を重ねない
+    if (query.endsWith(suffix)) {
+      continue;
+    }
+    const retried = await searchByName(query + suffix, fetchImpl);
+    if (retried.length > 0) {
+      return retried;
+    }
+  }
+  return [];
+}
+
 /** 全角の数字・ハイフン類を半角へ正規化する */
 function normalizeQuery(query: string): string {
   return query
@@ -185,7 +224,7 @@ export async function fetchGeocoding(
   const digits = normalized.replace(/-/g, '');
 
   if (!/^\d{7}$/.test(digits)) {
-    return searchByName(normalized, fetchImpl);
+    return searchByNameWithCitySuffixes(normalized, fetchImpl);
   }
 
   // 郵便番号: まず住所へ変換して市区町村名で検索する

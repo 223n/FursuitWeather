@@ -34,8 +34,8 @@ export async function handleGeocode(request: Request): Promise<Response> {
     const results = await fetchGeocoding(query);
     // レスポンス自体はブラウザにキャッシュさせない（no-store）。検索ロジックの
     // 改善・修正後も古い「0件」応答が利用者のブラウザに残り続けるのを防ぐため。
-    // 上流への問い合わせはgeocoding.ts側でエッジに7日間キャッシュされるので、
-    // 上流の無料枠への負荷は増えない
+    // 上流への問い合わせはgeocoding.ts側でエッジに7日間キャッシュされ、
+    // 0件時の接尾辞補完も2文字以下に限定しているため、上流の無料枠への負荷は限定的
     return json({ results });
   } catch (error) {
     if (error instanceof UpstreamError) {
