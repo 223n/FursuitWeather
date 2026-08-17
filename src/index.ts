@@ -1,12 +1,48 @@
 // FursuitWeather Workerエントリポイント
-// /api/* のみ本Workerが処理し、それ以外は静的アセット（public/）が配信される
-// （wrangler.jsoncのassets.run_worker_first設定による）
+// /api/* とHTMLページを本Workerが処理し、それ以外は静的アセット（public/）が
+// 配信される（wrangler.jsoncのassets.run_worker_first設定による）
 
 import { handleForecast, jsonError } from './api/forecast';
 import { handleGeocode } from './api/geocode';
+import { buildHtmlCsp, isHtmlPath } from './csp';
 
 export interface Env {
   ASSETS: Fetcher;
+}
+
+/**
+ * HTMLへリクエストごとのnonceを差し込んで返す
+ *
+ * script・styleタグとCSPへ同じnonceを入れることで、ホスト許可リストに頼らず
+ * 「このページが載せたスクリプトだけ」を実行できる。JSON-LDは実行されない
+ * データブロックのためnonceを付けない（付けても無害だが、実行対象と
+ * 紛らわしいので明示的に除外する）。
+ * nonceは毎回変わるため、共有キャッシュに載らないようno-storeを付ける
+ */
+export async function withNonce(asset: Response, nonce: string): Promise<Response> {
+  const rewritten = new HTMLRewriter()
+    .on('script', {
+      element(element): void {
+        if (element.getAttribute('type') !== 'application/ld+json') {
+          element.setAttribute('nonce', nonce);
+        }
+      },
+    })
+    .on('style', {
+      element(element): void {
+        element.setAttribute('nonce', nonce);
+      },
+    })
+    .transform(asset);
+
+  const headers = new Headers(rewritten.headers);
+  headers.set('Content-Security-Policy', buildHtmlCsp(nonce));
+  headers.set('Cache-Control', 'no-store');
+  return new Response(rewritten.body, {
+    status: rewritten.status,
+    statusText: rewritten.statusText,
+    headers,
+  });
 }
 
 export default {
@@ -36,6 +72,12 @@ export default {
 
     if (url.pathname.startsWith('/api/')) {
       return jsonError(404, '存在しないAPIパスです');
+    }
+
+    // HTMLページはリクエストごとのnonceを差し込んで返す
+    if (isHtmlPath(url.pathname)) {
+      const asset = await env.ASSETS.fetch(request);
+      return withNonce(asset, crypto.randomUUID());
     }
 
     // run_worker_firstの対象外パスは通常ここに到達しないが、念のためアセットへ委譲する

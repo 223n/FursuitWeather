@@ -1,6 +1,6 @@
 // Workerエントリポイント（ルーティングと最終防衛線）のテスト
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as forecastApi from '../src/api/forecast';
 import * as geocodeApi from '../src/api/geocode';
 import worker, { type Env } from '../src/index';
@@ -94,10 +94,106 @@ describe('Workerルーティング', () => {
     );
   });
 
-  it('API以外のパスは静的アセットへ委譲する', async () => {
+  it('HTML以外のアセットはそのまま静的アセットへ委譲する', async () => {
     const env = createEnv();
-    const response = await worker.fetch(new Request('https://example.com/about'), env, ctx);
+    const response = await worker.fetch(new Request('https://example.com/app.js'), env, ctx);
     expect(await response.text()).toBe('asset');
     expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
+    // nonceを差し込まないためCSPも付けない（_headers側が担当する）
+    expect(response.headers.get('Content-Security-Policy')).toBeNull();
+  });
+});
+
+describe('HTMLページへのnonce注入', () => {
+  // HTMLRewriterはWorkersランタイム専用のAPIでNode上には無い。
+  // ここでは差し込みの判断（どのタグに付けるか）を検証するための最小スタブを使い、
+  // 実際の書き換え結果はwrangler dev+ブラウザで確認している
+  class HTMLRewriterStub {
+    private handlers: { selector: string; element: (el: unknown) => void }[] = [];
+    /** 呼び出し側が付けた属性の記録（テストから参照する） */
+    static applied: { selector: string; type: string | null; nonce: string | null }[] = [];
+
+    on(selector: string, handler: { element: (el: unknown) => void }): this {
+      this.handlers.push({ selector, element: handler.element });
+      return this;
+    }
+
+    transform(response: Response): Response {
+      // 実物のHTMLに含まれるタグを模したもの（script2つ・style1つ）
+      const tags = [
+        { selector: 'script', attrs: { type: null } as Record<string, string | null> },
+        { selector: 'script', attrs: { type: 'application/ld+json' } as Record<string, string | null> },
+        { selector: 'style', attrs: {} as Record<string, string | null> },
+      ];
+      for (const tag of tags) {
+        for (const handler of this.handlers) {
+          if (handler.selector !== tag.selector) {
+            continue;
+          }
+          handler.element({
+            getAttribute: (name: string) => tag.attrs[name] ?? null,
+            setAttribute: (name: string, value: string) => {
+              tag.attrs[name] = value;
+            },
+          });
+        }
+        HTMLRewriterStub.applied.push({
+          selector: tag.selector,
+          type: tag.attrs.type ?? null,
+          nonce: tag.attrs.nonce ?? null,
+        });
+      }
+      return response;
+    }
+  }
+
+  beforeEach(() => {
+    HTMLRewriterStub.applied = [];
+    vi.stubGlobal('HTMLRewriter', HTMLRewriterStub);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('HTMLパスはnonce付きのCSPで返る', async () => {
+    const env = createEnv();
+    const response = await worker.fetch(new Request('https://example.com/'), env, ctx);
+    const csp = response.headers.get('Content-Security-Policy')!;
+    const nonce = csp.match(/'nonce-([^']+)'/)![1]!;
+
+    expect(csp).toContain(`script-src 'nonce-${nonce}'`);
+    // nonceが漏れて共有キャッシュに載らないようにする
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('実行されるscriptとstyleにnonceを付け、JSON-LDには付けない', async () => {
+    await worker.fetch(new Request('https://example.com/about'), createEnv(), ctx);
+    const applied = HTMLRewriterStub.applied;
+
+    expect(applied.find((t) => t.selector === 'script' && t.type === null)!.nonce).toBeTruthy();
+    expect(applied.find((t) => t.selector === 'style')!.nonce).toBeTruthy();
+    // JSON-LDは実行されないデータブロックのため対象外
+    expect(
+      applied.find((t) => t.selector === 'script' && t.type === 'application/ld+json')!.nonce,
+    ).toBeNull();
+  });
+
+  it('リクエストごとに異なるnonceを使う（固定値だと注入で突破される）', async () => {
+    const env = createEnv();
+    const first = await worker.fetch(new Request('https://example.com/'), env, ctx);
+    const second = await worker.fetch(new Request('https://example.com/'), env, ctx);
+    const nonceOf = (r: Response): string =>
+      r.headers.get('Content-Security-Policy')!.match(/'nonce-([^']+)'/)![1]!;
+
+    expect(nonceOf(first)).not.toBe(nonceOf(second));
+  });
+
+  it('アセット側のステータス（404ページなど）を引き継ぐ', async () => {
+    const env = {
+      ASSETS: { fetch: vi.fn(async () => new Response('not found', { status: 404 })) },
+    } as unknown as Env;
+    const response = await worker.fetch(new Request('https://example.com/404.html'), env, ctx);
+    expect(response.status).toBe(404);
   });
 });
