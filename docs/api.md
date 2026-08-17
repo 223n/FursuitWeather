@@ -18,10 +18,16 @@
 予報日数の上限は4日です（気象庁MSMの予報範囲。それ以降は日射量データが
 なくWBGTを計算できないため）。
 
+`demo=1`のときは`lat`・`lon`・`days`を検証せず無視し、常に当日からの
+2日分（真夏の晴天日と雨天日）の決定的なデモデータを返します。
+
+正常レスポンスには`Cache-Control: public, max-age=600`が付き、
+同じブラウザからの再リクエストは10分間キャッシュが再利用されます。
+
 リクエスト例:
 
 ```bash
-curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
+curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.68&lon=139.68"
 ```
 
 ## レスポンスJSONの仕様
@@ -39,6 +45,10 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 | `days` | array | 日別サマリー |
 
 ### hours[]の各要素
+
+WBGT計算に必要な気象値（気温・湿度・体感温度・風速・日射量）が欠測の
+時間は配列から除外されるため、`hours`は1時間ごとの連続を保証しません。
+配列の添字を時刻とみなさず、`time`フィールドで突き合わせてください。
 
 | フィールド | 型 | 説明 |
 |--------------|----------|------------------------------------------|
@@ -88,7 +98,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 | `temperatureMin`・`temperatureMax` | number | 最低・最高気温（℃） |
 | `weatherCode`・`weatherLabel` | number・string | 日中の代表天気 |
 | `outdoorWorst`・`outdoorBest` | object | 日中（9〜18時）の最も厳しい／穏やかな屋外判定（`level`・`label`・`grade`） |
-| `recommendedHours` | string[] | 屋外活動に適した時間帯（`HH:00`形式）。深刻度1以下かつ降水なしの時間帯が対象 |
+| `recommendedHours` | string[] | 屋外活動に適した時間帯（`HH:00`形式）。日中（9〜18時）のうち深刻度1以下かつ降水量0の時間帯が対象 |
 | `coolingRequired` | boolean | 日中に冷房必須となる時間があるか |
 | `laundry` | object | 洗濯乾燥判定（下記） |
 
@@ -100,6 +110,36 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - `fursuitDryingHours`（時間）
 - `moldWarning`（boolean）
 - `advice`
+
+### レスポンス例（1時間分・1日分の抜粋）
+
+```json
+{
+  "location": { "latitude": 35.68, "longitude": 139.69, "timezone": "Asia/Tokyo" },
+  "model": "jma_seamless（気象庁MSM/GSM）",
+  "hours": [
+    {
+      "time": "2026-08-15T09:00",
+      "weather": { "temperature": 31.2, "humidity": 65, "precipitation": 0, "precipitationProbability": 10 },
+      "weatherLabel": "晴れ",
+      "outdoor": { "suitWbgt": 40.1, "level": "danger", "label": "危険", "grade": 4, "activityMinutes": 0 },
+      "indoor": { "suitWbgt": 38.2, "cooling": "required", "coolingLabel": "冷房必須" }
+    }
+  ],
+  "days": [
+    {
+      "date": "2026-08-15",
+      "outdoorWorst": { "level": "danger", "label": "危険", "grade": 4 },
+      "recommendedHours": [],
+      "coolingRequired": true,
+      "laundry": { "score": 88, "level": "excellent", "label": "超速乾" }
+    }
+  ]
+}
+```
+
+一部のフィールドは省略しています。実際のレスポンスは上記の
+フィールド表のとおりです。
 
 ## GET /api/geocode
 
@@ -132,10 +172,34 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 完全一致でしか照合しないため、「蒲郡」のような短い表記への対策です。
 3文字以上は部分一致が働くため補完しません）。
 郵便番号はzipcloud（郵便番号検索API）で市区町村名へ変換してから
-地名で検索します。地名・郵便番号データはほぼ変化しないため、
+地名で検索します。変換に失敗した場合や変換後の地名で見つからない
+場合は、郵便番号のままハイフンあり・なしの両形式で直接検索します。
+地名・郵便番号データはほぼ変化しないため、
 上流への問い合わせはエッジで7日間キャッシュされます。
 一方、`/api/geocode`のレスポンス自体は`no-store`で返します
 （検索ロジックの改善が全利用者へすぐ反映されるようにするためです）。
+
+## エラーレスポンス
+
+エラー時は両エンドポイント共通で、次の形式のJSONを返します。
+エラーレスポンスには`Cache-Control: no-store`が付き、復旧後に古い
+エラーがブラウザに残りません。CORSヘッダーは正常時と同じく付与されます。
+
+```json
+{
+  "error": "気象データの取得に失敗しました。時間をおいて再度お試しください"
+}
+```
+
+| ステータス | 発生条件 |
+|-----------|----------|
+| `400` | パラメータの検証エラー（`lat`／`lon`の欠落・範囲外、`days`が`1`〜`4`の整数でない、`q`の欠落・100文字超） |
+| `404` | 未知の`/api/*`パス |
+| `405` | GET・OPTIONS以外のメソッド |
+| `500` | 予期しないサーバー内部エラー |
+| `502` | 上流APIの障害・タイムアウト・レスポンス形式異常 |
+
+OPTIONSプリフライトには`204`とCORSヘッダーを返します。
 
 ## 利用上の注意
 
