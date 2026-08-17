@@ -21,7 +21,11 @@
 - プライバシー: GPS座標は取得直後に小数2桁（約1km）へ丸め、保存も
   URL反映もしない。URLに現れる座標は常に小数2桁
 - `public/app.js`の世代ガード（`requestSeq`・`searchSeq`・
-  `cityChangeTimer`）による「最後の明示操作が勝つ」制御を壊さない
+  `cityChangeTimer`・`manualTabSeq`）による「最後の明示操作が勝つ」
+  制御を壊さない
+- イベント予報の定義`public/events.json`は運営者が編集するデータ
+  ファイル。開催地は郵便番号で指定し`/api/geocode`で座標へ解決する。
+  形式は`test/events.test.ts`がCIで検証する（書き方は`docs/events.md`）
 - 判定表示は色だけに依存させず記号+文字を併記する（CUD配色。
   詳細は`docs/accessibility.md`）
 
