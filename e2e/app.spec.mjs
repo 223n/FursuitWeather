@@ -192,8 +192,8 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   );
   // 郵便番号は/api/geocode（zipcloud→地名検索）経由で座標に解決される
   const byZip = {
-    '135-0063': { name: '江東区', latitude: 35.6297, longitude: 139.7947 },
-    '261-0023': { name: '千葉市美浜区', latitude: 35.6474, longitude: 140.0343 },
+    '135-0063': { name: '江東区', admin1: '東京都', latitude: 35.6297, longitude: 139.7947 },
+    '261-0023': { name: '千葉市', admin1: '千葉県', latitude: 35.6474, longitude: 140.0343 },
   };
   await page.route('**/api/geocode*', (route) => {
     const query = new URL(route.request().url()).searchParams.get('q');
@@ -209,7 +209,10 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   // 開催中のイベント → 開催地の予報+今日のタブへ切り替わる。座標は小数2桁
   await page.selectOption('#event-select', '0');
   await page.click('#event-button');
-  await expect(page.locator('#location-label')).toContainText('サマーコン（東京ビッグサイト）');
+  // ラベルには郵便番号から解決された実際の地名も併記される（取り違えの検知）
+  await expect(page.locator('#location-label')).toContainText(
+    'サマーコン（東京ビッグサイト・江東区（東京都）付近）',
+  );
   await expect(page.locator('#tab-day-0')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
   await expect(page).toHaveURL(/lat=35\.63&lon=139\.79/);
@@ -217,12 +220,18 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   await expect(page.locator('#plan-start')).toHaveValue('11');
   await expect(page.locator('#plan-end')).toHaveValue('18');
   await expect(page.locator('#status')).toContainText('開催時間（11時〜18時）');
+  // 記憶する地点名はイベント名ではなく解決した地名（イベントは日付を過ぎると意味を失う）
+  const stored = await page.evaluate(() =>
+    JSON.parse(window.localStorage.getItem('fursuitweather:lastLocation') ?? '{}'),
+  );
+  expect(stored.locationName).toBe('江東区（東京都）');
 
-  // 開催日が予報範囲外のイベント → 直近の予報を表示し、開催までの日数を案内する
+  // 開催日が予報範囲外のイベント → 表示中の予報の対象日を明示して誤読を防ぐ
   await page.selectOption('#event-select', '1');
   await page.click('#event-button');
-  await expect(page.locator('#location-label')).toContainText('ウィンターフェス（幕張メッセ）');
-  await expect(page.locator('#status')).toContainText('開催まであと10日です');
+  await expect(page.locator('#location-label')).toContainText('ウィンターフェス（幕張メッセ');
+  await expect(page.locator('#status')).toContainText('予報の範囲外です（あと10日）');
+  await expect(page.locator('#status')).toContainText('開催日の予報ではありません');
 });
 
 test('イベント: 郵便番号で開催地が見つからないときは日本語の案内を出す', async ({ page }) => {

@@ -1344,50 +1344,48 @@
     if (!first || typeof first.latitude !== 'number' || typeof first.longitude !== 'number') {
       return null;
     }
-    return { latitude: first.latitude, longitude: first.longitude };
+    // 解決先の地名も返す。郵便番号は市区町村の代表点へ解決されるため、
+    // どこの予報を見ているのかを画面に示して取り違えに気付けるようにする
+    const name = typeof first.name === 'string' ? first.name : '';
+    const admin1 = typeof first.admin1 === 'string' ? first.admin1 : '';
+    return {
+      latitude: first.latitude,
+      longitude: first.longitude,
+      // 地点検索の候補表示と同じ「地名（都道府県）」形式に揃える
+      label: name === '' ? '' : admin1 === '' ? name : `${name}（${admin1}）`,
+    };
   }
 
   /** 対象日のイベント開催時間を活動プランナーへ設定する。
-   * 開催時間（startTime・endTime）は期間全体の開始・終了のため、複数日開催では
-   * 初日は開始時刻から24時まで、最終日は0時から終了時刻まで、中日は終日とする。
-   * 設定できたときは利用者へ示す説明文を返す（時間の定義がなければnull） */
+   *
+   * startTime・endTime は開催期間全体の開始・終了時刻のため、複数日開催では
+   * 「その日の開催時間」が定義から決まらない（初日の終了時刻も最終日の開始
+   * 時刻も分からない）。0時・24時で補うと、開催していない夜間の時間まで
+   * 着用可能時間の合計に積み上がり、熱中症対策の目安が安全側から外れる。
+   * そのため時刻を設定するのは単日開催のときだけにする。
+   * 設定できたときは利用者へ示す説明文を返す（設定しない場合はnull） */
   function applyEventPlanTimes(event, targetDate) {
-    if (event.startTime === undefined && event.endTime === undefined) {
+    // 日付だけは対象日に合わせておく（時間帯は利用者が選ぶ）
+    planDate.value = targetDate;
+    // 前の条件で作った計画は前提が変わるため消す（プランナーは操作起点で作り直す）
+    clearPlan();
+    if (
+      event.startDate !== event.endDate ||
+      event.startTime === undefined ||
+      event.endTime === undefined
+    ) {
       return null;
     }
-    const isFirstDay = targetDate === event.startDate;
-    const isLastDay = targetDate === event.endDate;
-    const startHour =
-      isFirstDay && event.startTime !== undefined
-        ? Number.parseInt(event.startTime.slice(0, 2), 10)
-        : 0;
+    const startHour = Number.parseInt(event.startTime.slice(0, 2), 10);
     // 終了時刻は時間単位へ切り上げる（19:30終了なら20時までを計画に含める）
-    let endHour = 24;
-    if (isLastDay && event.endTime !== undefined) {
-      const hour = Number.parseInt(event.endTime.slice(0, 2), 10);
-      endHour = event.endTime.endsWith(':00') ? hour : hour + 1;
-    }
+    const endHourBase = Number.parseInt(event.endTime.slice(0, 2), 10);
+    const endHour = event.endTime.endsWith(':00') ? endHourBase : endHourBase + 1;
     if (startHour >= endHour) {
       return null;
     }
-    planDate.value = targetDate;
     planStart.value = String(startHour);
     planEnd.value = String(endHour);
-    // 前の条件で作った計画は前提が変わるため消す（プランナーは操作起点で作り直す）
-    clearPlan();
-    const range = `${startHour}時〜${endHour}時`;
-    // 複数日開催では「その日の分」であることが分かる言い方にする
-    // （初日の終わり・最終日の始まりの時刻は定義に無いため終日として扱っている）
-    if (isFirstDay && isLastDay) {
-      return `開催時間（${range}）`;
-    }
-    if (isFirstDay) {
-      return `開催初日の時間帯（${range}）`;
-    }
-    if (isLastDay) {
-      return `最終日の時間帯（${range}）`;
-    }
-    return `終日開催の日の時間帯（${range}）`;
+    return `開催時間（${startHour}時〜${endHour}時）`;
   }
 
   /** 選択中のイベントの開催地の予報を表示する。
@@ -1436,12 +1434,19 @@
       );
       return;
     }
-    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
-    const label = `${event.name}（${event.place}）`;
+    // 表示は会場名＋実際に解決された地名（郵便番号は市区町村の代表点へ
+    // 解決されるため、どこの予報かを示して取り違えに気付けるようにする）
+    const label =
+      place.label === ''
+        ? `${event.name}（${event.place}）`
+        : `${event.name}（${event.place}・${place.label}付近）`;
     const loaded = await loadForecast(
+      // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
       `lat=${place.latitude.toFixed(2)}&lon=${place.longitude.toFixed(2)}`,
       label,
-      { storedName: label },
+      // 記憶・お気に入りにはイベント名を残さず地名を使う。イベントは日付を
+      // 過ぎれば意味を失うが、記憶した地点は次回以降も表示され続けるため
+      { storedName: place.label === '' ? `〒${event.zip}付近` : place.label },
     );
     if (!loaded) {
       return;
@@ -1459,19 +1464,28 @@
       if (manualTabSeq === tabSeqAtStart) {
         activateTab(dayTab.tabId, false);
       }
-      setStatus(
+      const message =
         `${prefix}「${event.name}」開催日（${formatDate(targetDate)}）の予報です。` +
-          (planText ? `活動プランナーに${planText}を設定しました。` : ''),
-        false,
-      );
+        (planText ? `活動プランナーに${planText}を設定しました。` : '');
+      setStatus(message, false);
+      // 読み上げサマリーは常に当日の予報を述べるため、対象日が今日でない
+      // ときに食い違う。開催日を明示した文で上書きする
+      srAnnounce.textContent = message;
       return;
     }
-    const days = daysBetween(today, event.startDate);
-    setStatus(
-      `${prefix}「${event.name}」の開催まであと${days}日です。` +
-        `予報は${FORECAST_DAYS}日先までのため、開催地の直近の予報を表示しています。`,
-      false,
-    );
+    // 開催日が予報範囲外。表示中がいつの予報かを明示し、開催日の予報では
+    // ないことを言い切る（「直近の予報」だけでは開催日の予報と誤読されうる）
+    const dates = currentForecast.days.map((d) => d.date);
+    const range =
+      dates.length > 1
+        ? `${formatDate(dates[0])}〜${formatDate(dates[dates.length - 1])}`
+        : formatDate(dates[0]);
+    const message =
+      `${prefix}「${event.name}」の開催日（${formatEventPeriod(event)}）は予報の範囲外です` +
+      `（あと${daysBetween(today, event.startDate)}日）。` +
+      `表示しているのは開催地の${range}の予報で、開催日の予報ではありません。`;
+    setStatus(message, false);
+    srAnnounce.textContent = message;
   }
 
   eventButton.addEventListener('click', showEventForecast);
