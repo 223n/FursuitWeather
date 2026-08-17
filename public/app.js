@@ -651,7 +651,8 @@
     if (!city) {
       return;
     }
-    loadForecast(`lat=${city.lat}&lon=${city.lon}`, city.name, { cityIndex });
+    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
+    loadForecast(`lat=${city.lat.toFixed(2)}&lon=${city.lon.toFixed(2)}`, city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -702,7 +703,10 @@
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         loadForecast(
-          `lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
+          // プライバシー保護: GPS座標は小数2桁（約1km）へ丸めてから使う。
+          // 予報は約5kmメッシュのため結果は変わらず、APIリクエストや
+          // 「共有」のURLに自宅を特定できる精度の位置が流れない
+          `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`,
           describeCurrentLocation(lat, lon),
           // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）
           { persist: false },
@@ -817,7 +821,9 @@
         clearSearchResults();
         searchInput.value = '';
         loadForecast(
-          `lat=${choice.latitude.toFixed(4)}&lon=${choice.longitude.toFixed(4)}`,
+          // 座標はURLに現れるためすべて小数2桁（約1km）に統一する。予報は約5km
+          // メッシュのため結果への影響はない
+          `lat=${choice.latitude.toFixed(2)}&lon=${choice.longitude.toFixed(2)}`,
           choice.label,
         );
       };
@@ -884,7 +890,10 @@
     const displayLabel = sharedName
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
       : coordName;
-    loadForecast(`lat=${sharedLat}&lon=${sharedLon}`, displayLabel, { storedName: coordName });
+    // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
+    loadForecast(`lat=${sharedLat.toFixed(2)}&lon=${sharedLon.toFixed(2)}`, displayLabel, {
+      storedName: coordName,
+    });
   } else {
     const stored = readStoredLocation();
     if (stored) {

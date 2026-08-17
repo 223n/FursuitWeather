@@ -3,7 +3,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleGeocode } from '../src/api/geocode';
-import { GEOCODING_CACHE_TTL_SECONDS, GEOCODING_MAX_RESULTS } from '../src/constants';
+import {
+  GEOCODING_CACHE_TTL_SECONDS,
+  GEOCODING_MAX_RESULTS,
+  UPSTREAM_TIMEOUT_MS,
+} from '../src/constants';
 import {
   buildGeocodingUrl,
   fetchGeocoding,
@@ -236,6 +240,103 @@ describe('fetchGeocoding（郵便番号）', () => {
     const results = await fetchGeocoding('443-0041', impl);
     expect(results).toHaveLength(1);
     expect(calls).toHaveLength(3);
+  });
+});
+
+describe('fetchGeocoding（接尾辞補完）', () => {
+  /** 呼び出しURLを記録し、name=の値に応じて結果を出し分けるfetch実装を作る */
+  function routeByName(hits: Record<string, unknown>): { impl: typeof fetch; names: string[] } {
+    const names: string[] = [];
+    const impl = (async (input: RequestInfo | URL) => {
+      const name = new URL(String(input)).searchParams.get('name') ?? '';
+      names.push(name);
+      const body = hits[name] ?? {};
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+    return { impl, names };
+  }
+
+  const gamagoriHit = {
+    results: [
+      {
+        name: '蒲郡市',
+        admin1: '愛知県',
+        latitude: 34.8262,
+        longitude: 137.2196,
+        country_code: 'JP',
+      },
+    ],
+  };
+
+  it('0件のときは「市」を補って再検索する（2文字以下は完全一致のみ照合されるため）', async () => {
+    const { impl, names } = routeByName({ 蒲郡市: gamagoriHit });
+
+    const results = await fetchGeocoding('蒲郡', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe('蒲郡市');
+    expect(names).toEqual(['蒲郡', '蒲郡市']);
+  });
+
+  it('市→町→村→区の順に試し、既に付いている接尾辞は重ねない', async () => {
+    const { impl, names } = routeByName({});
+
+    const results = await fetchGeocoding('大村', impl);
+    expect(results).toEqual([]);
+    // 「村」で終わるため「大村村」は試さない
+    expect(names).toEqual(['大村', '大村市', '大村町', '大村区']);
+  });
+
+  it('素の検索がヒットしたら追加の呼び出しはしない', async () => {
+    const { impl, names } = routeByName({ 松山: geocodingBody() });
+
+    const results = await fetchGeocoding('松山', impl);
+    expect(results).toHaveLength(2);
+    // 上流の無料枠保護のため、ヒット時は1回の呼び出しで確定する
+    expect(names).toEqual(['松山']);
+  });
+
+  it('3文字以上の0件は補完しない（部分一致が働くため増幅を避ける）', async () => {
+    const { impl, names } = routeByName({});
+
+    const results = await fetchGeocoding('ほげほげ', impl);
+    expect(results).toEqual([]);
+    expect(names).toEqual(['ほげほげ']);
+  });
+
+  it('再検索の連鎖は全体の時間予算を超えたら打ち切る', async () => {
+    const { impl, names } = routeByName({});
+    const nowSpy = vi.spyOn(Date, 'now');
+    // 予算設定時は0、以降のループ判定では予算ちょうどに達している状態にする
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(UPSTREAM_TIMEOUT_MS);
+
+    const results = await fetchGeocoding('蒲', impl);
+    expect(results).toEqual([]);
+    expect(names).toEqual(['蒲']);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '地点検索の接尾辞補完を時間切れで打ち切り:',
+      '蒲',
+    );
+    nowSpy.mockRestore();
+  });
+
+  it('途中の接尾辞でヒットしたら残りは試さない', async () => {
+    const hayashimaHit = {
+      results: [
+        {
+          name: '早島町',
+          admin1: '岡山県',
+          latitude: 34.6,
+          longitude: 133.83,
+          country_code: 'JP',
+        },
+      ],
+    };
+    const { impl, names } = routeByName({ 早島町: hayashimaHit });
+
+    const results = await fetchGeocoding('早島', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe('早島町');
+    expect(names).toEqual(['早島', '早島市', '早島町']);
   });
 });
 

@@ -294,8 +294,10 @@ describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
 
     const preloadMatch = html.match(/<link rel="preload" href="\/api\/forecast\?([^"]+)"/);
     expect(preloadMatch).not.toBeNull();
-    // app.jsは数値をテンプレート文字列に埋め込むため、数値化してから期待クエリを作る
-    expect(preloadMatch![1]).toBe(`lat=${Number(defaultCity[2])}&lon=${Number(defaultCity[3])}`);
+    // app.jsは座標を小数2桁（約1km）へ丸めてURLに埋め込むため、期待クエリも同じ丸めで作る
+    expect(preloadMatch![1]).toBe(
+      `lat=${Number(defaultCity[2]).toFixed(2)}&lon=${Number(defaultCity[3]).toFixed(2)}`,
+    );
   });
 });
 
