@@ -147,14 +147,29 @@ CSPの要点は次のとおりです。
   ポリシー（`fursuitweather-sw`）を`public/app.js`が作ります。
   ポリシー名は`_headers`の`trusted-types`ディレクティブと一致させます
 
+### 外部スクリプト（アクセス解析）
+
+読み込む外部スクリプトはCloudflare Web Analyticsの計測タグだけです。
+CSPでは配信元と送信先のホストだけを名指しで許可します。
+
+| 用途 | 許可 |
+|------|------|
+| 計測タグの読み込み | `script-src https://static.cloudflareinsights.com` |
+| 計測データの送信 | `connect-src https://cloudflareinsights.com` |
+
+`test/headers.test.ts`が、HTMLの`<script src>`とCSPの許可元が一致すること、
+ワイルドカードが紛れ込んでいないことを検証します（ずれると計測タグが
+黙ってブロックされます）。
+
 ### Cloudflare側の機能との関係
 
-CSPを厳しくすると、Cloudflareがページへスクリプトを差し込む機能
-（Zaraz・Rocket Loaderなど）は動かなくなります。差し込まれたスクリプトは
-`script-src 'self'`に合致せず、`require-trusted-types-for`とも衝突します。
-これらの機能を使う場合は、CSPの緩和とどちらを取るかを判断してください
-（本サービスは外部スクリプトを一切読み込まない構成のため、既定では
-これらを無効にする前提です）。
+CSPを厳しくしているため、Cloudflareがページへ自動でスクリプトを差し込む
+機能（Zaraz・Rocket Loaderなど）は動きません。差し込まれたスクリプトは
+`script-src`の許可元に合致せず、`require-trusted-types-for`とも衝突します。
+これらを使う場合はCSPの緩和が必要になるため、どちらを取るかを判断して
+ください。アクセス解析は上記のとおりHTMLへ明示的に書いた計測タグで
+行っており、Cloudflare側の自動挿入は前提にしていません（両方を有効に
+すると二重計測になります）。
 
 ## エッジ配信
 

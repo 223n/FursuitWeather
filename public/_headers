@@ -4,4 +4,4 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   Cross-Origin-Opener-Policy: same-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' __INLINE_STYLE_HASH__ 'unsafe-inline'; img-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types fursuitweather-sw; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' __INLINE_STYLE_HASH__ 'unsafe-inline'; img-src 'self'; connect-src 'self' https://cloudflareinsights.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types fursuitweather-sw; upgrade-insecure-requests
