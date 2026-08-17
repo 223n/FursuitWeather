@@ -171,6 +171,24 @@ CSPを厳しくしているため、Cloudflareがページへ自動でスクリ�
 行っており、Cloudflare側の自動挿入は前提にしていません（両方を有効に
 すると二重計測になります）。
 
+Zarazを有効にすると、ブラウザのコンソールに次のエラーが出ます。
+いずれもZaraz側の問題で、当サイトのコードは関係ありません。
+**Cloudflareダッシュボードの Zaraz を無効にすると解消します。**
+
+```
+TypeError: Failed to set the 'innerHTML' property on 'Element':
+  This document requires 'TrustedHTML' assignment.  ... at window.zaraz._p
+TypeError: Failed to set the 'src' property on 'HTMLScriptElement':
+  This document requires 'TrustedScriptURL' assignment.  ... at zaraz.init
+Executing inline script violates the following Content Security Policy
+  directive 'script-src 'self' ... 'nonce-...''
+```
+
+3つ目は、Cloudflareが当サイトのCSPへ独自のnonceを追記しながら、
+差し込んだインラインスクリプトの一部にそのnonceを付けていないために
+起きます（自分で追記したCSPに自分で弾かれている状態）。CSPを緩めても
+この不整合は当方では解消できません。
+
 ## エッジ配信
 
 Workerは世界中に分散したCloudflareのデータセンター網（エッジ）のうち、
