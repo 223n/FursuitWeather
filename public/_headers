@@ -1,6 +1,7 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Strict-Transport-Security: max-age=31536000
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Cross-Origin-Opener-Policy: same-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' __INLINE_STYLE_HASH__ 'unsafe-inline'; img-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types fursuitweather-sw; upgrade-insecure-requests

@@ -116,6 +116,46 @@ test/                   vitestテスト
 - 共有URL・記憶地点の座標もすべて小数2桁に統一しています
 - `Permissions-Policy`で位置情報の利用を自サイトに限定しています
 
+## セキュリティヘッダー
+
+`public/_headers`で静的アセットの応答に付与します（契約は
+`test/headers.test.ts`がCIで検証）。
+
+| ヘッダー | 内容 |
+|----------|------|
+| `Content-Security-Policy` | `default-src 'none'`を基点に、必要な取得先だけを明示 |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
+| `Cross-Origin-Opener-Policy` | `same-origin`（オリジン分離） |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | 位置情報は自サイトのみ、カメラ・マイク・決済は禁止 |
+
+CSPの要点は次のとおりです。
+
+- **スクリプト**: `script-src 'self'`。インラインスクリプトは持たず、
+  `'unsafe-inline'`・`'unsafe-eval'`は付けません（付けると本当に
+  有効化されてしまうため、後方互換の併記も禁止）
+- **スタイル**: レンダリングブロック回避のためCSSをHTMLへインライン化して
+  いるので、ビルド（`scripts/inline-css.mjs`）が埋め込むCSSのsha256を
+  計算し、`_headers`のプレースホルダー`__INLINE_STYLE_HASH__`へ差し込みます。
+  併記している`'unsafe-inline'`はハッシュを解釈できない古いブラウザ向けで、
+  新しいブラウザでは無視されます。インラインの`style`属性はハッシュで
+  許可できないため使いません（CSSクラスへ寄せています）
+- **Trusted Types**: `require-trusted-types-for 'script'`でDOM型XSSの
+  シンクを封じます。`ServiceWorkerContainer.register()`は
+  `TrustedScriptURL`を要求するため、自分の`sw.js`以外を返さない専用
+  ポリシー（`fursuitweather-sw`）を`public/app.js`が作ります。
+  ポリシー名は`_headers`の`trusted-types`ディレクティブと一致させます
+
+### Cloudflare側の機能との関係
+
+CSPを厳しくすると、Cloudflareがページへスクリプトを差し込む機能
+（Zaraz・Rocket Loaderなど）は動かなくなります。差し込まれたスクリプトは
+`script-src 'self'`に合致せず、`require-trusted-types-for`とも衝突します。
+これらの機能を使う場合は、CSPの緩和とどちらを取るかを判断してください
+（本サービスは外部スクリプトを一切読み込まない構成のため、既定では
+これらを無効にする前提です）。
+
 ## エッジ配信
 
 Workerは世界中に分散したCloudflareのデータセンター網（エッジ）のうち、

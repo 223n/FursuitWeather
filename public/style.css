@@ -105,6 +105,13 @@
   flex-shrink: 0;
 }
 
+/* アイコン定義用のSVGスプライト本体は表示しない。
+ * style属性ではなくクラスで指定する（CSPのstyle-srcをハッシュで
+ * 厳格化しており、インラインのstyle属性は許可できないため） */
+.icon-sprite {
+  display: none;
+}
+
 /* 天気アイコンの色（隣に天気名のテキストを必ず併記するため、色は補助情報） */
 .weather-sun,
 .weather-cloud-sun,
