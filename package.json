@@ -14,12 +14,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && npm run typecheck",
     "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
+    "@playwright/test": "^1.62.1",
     "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "0.28.2",
     "eslint": "^10.8.1",

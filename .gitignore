@@ -15,6 +15,10 @@ dist/
 # カバレッジレポート（npm run test:coverage）
 coverage/
 
+# PlaywrightのE2Eテスト成果物
+test-results/
+playwright-report/
+
 # ログ
 *.log
 
