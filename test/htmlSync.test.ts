@@ -265,6 +265,16 @@ describe('公開仕様（about・api.md・llms.txt）と定数の同期', () => 
   });
 });
 
+describe('お気に入り未登録時の案内の同期', () => {
+  // 案内はCLS対策でindex.htmlに静的に記載し、app.jsも同じ文言で描画し直す。
+  // 片側だけ変えると再描画のたびに高さが変わってレイアウトシフトが出る
+  it('index.htmlの案内文とapp.jsの描画文言が一致する', () => {
+    const htmlMatch = html.match(/<li class="favorites-empty">([^<]+)<\/li>/);
+    expect(htmlMatch).not.toBeNull();
+    expect(appJs).toContain(`hint.textContent = '${htmlMatch![1]!}'`);
+  });
+});
+
 describe('地点セレクトとapp.jsのCITIES配列の同期', () => {
   // index.htmlのoption valueはapp.jsのCITIES配列インデックスに直結する
   // （CITIES[Number(citySelect.value)]で参照）。途中挿入などで片側だけ

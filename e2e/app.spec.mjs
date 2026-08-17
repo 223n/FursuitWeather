@@ -62,6 +62,35 @@ test('初期表示とタブ切り替え: 各タブの内容が描画される', 
   await expect(page).toHaveURL(/lat=35\.68&lon=139\.68/);
 });
 
+test('地点の選び方タブ: 1つのパネルだけが表示され、キーボードで移動できる', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 既定は「主な都市」。他の選び方のパネルは隠れている
+  await expect(page.locator('#picker-city')).toBeVisible();
+  await expect(page.locator('#picker-event')).toBeHidden();
+  await expect(page.locator('#picker-search')).toBeHidden();
+  await expect(page.locator('#picker-favorites')).toBeHidden();
+
+  // 矢印キーで隣のタブへ移動して自動選択される（WAI-ARIAタブパターン）
+  await page.locator('#picker-tab-city').press('ArrowRight');
+  await expect(page.locator('#picker-tab-event')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#picker-event')).toBeVisible();
+  await expect(page.locator('#picker-city')).toBeHidden();
+
+  // Endで末尾、Homeで先頭へ
+  await page.locator('#picker-tab-event').press('End');
+  await expect(page.locator('#picker-favorites')).toBeVisible();
+  await page.locator('#picker-tab-favorites').press('Home');
+  await expect(page.locator('#picker-city')).toBeVisible();
+
+  // 予報の表示切り替えタブとは独立して動く
+  await page.click('#picker-tab-search');
+  await page.click('#tab-days');
+  await expect(page.locator('#days-section')).toBeVisible();
+  await expect(page.locator('#picker-search')).toBeVisible();
+});
+
 test('地点検索: 候補1件は自動選択され、複数件は一覧から選べる', async ({ page }) => {
   const one = {
     results: [{ name: '蒲郡', admin1: '愛知県', latitude: 34.8261, longitude: 137.2196 }],
@@ -79,6 +108,8 @@ test('地点検索: 候補1件は自動選択され、複数件は一覧から�
 
   await page.goto('/');
   await waitForForecast(page);
+  // 地点の選び方はタブで分かれている（検索欄は「検索・現在地」タブの中）
+  await page.click('#picker-tab-search');
 
   // 1件 → 選択なしで自動表示。座標は小数2桁へ丸められる
   await page.fill('#place-search', '蒲郡市');
@@ -100,13 +131,16 @@ test('お気に入り: 追加・チップ切替・解除・再読み込み後の
   await page.goto('/');
   await waitForForecast(page);
 
+  // 登録ボタンは表示中の地点の操作のため、タブに関係なく常に押せる
   await page.click('#favorite-toggle-button');
+  await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
   await expect(page.locator('#favorite-toggle-button')).toContainText('お気に入り解除');
 
   // 再読み込みしても localStorage から復元される
   await page.reload();
   await waitForForecast(page);
+  await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
 
   // チップで読み込み→解除
@@ -125,6 +159,7 @@ test('現在地: 座標が約1kmへ丸められ、URLにもお気に入りにも
 
   await page.goto('/');
   await waitForForecast(page);
+  await page.click('#picker-tab-search');
   await page.click('#geolocation-button');
   await expect(page.locator('#location-label')).toContainText('現在地');
 
@@ -205,6 +240,7 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
 
   await page.goto('/');
   await waitForForecast(page);
+  await page.click('#picker-tab-event');
 
   // 開催中のイベント → 開催地の予報+今日のタブへ切り替わる。座標は小数2桁
   await page.selectOption('#event-select', '0');
@@ -253,6 +289,7 @@ test('イベント: 郵便番号で開催地が見つからないときは日本
 
   await page.goto('/');
   await waitForForecast(page);
+  await page.click('#picker-tab-event');
   await page.click('#event-button');
   await expect(page.locator('#status-error')).toContainText('見つかりませんでした');
 });
@@ -264,6 +301,7 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   );
   await page.goto('/');
   await waitForForecast(page);
+  await page.click('#picker-tab-event');
   await expect(page.locator('#event-select')).toBeDisabled();
   await expect(page.locator('#event-select')).toContainText('予定されているイベントはありません');
   await expect(page.locator('#event-button')).toBeDisabled();

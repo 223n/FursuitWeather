@@ -528,30 +528,88 @@
     { tabId: 'tab-day-2', panelId: 'hours-section', dayIndex: 2 },
     { tabId: 'tab-planner', panelId: 'planner-section' },
   ];
-  const tabList = document.querySelector('.tabs');
-  let activeTabId = 'tab-now';
   /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
    * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
    * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
   let manualTabSeq = 0;
 
-  /** 指定タブを選択状態にし、対応するパネルだけを表示する */
-  function activateTab(tabId, focusTab) {
-    const target = TABS.find((t) => t.tabId === tabId);
-    if (!target) {
-      return;
-    }
-    activeTabId = tabId;
-    for (const { tabId: id, panelId } of TABS) {
-      const tab = document.getElementById(id);
-      const selected = id === tabId;
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-      // パネルは複数タブで共有されるため、表示判定はパネル単位でまとめて行う
-      document.getElementById(panelId).hidden = panelId !== target.panelId;
-    }
-    // 共有パネル（時間別）は選択中のタブをラベルにする
-    document.getElementById(target.panelId).setAttribute('aria-labelledby', tabId);
+  /** WAI-ARIAタブパターンの共通実装（予報の切り替えと地点の選び方で共用する）
+   *
+   * 選択状態・パネルの表示・キーボード操作（矢印キーで隣へ移動して自動選択、
+   * Home/Endで先頭・末尾）だけを担い、選択時の追加処理はonActivateへ委ねる。
+   * hidden属性の付いたタブはキーボード移動の対象から外す（日数不足の日付タブ）
+   *
+   * @param {string} tabListId タブバーの要素ID
+   * @param {{tabId: string, panelId: string}[]} tabs タブとパネルの対応（複数タブで同じパネルを共有してよい）
+   * @param {string} initialTabId 初期選択のタブID
+   * @param {(target: object) => void} [onActivate] 選択確定後に呼ばれる処理
+   */
+  function createTabs(tabListId, tabs, initialTabId, onActivate) {
+    const tabList = document.getElementById(tabListId);
+    let activeTabId = initialTabId;
+
+    const activate = (tabId, focusTab) => {
+      const target = tabs.find((t) => t.tabId === tabId);
+      if (!target) {
+        return;
+      }
+      activeTabId = tabId;
+      for (const { tabId: id, panelId } of tabs) {
+        const tab = document.getElementById(id);
+        const selected = id === tabId;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        // パネルは複数タブで共有されうるため、表示判定はパネル単位でまとめて行う
+        document.getElementById(panelId).hidden = panelId !== target.panelId;
+      }
+      // 共有パネル（時間別）は選択中のタブをラベルにする
+      document.getElementById(target.panelId).setAttribute('aria-labelledby', tabId);
+      if (onActivate) {
+        onActivate(target);
+      }
+      if (focusTab) {
+        document.getElementById(tabId).focus();
+      }
+    };
+
+    tabList.addEventListener('click', (event) => {
+      const tab = event.target.closest('[role="tab"]');
+      if (tab) {
+        manualTabSeq += 1;
+        activate(tab.id, false);
+      }
+    });
+
+    tabList.addEventListener('keydown', (event) => {
+      const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      if (!keys.includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const visible = tabs.filter((t) => !document.getElementById(t.tabId).hidden);
+      // 移動の起点はフォーカス中のタブ（選択と食い違う場合もフォーカス優先）。
+      // 見つからないときは選択中のタブを起点にする
+      const focusedId = event.target.closest('[role="tab"]')?.id;
+      const fromIndex = visible.findIndex((t) => t.tabId === focusedId);
+      const index = fromIndex >= 0 ? fromIndex : visible.findIndex((t) => t.tabId === activeTabId);
+      let next = index;
+      if (event.key === 'ArrowRight') {
+        next = (index + 1) % visible.length;
+      } else if (event.key === 'ArrowLeft') {
+        next = (index - 1 + visible.length) % visible.length;
+      } else if (event.key === 'Home') {
+        next = 0;
+      } else {
+        next = visible.length - 1;
+      }
+      manualTabSeq += 1;
+      activate(visible[next].tabId, true);
+    });
+
+    return { activate, getActiveTabId: () => activeTabId };
+  }
+
+  const forecastTabs = createTabs('forecast-tabs', TABS, 'tab-now', (target) => {
     if (target.dayIndex !== undefined && currentForecast) {
       const date = currentForecast.days[target.dayIndex]?.date;
       if (date) {
@@ -559,46 +617,12 @@
         renderHours();
       }
     }
-    if (focusTab) {
-      document.getElementById(tabId).focus();
-    }
-  }
-
-  /** 表示可能なタブ（日数不足の日付タブを除く）の一覧を返す */
-  function visibleTabs() {
-    return TABS.filter((t) => !document.getElementById(t.tabId).hidden);
-  }
-
-  tabList.addEventListener('click', (event) => {
-    const tab = event.target.closest('[role="tab"]');
-    if (tab) {
-      manualTabSeq += 1;
-      activateTab(tab.id, false);
-    }
   });
 
-  // 矢印キーで隣のタブへ移動して自動選択する（Home/Endは先頭・末尾）
-  tabList.addEventListener('keydown', (event) => {
-    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
-    if (!keys.includes(event.key)) {
-      return;
-    }
-    event.preventDefault();
-    const tabs = visibleTabs();
-    const index = tabs.findIndex((t) => t.tabId === activeTabId);
-    let next = index;
-    if (event.key === 'ArrowRight') {
-      next = (index + 1) % tabs.length;
-    } else if (event.key === 'ArrowLeft') {
-      next = (index - 1 + tabs.length) % tabs.length;
-    } else if (event.key === 'Home') {
-      next = 0;
-    } else {
-      next = tabs.length - 1;
-    }
-    manualTabSeq += 1;
-    activateTab(tabs[next].tabId, true);
-  });
+  /** 予報タブを選択する（他の処理からの自動切り替え用） */
+  function activateTab(tabId, focusTab) {
+    forecastTabs.activate(tabId, focusTab);
+  }
 
   /** 取得済みの日数に合わせて日付タブの表示を切り替える */
   function updateDayTabs() {
@@ -610,10 +634,23 @@
       tab.hidden = !currentForecast || currentForecast.days[target.dayIndex] === undefined;
     }
     // 表示中のタブが日数不足で消えた場合は「現在の天気」へ戻す
-    if (document.getElementById(activeTabId).hidden) {
+    if (document.getElementById(forecastTabs.getActiveTabId()).hidden) {
       activateTab('tab-now', false);
     }
   }
+
+  // 地点の選び方のタブ（主な都市／イベント／検索・現在地／お気に入り）。
+  // 選び方ごとに操作をまとめ、操作エリアが縦に伸びないようにする
+  createTabs(
+    'picker-tabs',
+    [
+      { tabId: 'picker-tab-city', panelId: 'picker-city' },
+      { tabId: 'picker-tab-event', panelId: 'picker-event' },
+      { tabId: 'picker-tab-search', panelId: 'picker-search' },
+      { tabId: 'picker-tab-favorites', panelId: 'picker-favorites' },
+    ],
+    'picker-tab-city',
+  );
 
   // いまの判定: 現在時刻（JST）の時間別判定を大きく1枚で表示する
   const nowCard = document.getElementById('now-card');
@@ -1043,7 +1080,16 @@
 
   /** お気に入りチップ一覧を描画し直す */
   function renderFavorites() {
-    const items = readFavorites().map((fav) => {
+    const favorites = readFavorites();
+    if (favorites.length === 0) {
+      // 未登録のときは空欄にせず、登録方法への導線を示す
+      const hint = document.createElement('li');
+      hint.className = 'favorites-empty';
+      hint.textContent = '（下の「お気に入りに追加」で登録できます）';
+      favoritesList.replaceChildren(hint);
+      return;
+    }
+    const items = favorites.map((fav) => {
       const item = document.createElement('li');
       const button = document.createElement('button');
       button.type = 'button';
