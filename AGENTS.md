@@ -1,8 +1,7 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-内容を変えるときは`AGENTS.md`・`.github/copilot-instructions.md`も同期してください。
+AIコーディングエージェント向けの、このリポジトリで作業する際のガイドです。
+内容を変えるときは`CLAUDE.md`・`.github/copilot-instructions.md`も同期してください。
 
 ## プロジェクト概要
 
