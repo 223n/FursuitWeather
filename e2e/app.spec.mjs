@@ -30,7 +30,9 @@ test('初期表示: いまの判定・日別カード・時間別テーブルが
   await waitForForecast(page);
 
   await expect(page.locator('#status')).toContainText('予報を取得しました');
-  await expect(page.locator('#now-card .badge')).toBeVisible();
+  // 屋外判定の大型バッジと、屋内の冷房要否バッジの両方が表示される
+  await expect(page.locator('#now-card .now-headline .badge')).toBeVisible();
+  await expect(page.locator('#now-card .now-indoor .badge')).toBeVisible();
   await expect(page.locator('#day-cards .day-card:not(.skeleton-card)')).toHaveCount(2);
   expect(await page.locator('#hours-body tr').count()).toBeGreaterThan(0);
   // 既定都市（東京）がURLへ小数2桁で反映される（共有URLの座標精度の契約）
