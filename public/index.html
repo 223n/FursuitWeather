@@ -27,7 +27,7 @@
   <link rel="canonical" href="https://fursuit-weather.223n.tech/">
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
-  <link rel="preload" href="/api/forecast?lat=35.6785&lon=139.6823" as="fetch" crossorigin>
+  <link rel="preload" href="/api/forecast?lat=35.68&lon=139.68" as="fetch" crossorigin>
   <script src="/app.js" defer></script>
   <!-- 構造化データ（JSON-LD）: 検索エンジンにサイト名とアプリの性質を伝える -->
   <script type="application/ld+json">
@@ -157,7 +157,7 @@
       <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
       <p id="location-label" class="location-label"></p>
       <p class="control-note">
-        現在地の取得にはブラウザの位置情報の許可が必要です。位置情報は予報の取得のみに使い、保存しません。
+        現在地の取得にはブラウザの位置情報の許可が必要です。位置情報は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません。
         最後に表示した地点（現在地を除く）はこのブラウザ内にのみ保存され、次回のアクセス時に自動で表示されます。
       </p>
     </section>
