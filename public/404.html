@@ -13,6 +13,10 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
+  <!-- Cloudflare Web Analytics（プライバシー重視のアクセス解析。
+       クッキーを使わず、個人を識別する情報も集めない）。
+       読み込み元と送信先はCSP（public/_headers）で明示的に許可している -->
+  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "2f78dd176e714cc38277fd40de2f65f2"}'></script>
 </head>
 <body>
   <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
@@ -44,7 +48,7 @@
       <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.4</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.5</a>
     </p>
   </footer>
 </body>

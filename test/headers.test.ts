@@ -7,6 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import appJs from '../public/app.js?raw';
 import headers from '../public/_headers?raw';
+import html from '../public/index.html?raw';
+import aboutHtml from '../public/about.html?raw';
+import notFoundHtml from '../public/404.html?raw';
 
 /** _headersからディレクティブ名で値を取り出す */
 function headerValue(name: string): string {
@@ -28,13 +31,40 @@ describe('Content-Security-Policy', () => {
     expect(cspDirective('default-src')).toBe("'none'");
   });
 
-  it('スクリプトは自オリジンのみで、インライン実行を許さない', () => {
+  it('スクリプトは自オリジンとアクセス解析のみで、インライン実行を許さない', () => {
     const scriptSrc = cspDirective('script-src');
-    expect(scriptSrc).toBe("'self'");
+    // 許可するのは自オリジンと、明示的に選んだ配信元だけ。
+    // ワイルドカードや任意ホストが紛れ込んでいないことを確認する
+    expect(scriptSrc.split(/\s+/).sort()).toEqual(
+      ["'self'", 'https://static.cloudflareinsights.com'].sort(),
+    );
     // 'unsafe-inline'はnonce/hashが無い状態では本当に有効化されてしまうため、
     // script-srcには決して入れない（後方互換の併記が許されるのはstyle-src側のみ）
     expect(scriptSrc).not.toContain('unsafe-inline');
     expect(scriptSrc).not.toContain('unsafe-eval');
+    expect(scriptSrc).not.toContain('*');
+  });
+
+  it('通信先は自オリジンとアクセス解析の送信先のみ', () => {
+    const connectSrc = cspDirective('connect-src');
+    expect(connectSrc.split(/\s+/).sort()).toEqual(
+      ["'self'", 'https://cloudflareinsights.com'].sort(),
+    );
+  });
+
+  it('読み込む外部スクリプトはCSPで許可した配信元と一致する', () => {
+    // HTMLのsrcとCSPの許可元がずれると、計測タグが黙ってブロックされる
+    const scriptSrc = cspDirective('script-src');
+    for (const [name, page] of [
+      ['index.html', html],
+      ['about.html', aboutHtml],
+      ['404.html', notFoundHtml],
+    ] as const) {
+      for (const src of page.matchAll(/<script[^>]*\ssrc="(https?:\/\/[^"]+)"/g)) {
+        const origin = new URL(src[1]!).origin;
+        expect(scriptSrc, `${name}の${origin}がCSPで許可されていません`).toContain(origin);
+      }
+    }
   });
 
   it('インラインCSSはビルドが埋めるハッシュで許可する', () => {
