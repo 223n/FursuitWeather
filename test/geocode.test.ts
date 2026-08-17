@@ -5,13 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleGeocode } from '../src/api/geocode';
 import {
   GEOCODING_CACHE_TTL_SECONDS,
+  GEOCODING_CITY_FALLBACK_LIMIT,
   GEOCODING_MAX_RESULTS,
   UPSTREAM_TIMEOUT_MS,
 } from '../src/constants';
 import {
+  buildCityCandidates,
   buildGeocodingUrl,
   fetchGeocoding,
   parseGeocodingResponse,
+  preferSamePrefecture,
 } from '../src/weather/geocoding';
 import { UpstreamError } from '../src/weather/openMeteo';
 
@@ -239,7 +242,198 @@ describe('fetchGeocoding（郵便番号）', () => {
 
     const results = await fetchGeocoding('443-0041', impl);
     expect(results).toHaveLength(1);
-    expect(calls).toHaveLength(3);
+    // zipcloud →「蒲郡市」→ 接尾辞を落とした「蒲郡」→ 郵便番号の直接検索の順
+    expect(calls).toHaveLength(4);
+  });
+
+  // 実際に0件になった郵便番号の再現。zipcloudのaddress2は政令市では
+  // 「大阪市北区」、郡部では「伊都郡高野町」という複合名を返し、
+  // Open-Meteoの登録名（「大阪市」「高野町」「御殿場」）と一致しない
+  it.each([
+    { zip: '5310073', city: '大阪市北区', pref: '大阪府', hit: '大阪市' },
+    { zip: '5470031', city: '大阪市平野区', pref: '大阪府', hit: '大阪市' },
+    { zip: '5590034', city: '大阪市住之江区', pref: '大阪府', hit: '大阪市' },
+    { zip: '0600042', city: '札幌市中央区', pref: '北海道', hit: '札幌市' },
+    { zip: '4228019', city: '静岡市駿河区', pref: '静岡県', hit: '静岡市' },
+    { zip: '7091215', city: '岡山市南区', pref: '岡山県', hit: '岡山市' },
+    { zip: '6480211', city: '伊都郡高野町', pref: '和歌山県', hit: '高野町' },
+    { zip: '4120033', city: '御殿場市', pref: '静岡県', hit: '御殿場' },
+    { zip: '6560021', city: '洲本市', pref: '兵庫県', hit: '洲本' },
+  ])('複合名・接尾辞違いの市区町村名でも解決できる（$city→$hit）', async ({
+    zip,
+    city,
+    pref,
+    hit,
+  }) => {
+    const { impl, calls } = routePostal({
+      zipcloud: () =>
+        new Response(
+          JSON.stringify({ status: 200, results: [{ address1: pref, address2: city }] }),
+          { status: 200 },
+        ),
+      // 短縮した候補（hit）だけがヒットする上流を模す
+      search: (url) =>
+        url.includes(`name=${encodeURIComponent(hit)}&`)
+          ? new Response(
+              JSON.stringify({
+                results: [
+                  { name: hit, admin1: pref, latitude: 34.7, longitude: 135.5, country_code: 'JP' },
+                ],
+              }),
+              { status: 200 },
+            )
+          : new Response(JSON.stringify({}), { status: 200 }),
+    });
+
+    const results = await fetchGeocoding(zip, impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe(hit);
+    // 郵便番号の直接検索まで進まずに解決できている
+    expect(calls.some((url) => url.includes(`name=${zip}`))).toBe(false);
+  });
+
+  it('同名地名が混ざるときは郵便番号の都道府県と一致する候補を優先する', async () => {
+    const { impl } = routePostal({
+      zipcloud: () =>
+        new Response(
+          JSON.stringify({
+            status: 200,
+            results: [{ address1: '和歌山県', address2: '伊都郡高野町' }],
+          }),
+          { status: 200 },
+        ),
+      search: () =>
+        new Response(
+          JSON.stringify({
+            results: [
+              // 先頭は別の都道府県の同名地点
+              { name: '高野町', admin1: '福井県', latitude: 36, longitude: 136, country_code: 'JP' },
+              {
+                name: '高野町',
+                admin1: '和歌山県',
+                latitude: 34.21,
+                longitude: 135.58,
+                country_code: 'JP',
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const results = await fetchGeocoding('648-0211', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.admin1).toBe('和歌山県');
+  });
+
+  it('都道府県が一致する候補が無ければ、絞り込まずに候補を返す', async () => {
+    const { impl } = routePostal({
+      zipcloud: () =>
+        new Response(
+          JSON.stringify({ status: 200, results: [{ address1: '徳島県', address2: '那賀町' }] }),
+          { status: 200 },
+        ),
+      // 上流のadmin1が空（表記ゆれ）でも取りこぼさない
+      search: () =>
+        new Response(
+          JSON.stringify({
+            results: [{ name: '那賀町', latitude: 33.9, longitude: 134.4, country_code: 'JP' }],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const results = await fetchGeocoding('771-5179', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.admin1).toBe('');
+  });
+
+  it('市区町村名の絞り込みは全体の時間予算を超えたら打ち切る', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () =>
+        new Response(
+          JSON.stringify({
+            status: 200,
+            results: [{ address1: '大阪府', address2: '大阪市北区' }],
+          }),
+          { status: 200 },
+        ),
+      search: () => new Response(JSON.stringify({}), { status: 200 }),
+    });
+    const nowSpy = vi.spyOn(Date, 'now');
+    // 予算設定時は0、以降のループ判定では予算ちょうどに達している状態にする
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(UPSTREAM_TIMEOUT_MS);
+
+    const results = await fetchGeocoding('531-0073', impl);
+    expect(results).toEqual([]);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '郵便番号からの地名検索を時間切れで打ち切り:',
+      '大阪市北区',
+    );
+    // 市区町村名の検索は1回も行わず、郵便番号の直接検索へ進む
+    expect(calls.filter((url) => url.includes(encodeURIComponent('大阪市')))).toHaveLength(0);
+    nowSpy.mockRestore();
+  });
+
+  it('zipcloudが都道府県を返さなくても市区町村名で解決できる', async () => {
+    const { impl } = routePostal({
+      zipcloud: () =>
+        new Response(JSON.stringify({ status: 200, results: [{ address2: '大津市' }] }), {
+          status: 200,
+        }),
+      search: () =>
+        new Response(
+          JSON.stringify({
+            results: [
+              { name: '大津市', admin1: '滋賀県', latitude: 35, longitude: 135.86, country_code: 'JP' },
+            ],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const results = await fetchGeocoding('520-0801', impl);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe('大津市');
+  });
+});
+
+describe('buildCityCandidates', () => {
+  it.each([
+    { city: '大阪市北区', expected: ['大阪市北区', '大阪市', '大阪'] },
+    { city: '静岡市駿河区', expected: ['静岡市駿河区', '静岡市', '静岡'] },
+    { city: '伊都郡高野町', expected: ['伊都郡高野町', '高野町', '高野'] },
+    { city: '御殿場市', expected: ['御殿場市', '御殿場'] },
+    { city: '那賀郡那賀町', expected: ['那賀郡那賀町', '那賀町', '那賀'] },
+    // 東京23区など単独の区名は、同名の区が全国にあるため短縮しない
+    { city: '大田区', expected: ['大田区'] },
+  ])('$city を絞り込みの順に候補化する', ({ city, expected }) => {
+    expect(buildCityCandidates(city)).toEqual(expected);
+  });
+
+  it('候補数は上限を超えない（上流呼び出しの増幅を防ぐ）', () => {
+    expect(buildCityCandidates('北九州市小倉北区')).toEqual([
+      '北九州市小倉北区',
+      '北九州市',
+      '北九州',
+    ]);
+    expect(buildCityCandidates('北九州市小倉北区').length).toBeLessThanOrEqual(
+      GEOCODING_CITY_FALLBACK_LIMIT,
+    );
+  });
+});
+
+describe('preferSamePrefecture', () => {
+  const wakayama = { name: '高野町', admin1: '和歌山県', latitude: 34.2, longitude: 135.6 };
+  const fukui = { name: '高野町', admin1: '福井県', latitude: 36, longitude: 136 };
+
+  it('都道府県が空なら絞り込まない', () => {
+    expect(preferSamePrefecture([fukui, wakayama], '')).toEqual([fukui, wakayama]);
+  });
+
+  it('「大阪府」と「大阪」を同一とみなす', () => {
+    const osaka = { name: '大阪市', admin1: '大阪', latitude: 34.7, longitude: 135.5 };
+    expect(preferSamePrefecture([fukui, osaka], '大阪府')).toEqual([osaka]);
   });
 });
 

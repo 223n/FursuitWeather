@@ -8,6 +8,7 @@
 import {
   GEOCODING_BASE_URL,
   GEOCODING_CACHE_TTL_SECONDS,
+  GEOCODING_CITY_FALLBACK_LIMIT,
   GEOCODING_CITY_SUFFIXES,
   GEOCODING_MAX_RESULTS,
   UPSTREAM_TIMEOUT_MS,
@@ -175,14 +176,77 @@ function normalizeQuery(query: string): string {
     .trim();
 }
 
+/** zipcloudから得た住所のうち、地点検索に使う部分 */
+interface PostalAddress {
+  /** 都道府県名（例: 大阪府）。候補の取り違えを防ぐ照合に使う */
+  prefecture: string;
+  /** 市区町村名（例: 大阪市北区）。複合名のことがある */
+  city: string;
+}
+
 /**
- * 日本の郵便番号を住所（市区町村名）へ変換する
+ * 市区町村名から、地名検索に使う候補を絞り込みの順に並べる
+ *
+ * zipcloudの市区町村名（address2）とOpen-Meteoの登録名は表記が一致しないため、
+ * 完全な形から順に短くした候補を作る。例:
+ *   大阪市北区   → 大阪市北区／大阪市／大阪
+ *   伊都郡高野町 → 伊都郡高野町／高野町／高野
+ *   御殿場市     → 御殿場市／御殿場
+ * 政令市の区名（「北区」など）は全国に同名が多く取り違えの危険があるため、
+ * 単独の候補にはしない（区を落として市名で引く）
+ */
+export function buildCityCandidates(city: string): string[] {
+  // 郡部（伊都郡高野町→高野町）と政令市の区（大阪市北区→大阪市）を、
+  // 単一の自治体名へ寄せる。どちらでもなければ元の名前がそのまま自治体名
+  const county = /^.+?郡(.+)$/.exec(city);
+  const ward = /^(.+市).+区$/.exec(city);
+  const single = county?.[1] ?? ward?.[1] ?? city;
+
+  const candidates = [city];
+  if (single !== city) {
+    candidates.push(single);
+  }
+  // 接尾辞を落とした形: 「御殿場市」→「御殿場」
+  // （Open-Meteoの登録名は接尾辞を含まないことがある。単独の区名は
+  //   全国に同名が多く取り違えの危険があるため短縮しない）
+  if (/^.+[市町村]$/.test(single)) {
+    candidates.push(single.slice(0, -1));
+  }
+  return candidates.slice(0, GEOCODING_CITY_FALLBACK_LIMIT);
+}
+
+/** 都道府県名を比較用に正規化する（「大阪府」「大阪」を同一とみなす） */
+function normalizePrefecture(name: string): string {
+  return name.replace(/[都道府県]$/, '');
+}
+
+/**
+ * 候補のうち、郵便番号の都道府県と一致するものを優先して返す
+ * 一致するものが無ければ元の候補をそのまま返す（上流の表記ゆれで
+ * 取りこぼすより、従来どおり候補を返すほうが利用者の実害が小さい）
+ */
+export function preferSamePrefecture(
+  results: GeocodeResult[],
+  prefecture: string,
+): GeocodeResult[] {
+  if (prefecture === '') {
+    return results;
+  }
+  const expected = normalizePrefecture(prefecture);
+  const matched = results.filter(
+    (result) => result.admin1 !== '' && normalizePrefecture(result.admin1) === expected,
+  );
+  return matched.length > 0 ? matched : results;
+}
+
+/**
+ * 日本の郵便番号を住所（都道府県名・市区町村名）へ変換する
  * 補助手段のため、失敗しても検索全体は継続する（ログには残す）
  */
 async function resolvePostalCode(
   digits: string,
   fetchImpl: typeof fetch,
-): Promise<string | null> {
+): Promise<PostalAddress | null> {
   const url = `${ZIPCLOUD_BASE_URL}?zipcode=${digits}`;
   try {
     const response = await fetchImpl(url, {
@@ -199,10 +263,17 @@ async function resolvePostalCode(
       return null;
     }
     const data = (await response.json()) as {
-      results?: { address2?: unknown }[] | null;
+      results?: { address1?: unknown; address2?: unknown }[] | null;
     };
-    const city = data?.results?.[0]?.address2;
-    return typeof city === 'string' && city !== '' ? city : null;
+    const first = data?.results?.[0];
+    const city = first?.address2;
+    if (typeof city !== 'string' || city === '') {
+      return null;
+    }
+    return {
+      prefecture: typeof first?.address1 === 'string' ? first.address1 : '',
+      city,
+    };
   } catch (error) {
     console.error('郵便番号の変換に失敗:', url, error);
     return null;
@@ -227,12 +298,23 @@ export async function fetchGeocoding(
     return searchByNameWithCitySuffixes(normalized, fetchImpl);
   }
 
-  // 郵便番号: まず住所へ変換して市区町村名で検索する
-  const city = await resolvePostalCode(digits, fetchImpl);
-  if (city !== null) {
-    const results = await searchByName(city, fetchImpl);
-    if (results.length > 0) {
-      return results;
+  // 郵便番号: まず住所へ変換し、市区町村名を段階的に短くしながら検索する
+  // （zipcloudの「大阪市北区」「伊都郡高野町」はOpen-Meteoに無いため、
+  //   市名・町村名・接尾辞なしの順にフォールバックする）
+  const address = await resolvePostalCode(digits, fetchImpl);
+  if (address !== null) {
+    // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに利用者を待たせすぎない
+    const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
+    for (const candidate of buildCityCandidates(address.city)) {
+      if (Date.now() >= deadline) {
+        console.error('郵便番号からの地名検索を時間切れで打ち切り:', address.city);
+        break;
+      }
+      const results = await searchByName(candidate, fetchImpl);
+      if (results.length > 0) {
+        // 同名地名で別の土地を返さないよう、郵便番号の都道府県と一致する候補を優先する
+        return preferSamePrefecture(results, address.prefecture);
+      }
     }
   }
 

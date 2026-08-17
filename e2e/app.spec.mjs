@@ -216,6 +216,7 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   // 開催時間はプランナーへ設定される（終了17:30は18時へ切り上げ）
   await expect(page.locator('#plan-start')).toHaveValue('11');
   await expect(page.locator('#plan-end')).toHaveValue('18');
+  await expect(page.locator('#status')).toContainText('開催時間（11時〜18時）');
 
   // 開催日が予報範囲外のイベント → 直近の予報を表示し、開催までの日数を案内する
   await page.selectOption('#event-select', '1');

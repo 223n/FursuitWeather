@@ -1315,6 +1315,10 @@
     eventSelect.replaceChildren();
     if (eventList.length === 0) {
       eventSelect.appendChild(new Option(emptyMessage, ''));
+      // 再実行（開催終了の検知時）で空になった場合に、押しても何も起きない
+      // ボタンが残らないよう初期状態へ戻す
+      eventSelect.disabled = true;
+      eventButton.disabled = true;
       return;
     }
     eventList.forEach((event, index) => {
@@ -1344,19 +1348,22 @@
   }
 
   /** 対象日のイベント開催時間を活動プランナーへ設定する。
-   * 複数日開催で対象日が初日・最終日でない場合は、その日は終日開催として扱う。
-   * 設定できたときは「12時〜17時」形式の文言を返す（時間の定義がなければnull） */
+   * 開催時間（startTime・endTime）は期間全体の開始・終了のため、複数日開催では
+   * 初日は開始時刻から24時まで、最終日は0時から終了時刻まで、中日は終日とする。
+   * 設定できたときは利用者へ示す説明文を返す（時間の定義がなければnull） */
   function applyEventPlanTimes(event, targetDate) {
     if (event.startTime === undefined && event.endTime === undefined) {
       return null;
     }
+    const isFirstDay = targetDate === event.startDate;
+    const isLastDay = targetDate === event.endDate;
     const startHour =
-      targetDate === event.startDate && event.startTime !== undefined
+      isFirstDay && event.startTime !== undefined
         ? Number.parseInt(event.startTime.slice(0, 2), 10)
         : 0;
     // 終了時刻は時間単位へ切り上げる（19:30終了なら20時までを計画に含める）
     let endHour = 24;
-    if (targetDate === event.endDate && event.endTime !== undefined) {
+    if (isLastDay && event.endTime !== undefined) {
       const hour = Number.parseInt(event.endTime.slice(0, 2), 10);
       endHour = event.endTime.endsWith(':00') ? hour : hour + 1;
     }
@@ -1368,7 +1375,19 @@
     planEnd.value = String(endHour);
     // 前の条件で作った計画は前提が変わるため消す（プランナーは操作起点で作り直す）
     clearPlan();
-    return `${startHour}時〜${endHour}時`;
+    const range = `${startHour}時〜${endHour}時`;
+    // 複数日開催では「その日の分」であることが分かる言い方にする
+    // （初日の終わり・最終日の始まりの時刻は定義に無いため終日として扱っている）
+    if (isFirstDay && isLastDay) {
+      return `開催時間（${range}）`;
+    }
+    if (isFirstDay) {
+      return `開催初日の時間帯（${range}）`;
+    }
+    if (isLastDay) {
+      return `最終日の時間帯（${range}）`;
+    }
+    return `終日開催の日の時間帯（${range}）`;
   }
 
   /** 選択中のイベントの開催地の予報を表示する。
@@ -1387,6 +1406,12 @@
     }
     // 表示待ちの間の明示的なタブ操作を、完了後の自動切り替えで上書きしないためのガード
     const tabSeqAtStart = manualTabSeq;
+    // 保留中のセレクト操作が郵便番号の検索中に発火して、この明示操作を
+    // 追い越さないよう先に解除する（loadForecast・現在地ボタンと同じ扱い）
+    clearTimeout(cityChangeTimer);
+    cityChangeTimer = null;
+    // 直前の地点検索の候補が残っていると、どれが表示中か紛らわしいため消す
+    clearSearchResults();
     // 開催地は郵便番号から検索する（地点検索と同じ/api/geocode経由。
     // 古い応答が新しい操作を上書きしないよう、地点検索と同じ世代番号で守る）
     const seq = ++searchSeq;
@@ -1436,7 +1461,7 @@
       }
       setStatus(
         `${prefix}「${event.name}」開催日（${formatDate(targetDate)}）の予報です。` +
-          (planText ? `活動プランナーに開催時間（${planText}）を設定しました。` : ''),
+          (planText ? `活動プランナーに${planText}を設定しました。` : ''),
         false,
       );
       return;
