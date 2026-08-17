@@ -389,6 +389,14 @@ input[type='number']:focus {
   font-size: 0.95rem;
 }
 
+/* 屋内の冷房要否行（アイコン+ラベル+バッジを1行に揃える） */
+.now-indoor {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  flex-wrap: wrap;
+}
+
 .status-box {
   grid-area: 1 / 1;
   padding: 0.75rem 1rem;

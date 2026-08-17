@@ -535,9 +535,16 @@
     const timeLine = document.createElement('p');
     timeLine.className = 'now-time';
     // 現在時刻ちょうどのデータがない場合（深夜の欠測など）は代替時刻を明示する
-    timeLine.textContent =
-      `${hourNumber === now.hour ? `${hourNumber}時` : `本日${hourNumber}時（直近の時間帯）`}` +
-      `・${target.weatherLabel}・${target.weather.temperature.toFixed(1)}℃`;
+    timeLine.appendChild(
+      document.createTextNode(
+        `${hourNumber === now.hour ? `${hourNumber}時` : `本日${hourNumber}時（直近の時間帯）`}・`,
+      ),
+    );
+    // 天気は他の表示と同じくアイコン+文字で示す
+    timeLine.appendChild(weatherWithLabel(target.weather.weatherCode, target.weatherLabel));
+    timeLine.appendChild(
+      document.createTextNode(`・${target.weather.temperature.toFixed(1)}℃`),
+    );
 
     const headline = document.createElement('div');
     headline.className = 'now-headline';
@@ -554,9 +561,17 @@
     advice.className = 'now-advice';
     advice.textContent = target.outdoor.advice;
 
+    // 屋内の冷房要否は時間別テーブルと同じバッジ（雪の結晶+記号）で示す
     const indoor = document.createElement('p');
-    indoor.className = 'now-time';
-    indoor.textContent = `屋内（空調なし想定）: ${target.indoor.coolingLabel}`;
+    indoor.className = 'now-time now-indoor';
+    indoor.appendChild(faIcon('house', 'th-icon'));
+    indoor.appendChild(document.createTextNode('屋内（空調なし想定）:'));
+    indoor.appendChild(
+      createBadge({
+        ...(COOLING_BADGES[target.indoor.cooling] ?? COOLING_BADGES.none),
+        label: target.indoor.coolingLabel,
+      }),
+    );
 
     nowCard.replaceChildren(timeLine, headline, advice, indoor);
   }
@@ -1170,7 +1185,12 @@
     notes.className = 'plan-notes hint';
     if (rainHours.length > 0) {
       const rainNote = document.createElement('li');
-      rainNote.textContent = `降水の予報がある時間帯: ${rainHours.join('、')}。濡れたファーは乾きにくく冷えの原因になります。`;
+      rainNote.appendChild(faIcon('cloud-rain', 'btn-icon weather-cloud-rain'));
+      rainNote.appendChild(
+        document.createTextNode(
+          `降水の予報がある時間帯: ${rainHours.join('、')}。濡れたファーは乾きにくく冷えの原因になります。`,
+        ),
+      );
       notes.appendChild(rainNote);
     }
     const generalNote = document.createElement('li');
