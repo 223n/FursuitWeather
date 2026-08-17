@@ -8,6 +8,7 @@ import {
   OPEN_METEO_BASE_URL,
   OPEN_METEO_FORECAST_BASE_URL,
   UPSTREAM_CACHE_TTL_SECONDS,
+  UPSTREAM_RETRY_DELAY_MS,
   UPSTREAM_TIMEOUT_MS,
 } from '../constants';
 import type { HourlyWeather } from '../types';
@@ -212,7 +213,9 @@ async function fetchPrecipitationProbability(
 ): Promise<Map<string, number>> {
   const url = buildProbabilityUrl(latitude, longitude, days);
   try {
-    const response = await fetchImpl(url, upstreamInit());
+    // 予報本体と同じ上流のため、瞬断の取り直しも同じ扱いにする
+    // （UpstreamErrorはこの関数のcatchが受け止め、空のMapに落ちる）
+    const response = await requestUpstream(url, fetchImpl);
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 200);
       console.error('降水確率APIエラー:', url, response.status, detail);
@@ -243,7 +246,7 @@ async function fetchPrecipitationProbability(
 }
 
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
-async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
+async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
     return await fetchImpl(url, upstreamInit());
   } catch (error) {
@@ -257,6 +260,30 @@ async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Re
         : '気象データの取得に失敗しました。時間をおいて再度お試しください',
     );
   }
+}
+
+/**
+ * 上流へのHTTPリクエスト。5xxのときだけ一度取り直す
+ *
+ * Open-Meteo自身もCDNの背後にあり、CDNからオリジンへ到達できない数百ミリ秒の
+ * 瞬断（HTTP 525など）が実際に観測されている。1回の取り直しでこの手の瞬断は
+ * 吸収でき、利用者にエラーを見せずに済む。
+ * 取り直さないもの:
+ * - 4xx（リクエスト自体の問題。取り直しても同じ結果になる）
+ * - タイムアウト（`requestOnce`がUpstreamErrorとして投げる。待ち時間が二重になり
+ *   かえって体験が悪くなるため、そのまま失敗させる）
+ */
+async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
+  const response = await requestOnce(url, fetchImpl);
+  if (response.status < 500) {
+    return response;
+  }
+  // 破棄する応答も本文を読み切る（未読ストリームが上流接続を保持するのを防ぐ）。
+  // 取り直して成功した場合はログだけが残り、利用者にはエラーが見えない
+  const detail = (await response.text().catch(() => '')).slice(0, 200);
+  console.error('上流の一時エラー（取り直します）:', url, response.status, detail);
+  await new Promise((resolve) => setTimeout(resolve, UPSTREAM_RETRY_DELAY_MS));
+  return requestOnce(url, fetchImpl);
 }
 
 /**

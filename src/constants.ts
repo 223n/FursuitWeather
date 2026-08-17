@@ -302,6 +302,14 @@ export const UPSTREAM_CACHE_TTL_SECONDS = 1800;
  */
 export const UPSTREAM_TIMEOUT_MS = 10000;
 
+/**
+ * 上流APIが5xxを返したときに取り直すまでの待ち時間（ミリ秒）
+ * Open-Meteo自身もCDNの背後にあり、CDNからオリジンへ到達できない数百ミリ秒の
+ * 瞬断（HTTP 525など）が実際に観測されている。利用者を待たせすぎない範囲で
+ * 瞬断をまたげる長さにする
+ */
+export const UPSTREAM_RETRY_DELAY_MS = 250;
+
 /** 自APIレスポンスのブラウザキャッシュ時間（秒） */
 export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
 
