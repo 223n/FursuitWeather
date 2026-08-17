@@ -17,13 +17,16 @@
    - フッターのバージョン表記（`index.html`・`about.html`・`404.html`）
    - 不一致はhtmlSyncテストがCIで検出します
 2. PRを作成してmainへマージする（マージで本番デプロイが走る）
-3. mainのマージコミットへタグを付けてプッシュする
+3. タグを作成する。方法は2つあり、どちらでも同じ結果になります
+   - **Actionsタブから**: `Release`ワークフローを手動実行（Run workflow）すると、
+     package.jsonのバージョンでタグを作成してからリリースを作成します
+   - **ローカルから**: mainのマージコミットへタグを付けてプッシュする
 
-   ```bash
-   git fetch origin main
-   git tag vX.Y.Z origin/main
-   git push origin vX.Y.Z
-   ```
+     ```bash
+     git fetch origin main
+     git tag vX.Y.Z origin/main
+     git push origin vX.Y.Z
+     ```
 
 4. `release.yml`が起動し、GitHubリリースを自動作成する
    （リリースノートは前回リリース以降のマージ済みPRから自動生成）
