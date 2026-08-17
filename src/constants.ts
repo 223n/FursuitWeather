@@ -278,6 +278,17 @@ export const GEOCODING_MAX_RESULTS = 5;
  */
 export const GEOCODING_CITY_SUFFIXES = ['市', '町', '村', '区'];
 
+/**
+ * 郵便番号から得た市区町村名を段階的に短くして再検索する回数の上限
+ * zipcloudの住所（address2）は「大阪市北区」「伊都郡高野町」のような複合名を返すが、
+ * Open-Meteoジオコーディングの登録名は「大阪市」「高野町」「御殿場」のように
+ * 単一の自治体名（接尾辞の有無も一定しない）のため、複合名のままでは0件になる。
+ * 政令市の区→市、郡→町村、接尾辞除去の順で候補を絞り込む。
+ * 現在の絞り込み規則が作る候補は最大3件だが、規則を増やしたときに
+ * 上流呼び出しが際限なく増えないよう上限として明示する
+ */
+export const GEOCODING_CITY_FALLBACK_LIMIT = 3;
+
 /** 地点検索レスポンスのキャッシュ時間（秒）。地名データはほぼ変化しないため7日 */
 export const GEOCODING_CACHE_TTL_SECONDS = 604800;
 
