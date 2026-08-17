@@ -28,7 +28,7 @@
   <link rel="canonical" href="https://fursuit-weather.223n.tech/">
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
-  <link rel="preload" href="/api/forecast?lat=35.68&lon=139.68" as="fetch" crossorigin>
+  <link rel="preload" href="/api/forecast?lat=35.68&lon=139.68&days=3" as="fetch" crossorigin>
   <script src="/app.js" defer></script>
   <!-- 構造化データ（JSON-LD）: 検索エンジンにサイト名とアプリの性質を伝える -->
   <script type="application/ld+json">
@@ -177,9 +177,20 @@
       <div id="status-error" class="status-box" role="alert"></div>
     </div>
 
+    <!-- タブ: 主要コンテンツを切り替えて縦の長さを抑える（WAI-ARIAタブパターン、
+         矢印キーで移動+自動選択）。時間別の3タブは同じパネルを日付を変えて共有する -->
+    <div class="tabs" role="tablist" aria-label="予報の表示切り替え">
+      <button type="button" role="tab" id="tab-now" aria-selected="true" aria-controls="now-section">現在の天気</button>
+      <button type="button" role="tab" id="tab-days" aria-selected="false" aria-controls="days-section" tabindex="-1">3日間の天気</button>
+      <button type="button" role="tab" id="tab-day-0" aria-selected="false" aria-controls="hours-section" tabindex="-1">今日の天気</button>
+      <button type="button" role="tab" id="tab-day-1" aria-selected="false" aria-controls="hours-section" tabindex="-1">明日の天気</button>
+      <button type="button" role="tab" id="tab-day-2" aria-selected="false" aria-controls="hours-section" tabindex="-1">明後日の天気</button>
+      <button type="button" role="tab" id="tab-planner" aria-selected="false" aria-controls="planner-section" tabindex="-1">活動プランナー</button>
+    </div>
+
     <!-- いまの判定: 現在時刻の判定を大きく1枚で表示する（現場でひと目で分かる用途）。
          読み込み前はスケルトンで高さを確保し、CLSを防ぐ -->
-    <section id="now-section" aria-labelledby="now-heading">
+    <section id="now-section" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
       <h2 id="now-heading">いまの判定</h2>
       <div id="now-card" class="now-card">
         <div class="skeleton-line w40"></div>
@@ -229,7 +240,7 @@
       </details>
     </section>
 
-    <section id="days-section" aria-label="日別の予報">
+    <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
       <h2>日別サマリー</h2>
       <p class="hint">カードを選択すると、その日の時間別予報を表示します。</p>
       <div id="day-cards" class="day-cards">
@@ -274,7 +285,7 @@
       </div>
     </section>
 
-    <section id="hours-section" aria-label="時間別の予報">
+    <section id="hours-section" role="tabpanel" aria-labelledby="tab-day-0" tabindex="0" hidden>
       <h2 id="hours-title">時間別予報</h2>
       <div class="table-wrapper">
         <table id="hours-table">
@@ -303,13 +314,15 @@
 
     <!-- 活動プランナー: 選択中の日の指定時間帯から休憩計画を組み立てる。
          結果は利用者の操作起点で表示されるためCLS対策の対象外 -->
-    <section id="planner-section" aria-labelledby="planner-heading">
+    <section id="planner-section" role="tabpanel" aria-labelledby="tab-planner" tabindex="0" hidden>
       <h2 id="planner-heading">活動プランナー</h2>
       <p class="hint">
-        イベントの時間帯を選ぶと、選択中の日のその時間帯の判定と、
+        日付とイベントの時間帯を選ぶと、その時間帯の判定と、
         休憩を挟んだ着用計画の目安を表示します（終了時刻は含みません）。
       </p>
       <div class="control-row">
+        <label for="plan-date">日付</label>
+        <select id="plan-date"></select>
         <label for="plan-start">開始</label>
         <select id="plan-start"></select>
         <label for="plan-end">終了</label>

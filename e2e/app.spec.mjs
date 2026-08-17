@@ -25,14 +25,39 @@ test.beforeEach(async ({ page }) => {
   await mockForecastWithDemo(page);
 });
 
-test('初期表示: いまの判定・日別カード・時間別テーブルが描画される', async ({ page }) => {
+test('初期表示とタブ切り替え: 各タブの内容が描画される', async ({ page }) => {
   await page.goto('/');
   await waitForForecast(page);
 
   await expect(page.locator('#status')).toContainText('予報を取得しました');
-  await expect(page.locator('#now-card .badge')).toBeVisible();
+  // 既定タブ「現在の天気」: 屋外判定と冷房要否のバッジが表示される
+  await expect(page.locator('#now-card .now-headline .badge')).toBeVisible();
+  await expect(page.locator('#now-card .now-indoor .badge')).toBeVisible();
+  await expect(page.locator('#days-section')).toBeHidden();
+
+  // 「3日間の天気」タブ: 日別カード（デモは2日分）
+  await page.click('#tab-days');
+  await expect(page.locator('#days-section')).toBeVisible();
+  await expect(page.locator('#now-section')).toBeHidden();
   await expect(page.locator('#day-cards .day-card:not(.skeleton-card)')).toHaveCount(2);
+
+  // 「今日の天気」タブ: 時間別テーブル。デモは2日分のため明後日タブは非表示
+  await page.click('#tab-day-0');
+  await expect(page.locator('#hours-section')).toBeVisible();
   expect(await page.locator('#hours-body tr').count()).toBeGreaterThan(0);
+  await expect(page.locator('#tab-day-2')).toBeHidden();
+
+  // 日別カードのクリックはその日の時間別タブへの切り替えになる
+  await page.click('#tab-days');
+  await page.click('#day-cards .day-card:nth-child(2) .day-card-button');
+  await expect(page.locator('#hours-section')).toBeVisible();
+  await expect(page.locator('#tab-day-1')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#hours-title')).toContainText('時間別予報（');
+
+  // 矢印キーでタブを移動できる（自動選択）
+  await page.locator('#tab-day-1').press('ArrowLeft');
+  await expect(page.locator('#tab-day-0')).toHaveAttribute('aria-selected', 'true');
+
   // 既定都市（東京）がURLへ小数2桁で反映される（共有URLの座標精度の契約）
   await expect(page).toHaveURL(/lat=35\.68&lon=139\.68/);
 });
@@ -115,17 +140,25 @@ test('現在地: 座標が約1kmへ丸められ、URLにもお気に入りにも
   expect(requested.some((n) => n.includes('lat=35.68&lon=139.77'))).toBe(true);
 });
 
-test('活動プランナー: 時間帯の計画と日付切替でのクリア', async ({ page }) => {
+test('活動プランナー: 日付と時間帯を選んで計画を表示する', async ({ page }) => {
   await page.goto('/');
   await waitForForecast(page);
+
+  await page.click('#tab-planner');
+  await expect(page.locator('#planner-section')).toBeVisible();
+  // 日付候補は取得済みの日数分（デモは2日=今日・明日）
+  await expect(page.locator('#plan-date option')).toHaveCount(2);
 
   await page.click('#plan-button');
   await expect(page.locator('#plan-result')).toContainText('10時〜16時の計画');
   expect(await page.locator('#plan-result .badge').count()).toBeGreaterThan(0);
 
-  // 日付を切り替えると古い前提の計画は消える
-  await page.click('#day-cards .day-card:nth-child(2) .day-card-button');
-  await expect(page.locator('#plan-result')).toBeEmpty();
+  // 日付を明日へ変えて再作成すると、見出しの日付が変わる
+  const tomorrow = await page.locator('#plan-date option').nth(1).getAttribute('value');
+  await page.selectOption('#plan-date', tomorrow);
+  await page.click('#plan-button');
+  const day = Number.parseInt(tomorrow.split('-')[2], 10);
+  await expect(page.locator('#plan-result h3')).toContainText(`${day}日`);
 });
 
 test('エラー時: 固定の日本語文が表示され、生の英語メッセージを出さない', async ({ page }) => {
