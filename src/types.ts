@@ -127,6 +127,9 @@ export interface DayForecast {
   recommendedHours: string[];
   /** 日中に冷房必須となる時間があるか */
   coolingRequired: boolean;
+  /** その日の素のWBGT（着衣補正前）の最大値（℃）。熱中症警戒アラートの
+   * 発表基準（33以上）への該当判断に使える */
+  maxWbgt: number;
   laundry: LaundryAssessment;
 }
 

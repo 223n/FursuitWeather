@@ -22,6 +22,7 @@ import wbgtTool from '../public/wbgt-tool.js?raw';
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
+  HEAT_STROKE_ALERT_WBGT,
   COOLING_LABELS,
   COOLING_RECOMMENDED_WBGT,
   COOLING_REQUIRED_WBGT,
@@ -341,6 +342,14 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
     // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
     expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+  });
+
+  it('熱中症警戒アラート基準（WBGT 33）の複製箇所はconstantsと一致する', () => {
+    // app.jsの注意表示の判定・文言と、docsの記述を単一情報源に揃える
+    expect(appJs).toContain(`d.maxWbgt >= ${HEAT_STROKE_ALERT_WBGT}`);
+    expect(appJs).toContain(`暑さ指数（WBGT）${HEAT_STROKE_ALERT_WBGT}以上`);
+    expect(apiMd).toContain(`${HEAT_STROKE_ALERT_WBGT}以上は環境省の熱中症警戒アラートの発表基準に相当`);
+    expect(logicMd).toContain(`${HEAT_STROKE_ALERT_WBGT}以上は環境省・`);
   });
 
   it('判定ロジックの解説（docs/logic.md）のしきい値・係数はconstantsと一致する', () => {

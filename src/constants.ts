@@ -44,6 +44,14 @@ export const INDOOR_WIND_SPEED = 0.5;
  */
 export const COLD_SWITCH_TEMPERATURE = 15;
 
+/**
+ * 熱中症警戒アラートの発表基準となる暑さ指数（℃、着衣補正前の素のWBGT）
+ * 環境省・気象庁は府県予報区内のいずれかの地点で日最高暑さ指数33以上が
+ * 予測される場合に熱中症警戒アラートを発表する
+ * https://www.wbgt.env.go.jp/alert.php
+ */
+export const HEAT_STROKE_ALERT_WBGT = 33;
+
 /** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
 export interface HeatBand {
   /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */

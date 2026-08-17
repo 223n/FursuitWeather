@@ -59,6 +59,22 @@ describe('buildDayForecast', () => {
     expect(day.coolingRequired).toBe(true);
   });
 
+  it('素のWBGTの日最大（maxWbgt）を全時間帯から集計する', () => {
+    const hours = fullDay('2026-08-15', { temperature: 36, humidity: 70 }).map(buildHourForecast);
+    const day = buildDayForecast('2026-08-15', hours);
+    // 各時間の素のWBGTの最大値と一致し、着衣補正（+11℃）は含まない
+    const expected = Math.max(...hours.map((h) => h.outdoor.wbgt));
+    expect(day.maxWbgt).toBe(expected);
+    // 猛暑日の設定では熱中症警戒アラートの発表基準（33以上）に達する
+    expect(day.maxWbgt).toBeGreaterThanOrEqual(33);
+  });
+
+  it('涼しい日のmaxWbgtは警戒アラート基準（33）に達しない', () => {
+    const hours = fullDay('2026-08-15', { temperature: 15, humidity: 50 }).map(buildHourForecast);
+    const day = buildDayForecast('2026-08-15', hours);
+    expect(day.maxWbgt).toBeLessThan(33);
+  });
+
   it('最悪と最良の判定はそれぞれ別の時間帯から選ばれる', () => {
     // 既定の日中は猛暑（危険）のため、15時だけ涼しくして最良側が更新されることを確かめる
     const raw = fullDay('2026-08-15');

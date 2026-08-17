@@ -639,6 +639,26 @@
   /** 注意事項を描画する */
   function renderNotices() {
     noticesList.replaceChildren();
+    // 素のWBGT（着衣補正前）が熱中症警戒アラートの発表基準（33以上）に達する日は、
+    // 公式の発表状況への導線つきで最上部に注意を出す（判定はサーバーのmaxWbgtを使う）
+    const alertDays = currentForecast.days
+      .filter((d) => typeof d.maxWbgt === 'number' && d.maxWbgt >= 33)
+      .map((d) => formatDate(d.date));
+    if (alertDays.length > 0) {
+      const item = document.createElement('li');
+      item.className = 'alert-notice';
+      const icon = faIcon('triangle-exclamation', 'btn-icon');
+      const text = document.createTextNode(
+        `${alertDays.join('、')}は暑さ指数（WBGT）33以上が予測されています。` +
+          '環境省の熱中症警戒アラートの発表基準に相当する暑さです。公式の発表状況は',
+      );
+      const link = document.createElement('a');
+      link.href = 'https://www.wbgt.env.go.jp/alert.php';
+      link.rel = 'noopener';
+      link.textContent = '環境省 熱中症予防情報サイト';
+      item.append(icon, text, link, document.createTextNode('をご確認ください。'));
+      noticesList.appendChild(item);
+    }
     for (const notice of currentForecast.notices) {
       const item = document.createElement('li');
       item.textContent = notice;

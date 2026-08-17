@@ -747,6 +747,19 @@ tbody tr.night {
   margin-bottom: 0.4rem;
 }
 
+/* 熱中症警戒アラート基準相当の注意（注意事項欄の先頭で枠付きで目立たせる） */
+.alert-notice {
+  list-style: none;
+  border: 2px solid var(--level-3-accent);
+  border-radius: 6px;
+  background-color: var(--level-3-surface);
+  padding: 0.5rem 0.75rem;
+}
+
+.alert-notice .fa-icon {
+  color: var(--level-3-accent);
+}
+
 .about ul {
   padding-left: 1.2rem;
   font-size: 0.9rem;

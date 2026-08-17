@@ -100,6 +100,7 @@ WBGT計算に必要な気象値（気温・湿度・体感温度・風速・日�
 | `outdoorWorst`・`outdoorBest` | object | 日中（9〜18時）の最も厳しい／穏やかな屋外判定（`level`・`label`・`grade`） |
 | `recommendedHours` | string[] | 屋外活動に適した時間帯（`HH:00`形式）。日中（9〜18時）のうち深刻度1以下かつ降水量0の時間帯が対象 |
 | `coolingRequired` | boolean | 日中に冷房必須となる時間があるか |
+| `maxWbgt` | number | その日の素のWBGT（着衣補正前）の最大値（℃）。33以上は環境省の熱中症警戒アラートの発表基準に相当 |
 | `laundry` | object | 洗濯乾燥判定（下記） |
 
 `laundry` は次のフィールドを持ちます。

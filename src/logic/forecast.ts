@@ -78,6 +78,9 @@ export function buildDayForecast(date: string, hours: readonly HourForecast[]): 
     outdoorBest: toSummary(best),
     recommendedHours,
     coolingRequired: summaryTarget.some((h) => h.indoor.cooling === 'required'),
+    // 素のWBGT（着衣補正前）の日最大。熱中症警戒アラートの発表基準（33以上）
+    // への該当判断に使えるよう、日中に限らず全時間帯から取る
+    maxWbgt: Math.max(...hours.map((h) => h.outdoor.wbgt)),
     laundry: assessLaundry(hours.map((h) => h.weather)),
   };
 }
