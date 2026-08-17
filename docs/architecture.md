@@ -160,7 +160,7 @@ CSPの要点は次のとおりです。
 「このページが載せたタグだけ」を実行できるようにしています。
 
 ```
-script-src 'nonce-<毎回変わる値>' 'strict-dynamic' 'unsafe-inline'
+script-src 'nonce-<毎回変わる値>' 'strict-dynamic' https: http: 'unsafe-inline'
 style-src  'self' 'nonce-<同じ値>'
 ```
 
@@ -168,11 +168,25 @@ style-src  'self' 'nonce-<同じ値>'
   CSPヘッダーにも入れます（`src/index.ts`の`withNonce`）
 - `'strict-dynamic'`があるとホスト許可リストは無視されるため、外部
   スクリプト（アクセス解析）もHTML内のタグにnonceが付くことで読み込まれます
-- `'unsafe-inline'`はnonceを解釈できない古いブラウザ向けの後方互換で、
-  nonce対応ブラウザでは無視されます
 - JSON-LDは実行されないデータブロックのためnonceを付けません
 - nonceは毎回変わるため、共有キャッシュに載らないよう`Cache-Control:
   no-store`を付けます
+
+`script-src`の後半（`https:` `http:` `'unsafe-inline'`）は古いブラウザ向けの
+後方互換です。ブラウザは解釈できない指定を読み飛ばすため、結果として
+「解釈できる中で最も厳しい規則」が働きます。
+
+| 環境 | 効く指定 |
+|------|----------|
+| `'strict-dynamic'`対応（CSP3） | nonce + `'strict-dynamic'`。以降のスキームと`'unsafe-inline'`は無視される |
+| nonceのみ対応（CSP2） | nonce + `https:` `http:`（ホスト許可リストとして働く） |
+| nonce非対応（CSP1） | `'unsafe-inline'` |
+
+併記しないと、`'strict-dynamic'`を解釈しない環境でnonce付きスクリプトが
+動的に読み込むスクリプトが黙ってブロックされます。`http:`は
+`upgrade-insecure-requests`によりhttpsへ格上げされるため、平文通信の
+入口にはなりません。並び順はCSPの意味を変えませんが、段階が読み取れるよう
+厳しい順に書いています。
 
 **nonceは必ずリクエストごとに変える必要があります。** HTMLに書かれた値は
 攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて
