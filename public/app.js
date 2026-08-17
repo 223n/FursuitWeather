@@ -93,6 +93,10 @@
   /** 表示に成功した地点のクエリと名前（共有ボタンはこちらを使う。失敗中のlastQueryとは別） */
   let displayedQuery = null;
   let displayedName = null;
+  /** 表示中の地点がお気に入りに登録可能か（現在地=persist:falseは不可）と、登録に使う情報 */
+  let displayedStorable = false;
+  let displayedStoredName = null;
+  let displayedCityIndex = null;
   /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
   let requestSeq = 0;
   /** 進行中の地点検索の識別番号（古い検索応答で候補が汚染されるのを防ぐ） */
@@ -177,6 +181,51 @@
       );
     } catch {
       // 保存できなくても予報表示自体には影響しないため無視する
+    }
+  }
+
+  // お気に入り地点（このブラウザ内にのみ保存する）。
+  // 現在地はプライバシー約束（位置情報は保存しません）のため登録できない
+  const FAVORITES_STORAGE_KEY = 'fursuitweather:favorites';
+  const MAX_FAVORITES = 6;
+
+  /** お気に入り一覧を読み出す。形式が不正・破損している場合は空配列を返す */
+  function readFavorites() {
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (!raw) {
+        return [];
+      }
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) {
+        return [];
+      }
+      return list
+        .filter(
+          (item) =>
+            item &&
+            typeof item.query === 'string' &&
+            /^lat=-?[\d.]+&lon=-?[\d.]+$/.test(item.query) &&
+            typeof item.name === 'string' &&
+            item.name !== '',
+        )
+        .slice(0, MAX_FAVORITES)
+        .map((item) => ({
+          query: item.query,
+          name: item.name,
+          cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** お気に入り一覧を保存する */
+  function writeFavorites(list) {
+    try {
+      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(list));
+    } catch {
+      // 保存できなくても表示自体には影響しないため無視する
     }
   }
 
@@ -607,6 +656,12 @@
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）
       displayedQuery = query;
       displayedName = locationName;
+      // お気に入り登録には記憶と同じ名前を使う（共有URL由来の名前を鵜呑みにしないため）。
+      // 現在地（persist: false）とデモはプライバシー約束のため登録不可にする
+      displayedStorable = persist && query !== 'demo=1';
+      displayedStoredName = storedName ?? locationName;
+      displayedCityIndex = cityIndex;
+      updateFavoriteToggle();
       if (query !== 'demo=1') {
         if (persist) {
           // 次回アクセス時に同じ地点を表示できるよう記憶し、表示中の地点をURLにも
@@ -758,6 +813,78 @@
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
   });
+
+  // お気に入り地点: チップで即切り替え、トグルボタンで表示中の地点を追加/解除する
+  const favoritesList = document.getElementById('favorites-list');
+  const favoriteToggleButton = document.getElementById('favorite-toggle-button');
+
+  /** お気に入りチップ一覧を描画し直す */
+  function renderFavorites() {
+    const items = readFavorites().map((fav) => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.appendChild(faIcon('location-dot', 'btn-icon'));
+      button.appendChild(document.createTextNode(fav.name));
+      button.addEventListener('click', () => {
+        loadForecast(fav.query, fav.name, {
+          cityIndex: fav.cityIndex,
+          storedName: fav.name,
+        });
+      });
+      item.appendChild(button);
+      return item;
+    });
+    favoritesList.replaceChildren(...items);
+  }
+
+  /** トグルボタンの文言と有効/無効を表示中の地点に合わせる */
+  function updateFavoriteToggle() {
+    const registered =
+      displayedStorable && readFavorites().some((fav) => fav.query === displayedQuery);
+    favoriteToggleButton.disabled = !displayedStorable;
+    favoriteToggleButton.replaceChildren(
+      faIcon('star', 'btn-icon'),
+      document.createTextNode(registered ? 'お気に入り解除' : 'お気に入りに追加'),
+    );
+    // 現在地・デモで無効化する理由を補足する（プライバシー約束との整合）
+    favoriteToggleButton.title = displayedStorable
+      ? ''
+      : '現在地とデモ表示はお気に入りに追加できません（位置情報は保存しません）';
+  }
+
+  favoriteToggleButton.addEventListener('click', () => {
+    if (!displayedStorable) {
+      return;
+    }
+    const favorites = readFavorites();
+    const index = favorites.findIndex((fav) => fav.query === displayedQuery);
+    if (index >= 0) {
+      const removed = favorites.splice(index, 1)[0];
+      writeFavorites(favorites);
+      setStatus(`「${removed.name}」をお気に入りから外しました。`, false);
+    } else {
+      if (favorites.length >= MAX_FAVORITES) {
+        setStatus(
+          `お気に入りは${MAX_FAVORITES}件までです。どれかを解除してから追加してください。`,
+          true,
+        );
+        return;
+      }
+      favorites.push({
+        query: displayedQuery,
+        name: displayedStoredName,
+        cityIndex: displayedCityIndex,
+      });
+      writeFavorites(favorites);
+      setStatus(`「${displayedStoredName}」をお気に入りに追加しました。`, false);
+    }
+    renderFavorites();
+    updateFavoriteToggle();
+  });
+
+  // 初期化時にチップを描画する（記憶済みのお気に入りを最初の描画から見せる）
+  renderFavorites();
 
   // 地点検索: 都市名・郵便番号を/api/geocode（Worker経由のジオコーディング）で検索し、
   // 候補をボタンとして表示する。選択で予報を読み込む

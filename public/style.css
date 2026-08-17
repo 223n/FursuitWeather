@@ -256,6 +256,24 @@ input[type='number']:focus {
   margin: 0.35rem 0;
 }
 
+/* お気に入り地点のチップ一覧。初期化時にlocalStorageから描画されるため、
+ * 1行分の高さを確保してレイアウトシフトを抑える（上限6件・折返し時は許容） */
+.favorites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  align-items: center;
+}
+
+.favorites-list button {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+}
+
 /* 検索結果の候補一覧。他のコントロールボタンと見分けが付くよう、
  * ラベル付きの枠で囲って「選ぶ場所」であることを明示する */
 .search-results-box {
