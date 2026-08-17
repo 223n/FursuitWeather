@@ -91,6 +91,34 @@ test('地点の選び方タブ: 1つのパネルだけが表示され、キー�
   await expect(page.locator('#picker-search')).toBeVisible();
 });
 
+test('キーボード操作: フォーカスが失われず、非表示パネルへ入り込まない', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 日別カードのボタンを押すとパネルが切り替わり、押したボタン自体が隠れる。
+  // フォーカスがbodyへ落ちないよう、選択された日付タブへ移ること
+  await page.click('#tab-days');
+  await page.click('#day-cards .day-card:nth-child(2) .day-card-button');
+  await expect(page.locator('#tab-day-1')).toBeFocused();
+  await expect(page.locator('#tab-day-1')).toHaveAttribute('aria-selected', 'true');
+
+  // Tabキーで到達する要素が、非表示パネルの中に含まれないこと
+  await page.evaluate(() => document.body.focus());
+  const reached = [];
+  for (let i = 0; i < 25; i += 1) {
+    await page.keyboard.press('Tab');
+    const info = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      return { id: el.id || el.tagName, inHidden: !!el.closest('[hidden]') };
+    });
+    if (!info) break;
+    reached.push(info);
+  }
+  expect(reached.length).toBeGreaterThan(5);
+  expect(reached.filter((e) => e.inHidden)).toEqual([]);
+});
+
 test('地点検索: 候補1件は自動選択され、複数件は一覧から選べる', async ({ page }) => {
   const one = {
     results: [{ name: '蒲郡', admin1: '愛知県', latitude: 34.8261, longitude: 137.2196 }],

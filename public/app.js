@@ -567,7 +567,14 @@
       if (onActivate) {
         onActivate(target);
       }
-      if (focusTab) {
+      // 切り替えでフォーカス中の要素が隠れる場合は、選択したタブへフォーカスを移す。
+      // 放置するとフォーカスがbodyへ落ち、キーボード利用者が位置を見失う
+      // （例: 日別カードのボタンを押すとその日の時間別タブへ切り替わり、
+      //   押したボタン自体が非表示のパネルの中に入る）
+      const active = document.activeElement;
+      const focusLost =
+        active && active !== document.body && (active.hidden || active.closest('[hidden]'));
+      if (focusTab || focusLost) {
         document.getElementById(tabId).focus();
       }
     };
