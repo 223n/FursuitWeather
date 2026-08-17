@@ -707,7 +707,20 @@
 
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
-      setStatus('予報を取得しました', false);
+      // オフライン時はService Workerが保存済みの予報で応答するため、
+      // その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
+      if (response.headers.get('X-Served-From-Cache') === '1') {
+        const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
+        const timeText = Number.isNaN(cachedAt.getTime())
+          ? '以前'
+          : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
+        setStatus(
+          `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`,
+          false,
+        );
+      } else {
+        setStatus('予報を取得しました', false);
+      }
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）
       displayedQuery = query;
@@ -1189,5 +1202,13 @@
     } else {
       loadSelectedCity();
     }
+  }
+
+  // Service Worker登録（PWA）: オフライン時にシェルと最後に取得した予報を表示できる。
+  // オンライン時は常にネットワーク優先のため、通常表示への影響はない（詳細はsw.js）
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // 登録できない環境（古いブラウザなど）でも通常表示には影響しない
+    });
   }
 })();
