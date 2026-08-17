@@ -25,20 +25,42 @@ describe('isHtmlPath', () => {
 describe('buildHtmlCsp', () => {
   const csp = buildHtmlCsp('test-nonce-value');
 
+  /** CSPから指定ディレクティブの値を取り出す */
+  function directive(name: string): string {
+    const match = csp.match(new RegExp(`(?:^|;)\\s*${name}\\s+([^;]+)`));
+    expect(match, `CSPに${name}がありません`).not.toBeNull();
+    return match![1]!.trim();
+  }
+
   it('scriptとstyleを同じnonceで許可する', () => {
     expect(csp).toContain("script-src 'nonce-test-nonce-value'");
     expect(csp).toContain("style-src 'self' 'nonce-test-nonce-value'");
   });
 
   it("'strict-dynamic'でホスト許可リストに頼らない", () => {
-    expect(csp).toContain("'strict-dynamic'");
+    expect(directive('script-src')).toContain("'strict-dynamic'");
     // 許可リスト方式の名残が残っていないこと（strict-dynamicで無視されるため
     // 書いてあると誤解を生む）
     expect(csp).not.toContain('static.cloudflareinsights.com');
   });
 
-  it("古いブラウザ向けに'unsafe-inline'を併記する（nonce対応環境では無視される）", () => {
-    expect(csp).toContain("'unsafe-inline'");
+  it('古いブラウザ向けの後方互換を、効く順に併記する', () => {
+    // 前の段を解釈できる環境では後ろの段は無視される。並び順自体はCSPの
+    // 意味を変えないが、段階が読み取れるよう厳しい順に書いている
+    expect(directive('script-src').split(/\s+/)).toEqual([
+      "'nonce-test-nonce-value'", // CSP3: これと'strict-dynamic'が効く環境では以降は無視される
+      "'strict-dynamic'",
+      'https:', // CSP2以前（'strict-dynamic'を解釈しない環境）向け
+      'http:',
+      "'unsafe-inline'", // CSP1（nonce非対応）向け。この環境では上のスキームも同時に効く
+    ]);
+  });
+
+  it('スクリプトの緩和はスキームの併記までで、任意実行を許さない', () => {
+    const scriptSrc = directive('script-src');
+    expect(scriptSrc).not.toContain("'unsafe-eval'");
+    // ワイルドカードはstrict-dynamic非対応環境でも書かない
+    expect(scriptSrc).not.toContain('*');
   });
 
   it('既定拒否・Trusted Types・埋め込み禁止は_headers側と同じ強度を保つ', () => {

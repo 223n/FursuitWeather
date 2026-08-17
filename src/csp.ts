@@ -24,17 +24,25 @@ export function isHtmlPath(pathname: string): boolean {
 /**
  * HTMLページ向けのCSPを組み立てる
  *
- * - `'strict-dynamic'`: nonce付きスクリプトが読み込むスクリプトも信頼する。
- *   これがあるとホスト許可リストは無視されるため、外部スクリプト
- *   （アクセス解析）もHTML内のタグにnonceが付くことで読み込まれる
- * - `'unsafe-inline'`: nonceを解釈できない古いブラウザ向けの後方互換。
- *   nonce対応ブラウザでは無視される
- * - Trusted Typesのポリシー名はpublic/app.jsのcreatePolicyと一致させること
+ * script-srcは新しいブラウザから順に効くよう並べている。前の段が効く環境では
+ * 後ろの段は無視されるため、全体としては「解釈できる中で最も厳しい規則」が働く。
+ * 1. nonce + `'strict-dynamic'`（CSP3）: nonce付きスクリプトと、それが読み込む
+ *    スクリプトだけを信頼する。外部スクリプト（アクセス解析）もHTML内のタグに
+ *    nonceが付くことで読み込まれる。この段が効くとき、以降はすべて無視される
+ * 2. `https:` `http:`（nonceは解釈するが`'strict-dynamic'`を解釈しない環境）:
+ *    スキーム指定として働き、httpsで配信されるスクリプトはすべて通る。1より
+ *    緩いが、nonce付きスクリプトが動的に読み込むスクリプトが黙ってブロック
+ *    されるのを防ぐ後方互換。この段では`'unsafe-inline'`はnonceがあるため無視され、
+ *    `http:`の取得は`upgrade-insecure-requests`でhttpsへ格上げされる
+ * 3. `'unsafe-inline'`（nonceも解釈しない古い環境）: nonceによる無効化が
+ *    効かないため、2のスキーム指定と同時に効く。最後の後方互換
+ *
+ * Trusted Typesのポリシー名はpublic/app.jsのcreatePolicyと一致させること
  */
 export function buildHtmlCsp(nonce: string): string {
   return [
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic' https: http: 'unsafe-inline'`,
     `style-src 'self' 'nonce-${nonce}'`,
     "img-src 'self'",
     "connect-src 'self' https://cloudflareinsights.com",

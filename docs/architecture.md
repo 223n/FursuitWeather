@@ -160,7 +160,7 @@ CSPの要点は次のとおりです。
 「このページが載せたタグだけ」を実行できるようにしています。
 
 ```
-script-src 'nonce-<毎回変わる値>' 'strict-dynamic' 'unsafe-inline'
+script-src 'nonce-<毎回変わる値>' 'strict-dynamic' https: http: 'unsafe-inline'
 style-src  'self' 'nonce-<同じ値>'
 ```
 
@@ -168,11 +168,31 @@ style-src  'self' 'nonce-<同じ値>'
   CSPヘッダーにも入れます（`src/index.ts`の`withNonce`）
 - `'strict-dynamic'`があるとホスト許可リストは無視されるため、外部
   スクリプト（アクセス解析）もHTML内のタグにnonceが付くことで読み込まれます
-- `'unsafe-inline'`はnonceを解釈できない古いブラウザ向けの後方互換で、
-  nonce対応ブラウザでは無視されます
 - JSON-LDは実行されないデータブロックのためnonceを付けません
 - nonceは毎回変わるため、共有キャッシュに載らないよう`Cache-Control:
   no-store`を付けます
+
+`script-src`の後半（`https:` `http:` `'unsafe-inline'`）は古いブラウザ向けの
+後方互換です。ブラウザは解釈できない指定を読み飛ばすため、結果として
+「解釈できる中で最も厳しい規則」が働きます。
+
+| 環境 | 効く指定 |
+|------|----------|
+| `'strict-dynamic'`対応（CSP3） | nonce + `'strict-dynamic'`のみ。スキームと`'unsafe-inline'`は無視される |
+| nonce対応・`'strict-dynamic'`非対応（CSP2） | nonce + `https:` `http:`。`'unsafe-inline'`はnonceがあるため無視される |
+| nonce非対応（CSP1） | `https:` `http:` + `'unsafe-inline'`。nonceによる無効化が効かないため両方が通る |
+
+`https:` `http:`はスキーム指定（scheme-source）で、`'self'`のような
+ホスト指定より広く「httpsで配信されるスクリプトなら通す」という意味です。
+CSP1しか解釈しない環境では、これと`'unsafe-inline'`が同時に効くため
+実質素通りになりますが、その世代のブラウザはもともと`'strict-dynamic'`も
+nonceも解釈できないので、併記の有無にかかわらず守れません。
+
+併記しないと、`'strict-dynamic'`を解釈しない環境でnonce付きスクリプトが
+動的に読み込むスクリプトが黙ってブロックされます。`http:`はCSP3・CSP2の
+環境では無視されるか`upgrade-insecure-requests`でhttpsへ格上げされ、
+そもそもHSTSにより平文では接続されません。並び順はCSPの意味を変えませんが、
+段階が読み取れるよう厳しい順に書いています。
 
 **nonceは必ずリクエストごとに変える必要があります。** HTMLに書かれた値は
 攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて

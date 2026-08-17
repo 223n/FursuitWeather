@@ -149,13 +149,15 @@ npm run deploy
 
 静的アセットのレスポンスヘッダーは`public/_headers`で設定しています
 （CSP・X-Content-Type-Options・Referrer-Policy・Permissions-Policy・
-HSTS）。APIレスポンスのヘッダーは`src/api/forecast.ts`の`json()`で
-設定します。
+HSTS）。HTMLページのCSPだけは`src/csp.ts`が組み立て、Workerが
+リクエストごとのnonce付きで付与します（`docs/architecture.md`を参照）。
+APIレスポンスのヘッダーは`src/api/forecast.ts`の`json()`で設定します。
 
-CSPは自己配信のみを許可する構成（`default-src 'self'`）のため、
-外部CDN・Webフォント・外部画像などを追加する場合は`_headers`の更新が
-必要です。デプロイ時にCSSがHTMLへインライン化されるため、`style-src`には
-`'unsafe-inline'`を含めています。
+CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構成のため、
+外部CDN・Webフォント・外部画像などを追加する場合は`_headers`と`src/csp.ts`の
+両方を更新する必要があります。デプロイ時にCSSがHTMLへインライン化されるため、
+`style-src`ではそのCSSをアセット側はハッシュで、HTMLページ側はnonceで
+許可しています。
 
 ## 依存関係の更新
 
