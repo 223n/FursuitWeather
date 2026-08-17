@@ -161,6 +161,64 @@ test('活動プランナー: 日付と時間帯を選んで計画を表示する
   await expect(page.locator('#plan-result h3')).toContainText(`${day}日`);
 });
 
+test('イベント: リストから選ぶと開催地の予報と開催日のタブが表示される', async ({ page }) => {
+  // 予報データ（デモ）はJSTの当日から始まるため、日付もJST基準で作る
+  const jstDate = (offsetDays) =>
+    new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
+  await page.route('**/events.json', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        events: [
+          {
+            name: 'サマーコン',
+            place: '東京ビッグサイト',
+            lat: 35.6297,
+            lon: 139.7947,
+            startDate: jstDate(0),
+          },
+          {
+            name: 'ウィンターフェス',
+            place: '幕張メッセ',
+            lat: 35.6474,
+            lon: 140.0343,
+            startDate: jstDate(10),
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 開催中のイベント → 開催地の予報+今日のタブへ切り替わる。座標は小数2桁
+  await page.selectOption('#event-select', '0');
+  await page.click('#event-button');
+  await expect(page.locator('#location-label')).toContainText('サマーコン（東京ビッグサイト）');
+  await expect(page.locator('#tab-day-0')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
+  await expect(page).toHaveURL(/lat=35\.63&lon=139\.79/);
+
+  // 開催日が予報範囲外のイベント → 直近の予報を表示し、範囲外である旨を案内する
+  await page.selectOption('#event-select', '1');
+  await page.click('#event-button');
+  await expect(page.locator('#location-label')).toContainText('ウィンターフェス（幕張メッセ）');
+  await expect(page.locator('#status')).toContainText('まだ予報の範囲外です');
+});
+
+test('イベント: 定義が空のときはセレクトとボタンが無効のまま', async ({ page }) => {
+  // 実ファイルの内容に依存させない（運営者がイベントを追加してもこのテストは維持される）
+  await page.route('**/events.json', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events: [] }) }),
+  );
+  await page.goto('/');
+  await waitForForecast(page);
+  await expect(page.locator('#event-select')).toBeDisabled();
+  await expect(page.locator('#event-select')).toContainText('予定されているイベントはありません');
+  await expect(page.locator('#event-button')).toBeDisabled();
+});
+
 test('エラー時: 固定の日本語文が表示され、生の英語メッセージを出さない', async ({ page }) => {
   await page.unroute('**/api/forecast*');
   await page.route('**/api/forecast*', (route) => route.abort());

@@ -8,7 +8,7 @@ const SHELL_CACHE = `fursuitweather-shell-${VERSION}`;
 const DATA_CACHE = `fursuitweather-data-${VERSION}`;
 
 // オフライン表示に最低限必要なシェル（HTMLはナビゲーション時にも都度更新される）
-const SHELL_URLS = ['/', '/about', '/app.js', '/wbgt-tool.js', '/favicon.svg'];
+const SHELL_URLS = ['/', '/about', '/app.js', '/wbgt-tool.js', '/favicon.svg', '/events.json'];
 
 // 予報キャッシュの上限（地点ごとにURLが異なるため、直近の地点だけ残す）
 const MAX_DATA_ENTRIES = 10;

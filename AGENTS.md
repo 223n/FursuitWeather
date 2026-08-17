@@ -51,6 +51,7 @@ npm run build                        # minify + CSSインライン化（下記�
 - **「最後の明示操作が勝つ」並行制御**: `requestSeq`（fetch応答の世代ガード）・`searchSeq`（検索応答）・`cityChangeTimer`（セレクトのデバウンス）で、遅れて届いた古い応答が新しい操作を上書きしないようにしている。地点読み込み系を触るときはこの不変条件を壊さないこと
 - **プライバシー契約**: GPS座標は取得直後に小数2桁（約1km）へ丸め、localStorageにもURLにも保存しない（`persist: false`）。URLに現れる座標はすべて小数2桁に統一。「位置情報は保存しません」という利用者への約束が画面に明記されている
 - 初期表示の優先順位: demo指定 → 共有URLの座標 → 記憶した地点（localStorage） → 既定都市
+- イベント予報: `public/events.json`（運営者が編集するデータファイル）から開催地の予報を表示する。形式は`test/events.test.ts`がCIで検証し、フロントも不正項目を黙って除外する（書き方は`docs/events.md`）
 
 ## 開発フロー
 

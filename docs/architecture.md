@@ -80,6 +80,7 @@ src/
 ├── constants.ts        係数・しきい値の集約（出典コメント付き）
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
+├── events.json         イベント予報の定義（運営者が編集。書き方はevents.md）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
 ```

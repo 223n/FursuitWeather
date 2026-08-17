@@ -894,6 +894,9 @@
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
+      // 呼び出し元が表示成功後の追加処理（イベント開催日のタブ切り替えなど）を
+      // 行えるよう、成功をtrueで返す（破棄・失敗時はundefined）
+      return true;
     } catch (error) {
       if (seq !== requestSeq) {
         return;
@@ -1202,6 +1205,121 @@
       searchPlace();
     }
   });
+
+  // イベント予報: あらかじめ定義したイベント（/events.json）を読み込み、
+  // 選択したイベントの開催地の予報を表示する。定義の書き方はdocs/events.md
+  const eventSelect = document.getElementById('event-select');
+  const eventButton = document.getElementById('event-button');
+  /** 表示可能なイベント一覧（セレクトのvalueはこの配列のインデックス） */
+  let eventList = [];
+
+  /** 日付文字列がYYYY-MM-DD形式かを判定する */
+  function isValidDateText(text) {
+    return typeof text === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(text);
+  }
+
+  /** イベントの開催期間の表示文を作る（単日は日付のみ）
+   * 「〜」の読み上げは環境依存だが、option要素は装飾を持てないためそのまま使う
+   * （開始・終了の日付自体は読み上げられるため意味は伝わる） */
+  function formatEventPeriod(event) {
+    return event.startDate === event.endDate
+      ? formatDate(event.startDate)
+      : `${formatDate(event.startDate)}〜${formatDate(event.endDate)}`;
+  }
+
+  /** /events.jsonを読み込んでセレクトの選択肢を作る。
+   * 定義がない・読み込めない場合はその旨の表示にして無効化する（表示は壊さない） */
+  async function initEvents() {
+    let emptyMessage = '予定されているイベントはありません';
+    try {
+      const response = await fetch('/events.json');
+      if (!response.ok) {
+        throw new Error(`イベント定義の取得に失敗しました（HTTP ${response.status}）`);
+      }
+      const body = await response.json();
+      if (body && Array.isArray(body.events)) {
+        const today = nowInJst().date;
+        eventList = body.events
+          // 形式が不正な項目は表示しない（定義ミスで画面全体を壊さないための防御。
+          // 形式はtest/events.test.tsがCIでも検証する）
+          .filter(
+            (event) =>
+              event &&
+              typeof event.name === 'string' &&
+              event.name !== '' &&
+              typeof event.place === 'string' &&
+              event.place !== '' &&
+              Number.isFinite(event.lat) &&
+              event.lat >= -90 &&
+              event.lat <= 90 &&
+              Number.isFinite(event.lon) &&
+              event.lon >= -180 &&
+              event.lon <= 180 &&
+              isValidDateText(event.startDate) &&
+              (event.endDate === undefined || isValidDateText(event.endDate)),
+          )
+          .map((event) => ({ ...event, endDate: event.endDate ?? event.startDate }))
+          // 終了済みのイベントは表示せず、開催が近い順に並べる（日付はJST基準で比較）
+          .filter((event) => event.endDate >= today)
+          .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+      }
+    } catch {
+      emptyMessage = 'イベント情報を読み込めませんでした';
+    }
+    eventSelect.replaceChildren();
+    if (eventList.length === 0) {
+      eventSelect.appendChild(new Option(emptyMessage, ''));
+      return;
+    }
+    eventList.forEach((event, index) => {
+      eventSelect.appendChild(
+        new Option(`${event.name}（${formatEventPeriod(event)}・${event.place}）`, String(index)),
+      );
+    });
+    eventSelect.disabled = false;
+    eventButton.disabled = false;
+  }
+
+  /** 選択中のイベントの開催地の予報を表示する。
+   * 開催日が取得済みの予報に含まれていればその日のタブへ切り替える */
+  async function showEventForecast() {
+    const event = eventList[Number(eventSelect.value)];
+    if (!event) {
+      return;
+    }
+    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
+    const label = `${event.name}（${event.place}）`;
+    const loaded = await loadForecast(
+      `lat=${event.lat.toFixed(2)}&lon=${event.lon.toFixed(2)}`,
+      label,
+      { storedName: label },
+    );
+    if (!loaded) {
+      return;
+    }
+    // 開催中（今日が期間内）なら今日、これからなら初日の予報を見せる
+    const today = nowInJst().date;
+    const targetDate = event.startDate <= today && today <= event.endDate ? today : event.startDate;
+    const index = currentForecast.days.findIndex((d) => d.date === targetDate);
+    const dayTab = TABS.find((t) => t.dayIndex === index);
+    // オフライン表示の注記（保存済み予報の鮮度）は安全に関わるため上書きしない
+    const canOverwriteStatus = statusElement.textContent === '予報を取得しました';
+    if (dayTab) {
+      activateTab(dayTab.tabId, false);
+      if (canOverwriteStatus) {
+        setStatus(`「${event.name}」開催日（${formatDate(targetDate)}）の予報を表示しています。`, false);
+      }
+    } else if (canOverwriteStatus) {
+      setStatus(
+        `「${event.name}」の開催日（${formatEventPeriod(event)}）はまだ予報の範囲外です` +
+          `（予報は今日から${FORECAST_DAYS}日間）。開催地の直近の予報を表示しています。`,
+        false,
+      );
+    }
+  }
+
+  eventButton.addEventListener('click', showEventForecast);
+  initEvents();
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
