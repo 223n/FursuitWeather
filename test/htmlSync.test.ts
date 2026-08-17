@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
 import apiMd from '../docs/api.md?raw';
 import logicMd from '../docs/logic.md?raw';
+import openapiYaml from '../docs/openapi.yaml?raw';
 import notFoundHtml from '../public/404.html?raw';
 import aboutHtml from '../public/about.html?raw';
 import appJs from '../public/app.js?raw';
@@ -342,6 +343,22 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
     // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
     expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+  });
+
+  it('OpenAPI仕様（docs/openapi.yaml）の列挙・上限はconstantsと一致する', () => {
+    // レベルIDの列挙（判定レベルの追加・改名時にYAML側の更新を強制する）
+    for (const id of [...HEAT_BANDS.map((b) => b.id), ...COLD_BANDS.map((b) => b.id)]) {
+      expect(openapiYaml).toContain(`- ${id}`);
+    }
+    for (const level of Object.keys(LAUNDRY_LEVEL_LABELS)) {
+      expect(openapiYaml).toContain(level);
+    }
+    // パラメータの上限値
+    expect(openapiYaml).toContain(`maximum: ${MAX_FORECAST_DAYS}, default: ${DEFAULT_FORECAST_DAYS}`);
+    expect(openapiYaml).toContain(`maxLength: ${GEOCODING_MAX_QUERY_LENGTH}`);
+    expect(openapiYaml).toContain(`maxItems: ${GEOCODING_MAX_RESULTS}`);
+    expect(openapiYaml).toContain(`${HEAT_STROKE_ALERT_WBGT}以上は環境省の`);
+    expect(openapiYaml).toContain(`max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`);
   });
 
   it('熱中症警戒アラート基準（WBGT 33）の複製箇所はconstantsと一致する', () => {
