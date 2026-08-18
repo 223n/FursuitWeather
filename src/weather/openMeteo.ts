@@ -245,6 +245,19 @@ async function fetchPrecipitationProbability(
   }
 }
 
+/**
+ * 上流が非2xxを返したときに、利用者へ見せるメッセージを組み立てる
+ *
+ * HTTPステータスは利用者にとって意味がなく、対処の判断にも使えないため文面に
+ * 含めない（ステータスと本文はconsole.errorへ残し、運用側の切り分けに使う）。
+ * 5xxは提供元の障害で「待てば直る」ため、その旨が伝わる文面にする
+ */
+export function upstreamErrorMessage(subject: string, status: number): string {
+  return status >= 500
+    ? `${subject}の提供元で障害が発生しています。しばらく時間をおいてから再度お試しください`
+    : `${subject}を取得できませんでした。時間をおいて再度お試しください`;
+}
+
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
 async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
@@ -310,7 +323,7 @@ export async function fetchWeather(
     // ボディを消費することで、未読ストリームによる上流接続の保持も防ぐ
     const detail = (await response.text().catch(() => '')).slice(0, 200);
     console.error('気象データAPIエラー:', url, response.status, detail);
-    throw new UpstreamError(`気象データAPIがエラーを返しました（HTTP ${response.status}）`);
+    throw new UpstreamError(upstreamErrorMessage('気象データ', response.status));
   }
 
   // 200応答でも中身が想定外（仕様変更・不完全JSON・中間装置のHTML応答）になる

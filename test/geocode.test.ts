@@ -562,13 +562,17 @@ describe('fetchGeocoding', () => {
         status: 503,
         text: () => Promise.reject(new Error('読み取り失敗')),
       }) as unknown as Response) as unknown as typeof fetch;
-    await expect(fetchGeocoding('松山', brokenBody)).rejects.toThrow('HTTP 503');
+    await expect(fetchGeocoding('松山', brokenBody)).rejects.toThrow(
+      '地点検索の提供元で障害が発生しています',
+    );
   });
 
   it('上流HTTPエラーはステータス入りのUpstreamErrorにする', async () => {
     const errorResponse = (async () =>
       new Response('too many requests', { status: 429 })) as unknown as typeof fetch;
-    await expect(fetchGeocoding('松山', errorResponse)).rejects.toThrow('HTTP 429');
+    await expect(fetchGeocoding('松山', errorResponse)).rejects.toThrow(
+      '地点検索を取得できませんでした',
+    );
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '地点検索APIエラー:',
       expect.stringContaining('name='),
