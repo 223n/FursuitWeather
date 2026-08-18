@@ -5,7 +5,7 @@ import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS } from '../constants';
 import { buildForecast } from '../logic/forecast';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
-import { json, jsonError, upstreamErrorResponse } from './http';
+import { json, jsonError } from './http';
 
 /** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
 function parseNumberParam(params: URLSearchParams, name: string): number | null {
@@ -58,15 +58,8 @@ export async function handleForecast(request: Request): Promise<Response> {
       return jsonError(400, `daysは1〜${MAX_FORECAST_DAYS}の整数で指定してください`);
     }
 
-    try {
-      weather = await fetchWeather(latitude, longitude, days);
-    } catch (error) {
-      const response = upstreamErrorResponse(error, '上流エラー:', url);
-      if (response) {
-        return response;
-      }
-      throw error;
-    }
+    // 上流障害（UpstreamError）の502変換はルーター（src/index.ts）が担う
+    weather = await fetchWeather(latitude, longitude, days);
     model = 'jma_seamless（気象庁MSM/GSM）';
   }
 

@@ -11,7 +11,13 @@ import {
   UPSTREAM_RETRY_DELAY_MS,
 } from '../constants';
 import type { HourlyWeather } from '../types';
-import { readErrorDetail, UpstreamError, upstreamErrorMessage, upstreamInit } from './upstream';
+import {
+  fetchUpstream,
+  readErrorDetail,
+  readUpstreamJson,
+  throwUpstreamStatus,
+  UpstreamError,
+} from './upstream';
 
 /**
  * 取得・検証に使うhourlyデータフィールド（時刻timeを除く）
@@ -221,22 +227,15 @@ async function fetchPrecipitationProbability(
 }
 
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
-async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
-  try {
-    // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
-    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
-    return await fetchImpl(url, upstreamInit(UPSTREAM_CACHE_TTL_SECONDS));
-  } catch (error) {
-    // 原因（英語のランタイムメッセージ）はログにのみ残し、
-    // 利用者へ返すメッセージには固定の日本語文を使う
-    console.error('気象データの取得に失敗:', url, error);
-    const isTimeout = error instanceof Error && error.name === 'TimeoutError';
-    throw new UpstreamError(
-      isTimeout
-        ? '気象データの取得がタイムアウトしました。時間をおいて再度お試しください'
-        : '気象データの取得に失敗しました。時間をおいて再度お試しください',
-    );
-  }
+function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
+  // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
+  // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
+  return fetchUpstream(url, UPSTREAM_CACHE_TTL_SECONDS, fetchImpl, {
+    logLabel: '気象データの取得に失敗:',
+    failure: '気象データの取得に失敗しました。時間をおいて再度お試しください',
+    // タイムアウトは「待てば直る」ことが多いため専用文言で区別する
+    timeout: '気象データの取得がタイムアウトしました。時間をおいて再度お試しください',
+  });
 }
 
 /**
@@ -284,27 +283,10 @@ export async function fetchWeather(
 
   if (!response.ok) {
     // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す
-    console.error('気象データAPIエラー:', url, response.status, await readErrorDetail(response));
-    throw new UpstreamError(upstreamErrorMessage('気象データ', response.status));
+    throw await throwUpstreamStatus('気象データ', url, response);
   }
 
-  // 200応答でも中身が想定外（仕様変更・不完全JSON・中間装置のHTML応答）になる
-  // 障害が現実には最も起こりやすいため、原因の一次証拠（ボディ先頭）をログに残す
-  let raw: string;
-  try {
-    raw = await response.text();
-  } catch (error) {
-    console.error('気象データAPIレスポンスの読み取りに失敗:', url, error);
-    throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
-  }
-
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    console.error('気象データAPIレスポンスの解析に失敗:', url, raw.slice(0, 200));
-    throw new UpstreamError('気象データAPIのレスポンスを解析できませんでした');
-  }
+  const { raw, data } = await readUpstreamJson(response, url, '気象データ');
 
   let result: WeatherResult;
   try {

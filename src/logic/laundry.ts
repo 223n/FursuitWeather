@@ -34,7 +34,8 @@ function hourlyDryingSpeed(temperature: number, humidity: number, windSpeedMps: 
 /** 指数からレベルを求める */
 function classifyScore(score: number): LaundryLevelId {
   const band = LAUNDRY_BANDS.find((b) => score <= b.upperBound);
-  return band?.id ?? 'excellent';
+  // upperBoundにInfinityの帯があるため必ず見つかる
+  return (band ?? LAUNDRY_BANDS[LAUNDRY_BANDS.length - 1]!).id;
 }
 
 /** 着ぐるみ全身洗いの乾燥目安時間（扇風機併用前提）を指数から線形補間する */

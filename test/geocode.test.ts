@@ -105,21 +105,22 @@ describe('handleGeocode', () => {
     expect(body.error).toContain('100文字以内');
   });
 
-  it('上流APIのエラーは502として返し、運用検知のためログに残す', async () => {
+  it('上流APIのエラーはUpstreamErrorを投げ、失敗理由をログに残す', async () => {
+    // 502への変換はルーター（test/index.test.tsで検証）が担う
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 
-    const response = await handleGeocode(new Request('https://example.com/api/geocode?q=松山'));
-    expect(response.status).toBe(502);
-    const body = (await response.json()) as { error: string };
-    expect(body.error).toContain('地点検索');
+    await expect(
+      handleGeocode(new Request('https://example.com/api/geocode?q=松山')),
+    ).rejects.toThrow('地点検索');
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
-      '地点検索の上流エラー:',
-      expect.stringContaining('q='),
-      expect.any(String),
+      '地点検索APIエラー:',
+      expect.stringContaining('name='),
+      500,
+      'error',
     );
   });
 
-  it('UpstreamError以外の予期しない例外は502に変換せず伝播させる', async () => {
+  it('UpstreamError以外の予期しない例外もそのまま伝播させる', async () => {
     // ロジック層のバグなどはここで握りつぶさず、index.tsの最終防衛線（500+ログ）に任せる
     vi.mocked(fetchGeocoding).mockRejectedValueOnce(new TypeError('boom'));
     await expect(
@@ -539,11 +540,17 @@ describe('fetchGeocoding', () => {
     );
   });
 
-  it('非JSON応答は解析エラーのUpstreamErrorにする', async () => {
+  it('非JSON応答は解析エラーのUpstreamErrorにし、一次証拠（本文先頭）をログに残す', async () => {
     const htmlResponse = (async () =>
       new Response('<html>maintenance</html>', { status: 200 })) as unknown as typeof fetch;
     await expect(fetchGeocoding('松山', htmlResponse)).rejects.toThrow(
       '地点検索APIのレスポンスを解析できませんでした',
+    );
+    // 気象データ側と同じく、原因の切り分けに使えるようボディ先頭がログに残る
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '地点検索APIレスポンスの解析に失敗:',
+      expect.stringContaining('geocoding-api'),
+      expect.stringContaining('<html>'),
     );
   });
 

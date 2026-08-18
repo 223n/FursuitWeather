@@ -86,6 +86,34 @@ describe('Workerルーティング', () => {
     }
   });
 
+  it('ハンドラが投げたUpstreamErrorは502へ変換し、運用検知のためログに残す', async () => {
+    // 上流500→UpstreamErrorはハンドラを素通りし、ルーターの最終防衛線が502にする
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    for (const path of ['/api/forecast?lat=35.68&lon=139.68', '/api/geocode?q=松山']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(502);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+    }
+    expect(consoleError).toHaveBeenCalledWith(
+      '上流エラー:',
+      expect.stringContaining('lat=35.68'),
+      expect.any(String),
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      '上流エラー:',
+      expect.stringContaining('q='),
+      expect.any(String),
+    );
+    vi.unstubAllGlobals();
+  });
+
   it('存在しない/api/*パスはCORSヘッダー付きのJSON 404を返す', async () => {
     const response = await worker.fetch(
       new Request('https://example.com/api/unknown'),

@@ -15,7 +15,14 @@ import {
   ZIPCLOUD_BASE_URL,
 } from '../constants';
 import type { GeocodeResult } from '../types';
-import { readErrorDetail, UpstreamError, upstreamErrorMessage, upstreamInit } from './upstream';
+import {
+  fetchUpstream,
+  readErrorDetail,
+  readUpstreamJson,
+  throwUpstreamStatus,
+  UpstreamError,
+  upstreamInit,
+} from './upstream';
 
 /** Open-Meteoジオコーディングのレスポンスのうち本サービスが使用する部分 */
 interface GeocodingResponse {
@@ -101,28 +108,17 @@ async function searchByName(
 ): Promise<GeocodeResult[]> {
   const url = buildGeocodingUrl(query);
 
-  let response: Response;
-  try {
-    // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
-    response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
-  } catch (error) {
-    console.error('地点検索の取得に失敗:', url, error);
-    throw new UpstreamError('地点検索に失敗しました。時間をおいて再度お試しください');
-  }
+  // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
+  const response = await fetchUpstream(url, GEOCODING_CACHE_TTL_SECONDS, fetchImpl, {
+    logLabel: '地点検索の取得に失敗:',
+    failure: '地点検索に失敗しました。時間をおいて再度お試しください',
+  });
 
   if (!response.ok) {
-    console.error('地点検索APIエラー:', url, response.status, await readErrorDetail(response));
-    throw new UpstreamError(upstreamErrorMessage('地点検索', response.status));
+    throw await throwUpstreamStatus('地点検索', url, response);
   }
 
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch {
-    console.error('地点検索APIレスポンスの解析に失敗:', url);
-    throw new UpstreamError('地点検索APIのレスポンスを解析できませんでした');
-  }
-
+  const { data } = await readUpstreamJson(response, url, '地点検索');
   return parseGeocodingResponse(data);
 }
 

@@ -185,7 +185,7 @@ describe('aboutページとconstantsの同期', () => {
 });
 
 describe('実測WBGTツール（wbgt-tool.js）とconstantsの同期', () => {
-  // aboutページの簡易ツールは素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
+  // トップページの簡易ツール（実測WBGTタブ）は素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
   it('着衣補正値と冷房しきい値が一致する', () => {
     expect(wbgtTool).toContain(`const SUIT_WBGT_ADJUSTMENT = ${SUIT_WBGT_ADJUSTMENT};`);
     expect(wbgtTool).toContain(`const COOLING_REQUIRED_WBGT = ${COOLING_REQUIRED_WBGT};`);

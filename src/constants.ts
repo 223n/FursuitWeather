@@ -130,7 +130,7 @@ export const HEAT_BANDS: readonly HeatBand[] = [
     activityMinutes: 0,
     advice: '着ぐるみの着用は中止してください。熱中症の危険が非常に高い状態です。',
   },
-] as const;
+];
 
 /** 低温側レベル定義 */
 interface ColdBand extends ActivityBand {
@@ -176,7 +176,7 @@ export const COLD_BANDS: readonly ColdBand[] = [
     activityMinutes: 0,
     advice: '屋外での着ぐるみ活動は推奨できません。凍傷やスーツ素材の低温劣化の恐れがあります。',
   },
-] as const;
+];
 
 /**
  * 冷房要否のしきい値（℃、屋内の着ぐるみ補正後WBGTと比較）
@@ -231,8 +231,10 @@ export const LAUNDRY_BANDS: readonly LaundryBand[] = [
   { upperBound: 50, id: 'fair' },
   { upperBound: 70, id: 'good' },
   { upperBound: 85, id: 'veryGood' },
-  { upperBound: 100, id: 'excellent' },
-] as const;
+  // 番兵（HEAT_BANDS・COLD_BANDSと同方式）。スコアは0〜100に正規化済みだが、
+  // 帯の追加・変更時にフォールバックのid直書きが要らないようにする
+  { upperBound: Number.POSITIVE_INFINITY, id: 'excellent' },
+];
 
 /**
  * 洗濯乾燥レベルの表示ラベル
@@ -348,7 +350,7 @@ export const YEAR_ROUND_NOTICES: readonly string[] = [
   '必ず2人以上で行動し、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。',
   '表示の連続活動時間は気象条件から見た上限の目安です。「30分着たら30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。',
   '本予報は目安です。体調や装備により安全な活動時間は変わります。最終判断はご自身で行ってください。',
-] as const;
+];
 
 /** WMO天気コードの日本語ラベル */
 export function weatherCodeLabel(code: number): string {

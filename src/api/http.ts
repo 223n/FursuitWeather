@@ -33,7 +33,7 @@ export function jsonError(status: number, message: string): Response {
 
 /**
  * 上流障害（UpstreamError）を502レスポンスへ変換する。それ以外のエラーはnullを
- * 返すので、呼び出し側で再throwして最終防衛線（index.tsの500）に委ねること。
+ * 返す（ルーターの最終防衛線が500へフォールスルーする）。
  * 上流障害（レート制限・仕様変更など）を運用で検知できるよう、502もログに残す
  */
 export function upstreamErrorResponse(error: unknown, logLabel: string, url: URL): Response | null {

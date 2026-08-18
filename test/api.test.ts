@@ -164,8 +164,9 @@ describe('handleForecast', () => {
     expect(response.status).toBe(400);
   });
 
-  it('上流APIへの接続自体が失敗（タイムアウト・ネットワーク断）した場合は502を返す', async () => {
-    // AbortSignal.timeoutによる打ち切りもfetchのrejectとしてこの経路に入る
+  it('上流APIへの接続自体が失敗（タイムアウト・ネットワーク断）した場合はUpstreamErrorを投げる', async () => {
+    // AbortSignal.timeoutによる打ち切りもfetchのrejectとしてこの経路に入る。
+    // 502への変換はルーター（test/index.test.tsで検証）が担う
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -173,16 +174,12 @@ describe('handleForecast', () => {
       }),
     );
 
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(502);
-    expect(response.headers.get('Cache-Control')).toBe('no-store');
-    const body = (await response.json()) as { error: string };
-    expect(body.error).toContain('気象データの取得に失敗');
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow('気象データの取得に失敗');
   });
 
-  it('UpstreamError以外の予期しない例外は502に変換せず伝播させる', async () => {
+  it('UpstreamError以外の予期しない例外もそのまま伝播させる', async () => {
     // ロジック層のバグなどはここで握りつぶさず、index.tsの最終防衛線（500+ログ）に任せる
     vi.mocked(fetchWeather).mockRejectedValueOnce(new TypeError('boom'));
 
@@ -191,20 +188,12 @@ describe('handleForecast', () => {
     ).rejects.toThrow('boom');
   });
 
-  it('上流APIのエラーは502として返し、運用検知のためログに残す', async () => {
+  it('上流APIのエラーはUpstreamErrorを投げ、失敗理由をログに残す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(502);
-    const body = (await response.json()) as { error: string };
-    expect(body.error).toContain('気象データ');
-    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
-      '上流エラー:',
-      expect.stringContaining('lat=35.68'),
-      expect.any(String),
-    );
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow('気象データ');
     // 上流の失敗理由（レスポンス本文）もログに残る
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '気象データAPIエラー:',
@@ -214,16 +203,15 @@ describe('handleForecast', () => {
     );
   });
 
-  it('上流APIが非JSONを返した場合は502を返し、本文サンプルをログに残す', async () => {
+  it('上流APIが非JSONを返した場合はUpstreamErrorを投げ、本文サンプルをログに残す', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('<html>maintenance</html>', { status: 200 })),
     );
 
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(502);
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow('解析できませんでした');
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '気象データAPIレスポンスの解析に失敗:',
       expect.stringContaining('latitude='),
@@ -231,7 +219,7 @@ describe('handleForecast', () => {
     );
   });
 
-  it('上流APIのレスポンスに必要な配列が欠けている場合は502を返し、本文サンプルをログに残す', async () => {
+  it('上流APIのレスポンスに必要な配列が欠けている場合はUpstreamErrorを投げ、本文サンプルをログに残す', async () => {
     const broken = openMeteoBody() as { hourly: Record<string, unknown> };
     delete broken.hourly['temperature_2m'];
     vi.stubGlobal(
@@ -239,10 +227,9 @@ describe('handleForecast', () => {
       vi.fn(async () => new Response(JSON.stringify(broken), { status: 200 })),
     );
 
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(502);
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow('レスポンス形式が想定と異なります');
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '気象データAPIレスポンスの形式異常:',
       expect.stringContaining('latitude='),
@@ -250,7 +237,7 @@ describe('handleForecast', () => {
     );
   });
 
-  it('上流APIのレスポンスに位置情報（latitude）が欠けている場合は502を返す', async () => {
+  it('上流APIのレスポンスに位置情報（latitude）が欠けている場合はUpstreamErrorを投げる', async () => {
     const broken = openMeteoBody() as Record<string, unknown>;
     delete broken['latitude'];
     vi.stubGlobal(
@@ -258,10 +245,9 @@ describe('handleForecast', () => {
       vi.fn(async () => new Response(JSON.stringify(broken), { status: 200 })),
     );
 
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
-    );
-    expect(response.status).toBe(502);
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow(UpstreamError);
   });
 
   it('日射量が欠測の時間は結果から除外される（0補完で危険側に誤らない）', async () => {

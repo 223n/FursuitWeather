@@ -139,6 +139,17 @@
   }
 
   /**
+   * セレクトを「理由が分かる選択肢1件だけ」の無効状態にする
+   * （イベント選択とプランナーの日付で共通。空のセレクトのままだと
+   *   上流障害中などに「画面が壊れている」と見えてしまうため）
+   */
+  function disablePicker(select, button, message) {
+    select.replaceChildren(new Option(message, ''));
+    select.disabled = true;
+    button.disabled = true;
+  }
+
+  /**
    * 地点リストの項目（li > button、location-dotアイコン+ラベル）を組み立てる
    * お気に入りチップと検索候補で共通。クリック時の処理はクロージャで受け取る
    */
@@ -440,18 +451,19 @@
     return { grade: 2, label: `約${hours}時間` };
   }
 
-  /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
-   * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める */
   /** YYYY-MM-DD文字列を数値成分とUTCミリ秒に解析する（日付計算の共通基準） */
   function parseDateText(text) {
     const [year, month, day] = text.split('-').map(Number);
     return { year, month, day, utc: Date.UTC(year, month - 1, day) };
   }
 
+  const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+  /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
+   * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める */
   function formatDate(dateText) {
     const { month, day, utc } = parseDateText(dateText);
-    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-    return `${month}月${day}日（${weekdays[new Date(utc).getUTCDay()]}）`;
+    return `${month}月${day}日（${WEEKDAYS[new Date(utc).getUTCDay()]}）`;
   }
 
   /** 選択状態の見た目とARIA属性を更新する（カードは再生成せずフォーカスを保つ） */
@@ -752,10 +764,15 @@
     return Number.parseInt(time.slice(11, 13), 10);
   }
 
+  /** 表示中の予報から指定日（YYYY-MM-DD）の時間行だけを返す */
+  function hoursOnDate(date) {
+    return currentForecast.hours.filter((h) => h.time.startsWith(date));
+  }
+
   /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
   function renderNowCard() {
     const now = nowInJst();
-    const todayHours = currentForecast.hours.filter((h) => h.time.startsWith(now.date));
+    const todayHours = hoursOnDate(now.date);
     const target =
       todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
       todayHours.find((h) => hourNumberOf(h.time) > now.hour);
@@ -809,16 +826,10 @@
   /** 時間別テーブルを描画する */
   function renderHours() {
     const now = nowInJst();
-    const hours = currentForecast.hours.filter((h) => {
-      if (!h.time.startsWith(selectedDate)) {
-        return false;
-      }
-      // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
-      if (selectedDate === now.date) {
-        return hourNumberOf(h.time) >= now.hour;
-      }
-      return true;
-    });
+    // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
+    const hours = hoursOnDate(selectedDate).filter(
+      (h) => selectedDate !== now.date || hourNumberOf(h.time) >= now.hour,
+    );
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
@@ -1060,7 +1071,7 @@
   // changeは矢印キーでの選択肢探索でも発火するため、デバウンスして
   // 連続操作中の取得と読み上げ通知の洪水を防ぐ（確定は600ms静止後）
   citySelect.addEventListener('change', () => {
-    clearTimeout(cityChangeTimer);
+    cancelPendingCitySelect();
     cityChangeTimer = setTimeout(() => {
       cityChangeTimer = null;
       loadSelectedCity();
@@ -1284,21 +1295,18 @@
       if (!body || !Array.isArray(body.results)) {
         throw new Error('地点検索の結果の形式が不正です');
       }
-      const places = [];
-      for (const place of body.results) {
-        if (
-          typeof place.name !== 'string' ||
-          typeof place.latitude !== 'number' ||
-          typeof place.longitude !== 'number'
-        ) {
-          continue;
-        }
-        places.push({
+      const places = body.results
+        .filter(
+          (place) =>
+            typeof place.name === 'string' &&
+            typeof place.latitude === 'number' &&
+            typeof place.longitude === 'number',
+        )
+        .map((place) => ({
           label: placeLabel(place.name, place.admin1),
           latitude: place.latitude,
           longitude: place.longitude,
-        });
-      }
+        }));
       if (places.length === 0) {
         setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
         return;
@@ -1434,11 +1442,9 @@
     }
     eventSelect.replaceChildren();
     if (eventList.length === 0) {
-      eventSelect.appendChild(new Option(emptyMessage, ''));
       // 再実行（開催終了の検知時）で空になった場合に、押しても何も起きない
       // ボタンが残らないよう初期状態へ戻す
-      eventSelect.disabled = true;
-      eventButton.disabled = true;
+      disablePicker(eventSelect, eventButton, emptyMessage);
       return;
     }
     eventList.forEach((event, index) => {
@@ -1623,12 +1629,7 @@
     const previous = planDate.value;
     planDate.replaceChildren();
     if (!currentForecast) {
-      // 予報が無いときは空のセレクトにせず、理由が分かる選択肢を残して操作を止める。
-      // 空のままだと上流障害中に「画面が壊れている」と見えてしまう
-      // （イベント選択が定義0件のときに取る扱いと揃える）
-      planDate.appendChild(new Option('予報を読み込むと選べます', ''));
-      planDate.disabled = true;
-      planButton.disabled = true;
+      disablePicker(planDate, planButton, '予報を読み込むと選べます');
       return;
     }
     planDate.disabled = false;
@@ -1661,10 +1662,7 @@
       setStatus('終了時刻は開始時刻より後にしてください。', true);
       return;
     }
-    const hours = currentForecast.hours.filter((h) => {
-      if (!h.time.startsWith(planDateValue)) {
-        return false;
-      }
+    const hours = hoursOnDate(planDateValue).filter((h) => {
       const hour = hourNumberOf(h.time);
       return hour >= start && hour < end;
     });
