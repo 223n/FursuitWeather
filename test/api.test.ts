@@ -482,6 +482,56 @@ describe('fetchWeather', () => {
       '気象データの取得がタイムアウトしました',
     );
   });
+
+  it('上流の5xxは一度だけ取り直し、2回目が成功すれば利用者にはエラーを見せない', async () => {
+    // 実測: Open-Meteo自身のCDNがオリジンへ到達できず、数百ミリ秒だけHTTP 525を
+    // 返す瞬断が起きた。1回の取り直しでこの手の瞬断は吸収できる
+    let jmaCalls = 0;
+    const flaky = (async (input: RequestInfo | URL) => {
+      if (String(input).includes('/v1/forecast')) {
+        return new Response(JSON.stringify(probabilityBody()), { status: 200 });
+      }
+      jmaCalls += 1;
+      return jmaCalls === 1
+        ? new Response('error code: 525', { status: 525 })
+        : new Response(JSON.stringify(openMeteoBody()), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await fetchWeather(35.68, 139.68, 1, flaky);
+    expect(jmaCalls).toBe(2);
+    expect(result.hours).toHaveLength(24);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '上流の一時エラー（取り直します）:',
+      expect.stringContaining('/v1/jma'),
+      525,
+      'error code: 525',
+    );
+  });
+
+  it('取り直しても5xxのままなら上流エラーとして失敗させる', async () => {
+    let jmaCalls = 0;
+    const alwaysDown = (async (input: RequestInfo | URL) => {
+      if (!String(input).includes('/v1/forecast')) {
+        jmaCalls += 1;
+      }
+      return new Response('error code: 525', { status: 525 });
+    }) as typeof fetch;
+
+    await expect(fetchWeather(35.68, 139.68, 1, alwaysDown)).rejects.toThrow('HTTP 525');
+    expect(jmaCalls).toBe(2);
+  });
+
+  it('4xxは取り直さない（同じ結果になるうえ、待ち時間が延びるだけのため）', async () => {
+    let calls = 0;
+    const badRequest = (async () => {
+      calls += 1;
+      return new Response('bad request', { status: 400 });
+    }) as typeof fetch;
+
+    await expect(fetchWeather(35.68, 139.68, 1, badRequest)).rejects.toThrow('HTTP 400');
+    // 予報本体と降水確率で1回ずつ。取り直しは発生しない
+    expect(calls).toBe(2);
+  });
 });
 
 describe('buildForecastUrl', () => {
