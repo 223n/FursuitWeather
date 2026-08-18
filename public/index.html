@@ -322,12 +322,16 @@
       </p>
       <div class="control-row">
         <label for="plan-date">日付</label>
-        <select id="plan-date"></select>
+        <!-- 予報を読み込むまでは操作できない状態で始める（app.jsのpopulatePlanDatesが有効化する）。
+             空のセレクトのままだと、上流障害中に「画面が壊れている」と見えてしまう -->
+        <select id="plan-date" disabled>
+          <option value="">予報を読み込むと選べます</option>
+        </select>
         <label for="plan-start">開始</label>
         <select id="plan-start"></select>
         <label for="plan-end">終了</label>
         <select id="plan-end"></select>
-        <button type="button" id="plan-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>計画を立てる</button>
+        <button type="button" id="plan-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>計画を立てる</button>
       </div>
       <div id="plan-result" class="plan-result"></div>
     </section>
@@ -411,7 +415,7 @@
       <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.8</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.2.9</a>
     </p>
   </footer>
 

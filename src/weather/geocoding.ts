@@ -15,7 +15,7 @@ import {
   ZIPCLOUD_BASE_URL,
 } from '../constants';
 import type { GeocodeResult } from '../types';
-import { UpstreamError } from './openMeteo';
+import { UpstreamError, upstreamErrorMessage } from './openMeteo';
 
 /** Open-Meteoジオコーディングのレスポンスのうち本サービスが使用する部分 */
 interface GeocodingResponse {
@@ -117,7 +117,7 @@ async function searchByName(
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).slice(0, 200);
     console.error('地点検索APIエラー:', url, response.status, detail);
-    throw new UpstreamError(`地点検索APIがエラーを返しました（HTTP ${response.status}）`);
+    throw new UpstreamError(upstreamErrorMessage('地点検索', response.status));
   }
 
   let data: unknown;

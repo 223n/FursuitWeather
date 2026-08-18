@@ -464,7 +464,9 @@ describe('fetchWeather', () => {
         status: 503,
         text: () => Promise.reject(new Error('読み取り失敗')),
       }) as unknown as Response) as unknown as typeof fetch;
-    await expect(fetchWeather(35.68, 139.68, 1, brokenBody)).rejects.toThrow('HTTP 503');
+    await expect(fetchWeather(35.68, 139.68, 1, brokenBody)).rejects.toThrow(
+      '気象データの提供元で障害が発生しています',
+    );
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '気象データAPIエラー:',
       expect.stringContaining('latitude='),
@@ -517,7 +519,9 @@ describe('fetchWeather', () => {
       return new Response('error code: 525', { status: 525 });
     }) as typeof fetch;
 
-    await expect(fetchWeather(35.68, 139.68, 1, alwaysDown)).rejects.toThrow('HTTP 525');
+    await expect(fetchWeather(35.68, 139.68, 1, alwaysDown)).rejects.toThrow(
+      '気象データの提供元で障害が発生しています',
+    );
     expect(jmaCalls).toBe(2);
   });
 
@@ -528,7 +532,9 @@ describe('fetchWeather', () => {
       return new Response('bad request', { status: 400 });
     }) as typeof fetch;
 
-    await expect(fetchWeather(35.68, 139.68, 1, badRequest)).rejects.toThrow('HTTP 400');
+    await expect(fetchWeather(35.68, 139.68, 1, badRequest)).rejects.toThrow(
+      '気象データを取得できませんでした',
+    );
     // 予報本体と降水確率で1回ずつ。取り直しは発生しない
     expect(calls).toBe(2);
   });

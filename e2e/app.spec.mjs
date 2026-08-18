@@ -382,3 +382,28 @@ test('共有URL: 地点名が無ければURLにも名前を載せない', async 
   const search = await page.evaluate(() => window.location.search);
   expect(new URLSearchParams(search).has('name')).toBe(false);
 });
+
+test('上流障害時: 提供元の障害と分かる案内を出し、HTTPステータスは見せない', async ({ page }) => {
+  // Open-Meteoが落ちるとWorkerは502を返す。利用者には原因と対処が伝わる文面を出す
+  await page.unroute('**/api/forecast*');
+  await page.route('**/api/forecast*', (route) =>
+    route.fulfill({
+      status: 502,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: '気象データの提供元で障害が発生しています。しばらく時間をおいてから再度お試しください',
+      }),
+    }),
+  );
+  await page.goto('/');
+  await expect(page.locator('#status-error')).toContainText('提供元で障害が発生しています');
+  await expect(page.locator('#status-error')).not.toContainText('HTTP');
+  await expect(page.locator('#status-error')).not.toContainText('502');
+
+  // 予報が無いとき、プランナーは空のセレクトではなく理由の分かる状態にする
+  // （空のままだと「画面が壊れている」と見える）
+  await page.click('#tab-planner');
+  await expect(page.locator('#plan-date')).toBeDisabled();
+  await expect(page.locator('#plan-date')).toContainText('予報を読み込むと選べます');
+  await expect(page.locator('#plan-button')).toBeDisabled();
+});
