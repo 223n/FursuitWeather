@@ -367,7 +367,7 @@
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
       `洗濯指数は「${today.laundry.label}」、着ぐるみの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
-      '詳しくは日別サマリーと時間別予報の表をご確認ください。',
+      '詳しくは「3日間の天気」タブや「今日の天気」などの各タブの表をご確認ください。',
     ];
     return parts.join('');
   }
@@ -480,14 +480,14 @@
     return createBadge({ ...(COOLING_BADGES[cooling] ?? COOLING_BADGES.none), label });
   }
 
-  /** 着ぐるみ乾燥目安のバッジ設定を組み立てる */
+  /** 着ぐるみ乾燥目安のバッジを組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
     if (laundry.moldWarning) {
-      return { grade: 3, label: `約${hours}時間・カビ注意` };
+      return createBadge({ grade: 3, label: `約${hours}時間・カビ注意` });
     }
     const grade = hours <= 30 ? 0 : hours <= 40 ? 1 : 2;
-    return { grade, label: `約${hours}時間` };
+    return createBadge({ grade, label: `約${hours}時間` });
   }
 
   /** YYYY-MM-DD文字列を数値成分とUTCミリ秒に解析する（日付計算の共通基準） */
@@ -592,7 +592,7 @@
     );
     laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
     addRow('洗濯・乾燥', laundryValue);
-    addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
+    addRow('着ぐるみ乾燥目安', fursuitDryingBadge(day.laundry));
 
     card.appendChild(list);
 
@@ -802,7 +802,7 @@
       todayHours.find((h) => hourNumberOf(h.time) > now.hour);
     if (!target) {
       nowCard.replaceChildren(
-        hintParagraph('本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。'),
+        hintParagraph('本日のこれからの時間帯の予報データがありません。「3日間の天気」タブで日別の予報をご確認ください。'),
       );
       return;
     }
@@ -841,7 +841,7 @@
     const indoor = document.createElement('p');
     indoor.className = 'now-time now-indoor';
     indoor.appendChild(faIcon('house', 'th-icon'));
-    indoor.appendChild(document.createTextNode('屋内（空調なし想定）:'));
+    indoor.appendChild(document.createTextNode('屋内（空調なしの場合）:'));
     indoor.appendChild(coolingBadge(target.indoor.cooling, target.indoor.coolingLabel));
 
     nowCard.replaceChildren(timeLine, headline, advice, indoor);

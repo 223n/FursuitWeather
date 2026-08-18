@@ -1104,7 +1104,8 @@ section h3 {
   /* aboutページのパンくずリンクは密集しているため、リンク単位でタップ領域を広げる */
   .breadcrumb a {
     display: inline-block;
-    padding: 0.6rem 0.25rem;
+    /* 0.9remフォントのため0.7remで合計約45px（0.6remだと約42pxで44px目安に届かない） */
+    padding: 0.7rem 0.25rem;
   }
 
   /* 404ページの復帰リンクも確実に押せるようタップ領域を確保する */

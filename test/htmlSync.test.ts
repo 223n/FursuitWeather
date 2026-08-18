@@ -87,6 +87,15 @@ describe('静的HTMLとconstantsの同期', () => {
     expect(html).toContain(`cold grade-${coldCaution!.grade}`);
   });
 
+  it('日別サマリーのスケルトン枚数はFORECAST_DAYSと一致する', () => {
+    // スケルトンは実カード枚数と一致して初めてCLS防止として機能する。
+    // 日数変更時の取り残し（3bca691で4枚追加→7a0fc49で3日化の実例）を機械検出する
+    const days = appJs.match(/const FORECAST_DAYS = (\d+);/);
+    expect(days).not.toBeNull();
+    const skeletons = html.match(/class="day-card skeleton-card"/g) ?? [];
+    expect(skeletons.length).toBe(Number(days![1]));
+  });
+
   it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {
     // as="fetch"のプリロードはcrossoriginがないとmodeが一致せず照合されない
     expect(html).toMatch(/<link rel="preload" href="\/api\/forecast\?[^"]+" as="fetch" crossorigin>/);
