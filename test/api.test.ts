@@ -498,11 +498,13 @@ describe('fetchWeather', () => {
     // 実測: Open-Meteo自身のCDNがオリジンへ到達できず、数百ミリ秒だけHTTP 525を
     // 返す瞬断が起きた。1回の取り直しでこの手の瞬断は吸収できる
     let jmaCalls = 0;
-    const flaky = (async (input: RequestInfo | URL) => {
+    const jmaInits: (RequestInit & { cf?: unknown })[] = [];
+    const flaky = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes('/v1/forecast')) {
         return new Response(JSON.stringify(probabilityBody()), { status: 200 });
       }
       jmaCalls += 1;
+      jmaInits.push(init as RequestInit & { cf?: unknown });
       return jmaCalls === 1
         ? new Response('error code: 525', { status: 525 })
         : new Response(JSON.stringify(openMeteoBody()), { status: 200 });
@@ -511,6 +513,13 @@ describe('fetchWeather', () => {
     const result = await fetchWeather(35.68, 139.68, 1, flaky);
     expect(jmaCalls).toBe(2);
     expect(result.hours).toHaveLength(24);
+    // 1回目はエッジキャッシュ経由、取り直しはキャッシュ層を経由しない素のfetchにする
+    // （同じURLでもブラウザからは通るのにWorkerからは525が返り続ける事象への逃げ道）
+    expect(jmaInits[0]!.cf).toBeDefined();
+    expect(jmaInits[1]!.cf).toBeUndefined();
+    // 取り直しでもUAとタイムアウトは維持する
+    expect(jmaInits[1]!.headers).toEqual(jmaInits[0]!.headers);
+    expect(jmaInits[1]!.signal).toBeInstanceOf(AbortSignal);
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '上流の一時エラー（取り直します）:',
       expect.stringContaining('/v1/jma'),

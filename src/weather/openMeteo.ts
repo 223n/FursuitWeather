@@ -185,9 +185,15 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
   };
 }
 
-/** 上流リクエスト共通の初期化子（UA・エッジキャッシュ・タイムアウト） */
-function upstreamInit(): RequestInit {
-  return {
+/**
+ * 上流リクエスト共通の初期化子（UA・エッジキャッシュ・タイムアウト）
+ *
+ * @param bypassCache trueならCloudflareのキャッシュ層を経由しない素のfetchにする。
+ *   ブラウザからは同じURLでJSONが返るのにWorkerからは525が返り続ける事象を観測しており、
+ *   キャッシュ層を通る経路だけが失敗している可能性を切り分けるための逃げ道
+ */
+function upstreamInit(bypassCache = false): RequestInit {
+  const base: RequestInit = {
     headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
     // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
     // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと。
@@ -207,6 +213,12 @@ function upstreamInit(): RequestInit {
     // 中断はfetchのrejectとしてcatchに入り、既存のUpstreamError（502）分類に乗る
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   };
+  if (!bypassCache) {
+    return base;
+  }
+  const withoutCache = { ...base } as RequestInit & { cf?: unknown };
+  delete withoutCache.cf;
+  return withoutCache;
 }
 
 /**
@@ -267,9 +279,13 @@ export function upstreamErrorMessage(subject: string, status: number): string {
 }
 
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
-async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
+async function requestOnce(
+  url: string,
+  fetchImpl: typeof fetch,
+  bypassCache = false,
+): Promise<Response> {
   try {
-    return await fetchImpl(url, upstreamInit());
+    return await fetchImpl(url, upstreamInit(bypassCache));
   } catch (error) {
     // 原因（英語のランタイムメッセージ）はログにのみ残し、
     // 利用者へ返すメッセージには固定の日本語文を使う
@@ -284,11 +300,13 @@ async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Respon
 }
 
 /**
- * 上流へのHTTPリクエスト。5xxのときだけ一度取り直す
+ * 上流へのHTTPリクエスト。5xxのときだけ、キャッシュ層を経由せずに一度取り直す
  *
- * Open-Meteo自身もCDNの背後にあり、CDNからオリジンへ到達できない数百ミリ秒の
- * 瞬断（HTTP 525など）が実際に観測されている。1回の取り直しでこの手の瞬断は
- * 吸収でき、利用者にエラーを見せずに済む。
+ * 取り直しでキャッシュ層を外すのは、同じURLでもブラウザからはJSONが返るのに
+ * Workerからは525が返り続ける事象を実際に観測したため。Open-Meteo自身も
+ * Cloudflareの背後にあり、Cloudflare同士の内部経路だけが失敗している疑いがある。
+ * 素のfetchで通るならその経路を避けられ、通らなければ上流側の障害と切り分けられる
+ * （どちらだったかはログに残る）。
  * 取り直さないもの:
  * - 4xx（リクエスト自体の問題。取り直しても同じ結果になる）
  * - タイムアウト（`requestOnce`がUpstreamErrorとして投げる。待ち時間が二重になり
@@ -299,12 +317,16 @@ async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Re
   if (response.status < 500) {
     return response;
   }
-  // 破棄する応答も本文を読み切る（未読ストリームが上流接続を保持するのを防ぐ）。
-  // 取り直して成功した場合はログだけが残り、利用者にはエラーが見えない
+  // 破棄する応答も本文を読み切る（未読ストリームが上流接続を保持するのを防ぐ）
   const detail = (await response.text().catch(() => '')).slice(0, 200);
   console.error('上流の一時エラー（取り直します）:', url, response.status, detail);
   await new Promise((resolve) => setTimeout(resolve, UPSTREAM_RETRY_DELAY_MS));
-  return requestOnce(url, fetchImpl);
+  const retried = await requestOnce(url, fetchImpl, true);
+  if (retried.ok) {
+    // どちらの経路で通ったかを運用で判別できるようにする
+    console.log('取り直し（キャッシュ層を経由しない取得）で成功:', url);
+  }
+  return retried;
 }
 
 /**
