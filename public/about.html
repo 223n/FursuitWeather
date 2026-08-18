@@ -63,8 +63,6 @@
   }
   </script>
   <link rel="stylesheet" href="/style.css">
-  <!-- 実測WBGTから判定する簡易ツール（本ページ内のみで使用） -->
-  <script src="/wbgt-tool.js" defer></script>
   <!-- favicon: 太陽+肉球（SVG優先、旧ブラウザ・クローラー向けにICO、iOS向けにタッチアイコン） -->
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -98,7 +96,7 @@
     </nav>
 
     <section id="mechanism" aria-label="判定の仕組み">
-      <h2>判定の仕組み</h2>
+      <h2 id="how-it-works">判定の仕組み</h2>
 
       <h3>暑さ指数（WBGT）と着ぐるみ補正</h3>
       <p>
@@ -156,20 +154,11 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       </ul>
 
       <h3 id="wbgt-tool">実測WBGTから判定</h3>
-      <!-- 対話ツールであることが分かるよう、枠線で囲って本文と区別する -->
-      <div class="wbgt-tool-box">
-        <p>
-          イベント会場などでWBGT計により実測した値から、着ぐるみ着用時の判定を確認できます。
-          実測値に着衣補正を加えて、上の対応表と同じ基準で判定します。
-        </p>
-        <div class="control-row">
-          <label for="wbgt-input">実測WBGT（℃）</label>
-          <input type="number" id="wbgt-input" min="-20" max="50" step="0.1" inputmode="decimal">
-          <button type="button" id="wbgt-judge-button"><svg class="fa-icon btn-icon" viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-384c0-35.3-28.7-64-64-64L64 0zM96 64l192 0c17.7 0 32 14.3 32 32l0 32c0 17.7-14.3 32-32 32L96 160c-17.7 0-32-14.3-32-32l0-32c0-17.7 14.3-32 32-32zm16 168a24 24 0 1 1 -48 0 24 24 0 1 1 48 0zm80 24a24 24 0 1 1 0-48 24 24 0 1 1 0 48zm128-24a24 24 0 1 1 -48 0 24 24 0 1 1 48 0zM88 352a24 24 0 1 1 0-48 24 24 0 1 1 0 48zm128-24a24 24 0 1 1 -48 0 24 24 0 1 1 48 0zm80 24a24 24 0 1 1 0-48 24 24 0 1 1 0 48zM64 424c0-13.3 10.7-24 24-24l112 0c13.3 0 24 10.7 24 24s-10.7 24-24 24L88 448c-13.3 0-24-10.7-24-24zm232-24c13.3 0 24 10.7 24 24s-10.7 24-24 24-24-10.7-24-24 10.7-24 24-24z"/></svg>判定する</button>
-        </div>
-        <!-- 結果は事前に高さを確保した領域へ書き込み、判定時のレイアウトシフトを防ぐ -->
-        <div id="wbgt-result" class="wbgt-result" role="status"></div>
-      </div>
+      <p>
+        会場でWBGT計により実測した値からの判定は、トップページの
+        <a href="/#tab-measured">「実測WBGT」タブ</a>で確認できます。
+        実測値に着衣補正を加えて、上の対応表と同じ基準で判定します。
+      </p>
 
       <h3>低温側の判定</h3>
       <p>
