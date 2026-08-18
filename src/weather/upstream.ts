@@ -50,7 +50,7 @@ export function upstreamInit(cacheTtlSeconds: number): RequestInit {
  * 含めない（ステータスと本文はconsole.errorへ残し、運用側の切り分けに使う）。
  * 5xxは提供元の障害で「待てば直る」ため、その旨が伝わる文面にする
  */
-export function upstreamErrorMessage(subject: string, status: number): string {
+function upstreamErrorMessage(subject: string, status: number): string {
   return status >= 500
     ? `${subject}の提供元で障害が発生しています。しばらく時間をおいてから再度お試しください`
     : `${subject}を取得できませんでした。時間をおいて再度お試しください`;
@@ -86,17 +86,35 @@ export async function fetchUpstream(
   }
 }
 
+/** 非2xx応答をステータス・本文先頭付きでログへ残す（本文はreadErrorDetailで読み切る） */
+export async function logUpstreamStatus(
+  label: string,
+  url: string,
+  response: Response,
+): Promise<void> {
+  console.error(label, url, response.status, await readErrorDetail(response));
+}
+
 /**
  * 上流の非2xx応答をログへ残し、利用者向け文言のUpstreamErrorとして投げる
- * ログラベルは「<件名>APIエラー:」に統一する。本文はreadErrorDetailで読み切る
+ * ログラベルは「<件名>APIエラー:」に統一する
  */
 export async function throwUpstreamStatus(
   subject: string,
   url: string,
   response: Response,
 ): Promise<never> {
-  console.error(`${subject}APIエラー:`, url, response.status, await readErrorDetail(response));
+  await logUpstreamStatus(`${subject}APIエラー:`, url, response);
   throw new UpstreamError(upstreamErrorMessage(subject, response.status));
+}
+
+/**
+ * 有限の数値のみを通す型ガード
+ * 上流レスポンスの値は型主張（as）でしか保証されないため、null・undefinedに
+ * 加えて数値文字列・NaNなど「数値でない値」も実行時に排除する
+ */
+export function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 /**

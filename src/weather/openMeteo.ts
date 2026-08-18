@@ -13,7 +13,8 @@ import {
 import type { HourlyWeather } from '../types';
 import {
   fetchUpstream,
-  readErrorDetail,
+  isFiniteNumber,
+  logUpstreamStatus,
   readUpstreamJson,
   throwUpstreamStatus,
   UpstreamError,
@@ -21,8 +22,9 @@ import {
 
 /**
  * 取得・検証に使うhourlyデータフィールド（時刻timeを除く）
- * 取得URL（buildForecastUrl）とレスポンス検証（parseWeatherResponse）の両方が参照する
- * 単一情報源。フィールドを追加する際はOpenMeteoResponse型とpickHourも更新すること。
+ * 取得URL（buildForecastUrl）・レスポンス検証（parseWeatherResponse）・
+ * レスポンス型（OpenMeteoResponse）が参照する単一情報源。
+ * フィールドを追加する際はpickHourも更新すること。
  * 注意: 'time'はレスポンスにのみ現れる（URLのhourlyパラメータに含めると上流がエラーを返す）
  */
 const HOURLY_FIELDS = [
@@ -35,21 +37,12 @@ const HOURLY_FIELDS = [
   'wind_speed_10m',
 ] as const;
 
-/** Open-Meteoのレスポンスのうち本サービスが使用する部分 */
+/** Open-Meteoのレスポンスのうち本サービスが使用する部分（hourlyはHOURLY_FIELDSから導出） */
 interface OpenMeteoResponse {
   latitude: number;
   longitude: number;
   timezone: string;
-  hourly: {
-    time: string[];
-    temperature_2m: (number | null)[];
-    relative_humidity_2m: (number | null)[];
-    apparent_temperature: (number | null)[];
-    precipitation: (number | null)[];
-    weather_code: (number | null)[];
-    shortwave_radiation: (number | null)[];
-    wind_speed_10m: (number | null)[];
-  };
+  hourly: { time: string[] } & Record<(typeof HOURLY_FIELDS)[number], (number | null)[]>;
 }
 
 /** 取得URLを組み立てる */
@@ -76,15 +69,6 @@ export function buildProbabilityUrl(latitude: number, longitude: number, days: n
     forecast_days: String(days),
   });
   return `${OPEN_METEO_FORECAST_BASE_URL}?${params.toString()}`;
-}
-
-/**
- * 有限の数値のみを通す型ガード
- * 配列の要素型は型主張（as）でしか保証されないため、null・undefinedに加えて
- * 数値文字列・NaNなど「数値でない値」も実行時に排除する
- */
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 /**
@@ -199,7 +183,7 @@ async function fetchPrecipitationProbability(
     // （UpstreamErrorはこの関数のcatchが受け止め、空のMapに落ちる）
     const response = await requestUpstream(url, fetchImpl);
     if (!response.ok) {
-      console.error('降水確率APIエラー:', url, response.status, await readErrorDetail(response));
+      await logUpstreamStatus('降水確率APIエラー:', url, response);
       return new Map();
     }
     const data = (await response.json()) as {
@@ -256,8 +240,7 @@ async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Re
   if (response.status < 500) {
     return response;
   }
-  const detail = await readErrorDetail(response);
-  console.error('上流の一時エラー（取り直します）:', url, response.status, detail);
+  await logUpstreamStatus('上流の一時エラー（取り直します）:', url, response);
   await new Promise((resolve) => setTimeout(resolve, UPSTREAM_RETRY_DELAY_MS));
   return requestOnce(url, fetchImpl);
 }

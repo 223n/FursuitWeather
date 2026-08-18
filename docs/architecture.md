@@ -100,7 +100,7 @@ test/                   vitestテスト
   HTTPステータスも文面には出しません（利用者にとって意味がなく、対処の
   判断にも使えないため）。上流が5xxのときは「提供元で障害が発生しています」と
   待てば直ることが伝わる文面にし、それ以外とは区別します
-  （`src/weather/openMeteo.ts`の`upstreamErrorMessage`）
+  （`src/weather/upstream.ts`の`upstreamErrorMessage`）
 - 上流への問い合わせには10秒のタイムアウトを設定し、上流の応答停滞に
   利用者のリクエストを道連れにしません
 - 上流が5xxを返したときは一度だけ取り直します。Open-Meteo自身もCDNの

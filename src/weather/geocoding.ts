@@ -17,7 +17,8 @@ import {
 import type { GeocodeResult } from '../types';
 import {
   fetchUpstream,
-  readErrorDetail,
+  isFiniteNumber,
+  logUpstreamStatus,
   readUpstreamJson,
   throwUpstreamStatus,
   UpstreamError,
@@ -73,10 +74,8 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
       entry.country_code !== 'JP' ||
       typeof entry.name !== 'string' ||
       entry.name === '' ||
-      typeof entry.latitude !== 'number' ||
-      !Number.isFinite(entry.latitude) ||
-      typeof entry.longitude !== 'number' ||
-      !Number.isFinite(entry.longitude)
+      !isFiniteNumber(entry.latitude) ||
+      !isFiniteNumber(entry.longitude)
     ) {
       continue;
     }
@@ -257,7 +256,7 @@ async function resolvePostalCode(
     // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
     const response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
     if (!response.ok) {
-      console.error('郵便番号APIエラー:', url, response.status, await readErrorDetail(response));
+      await logUpstreamStatus('郵便番号APIエラー:', url, response);
       return null;
     }
     const data = (await response.json()) as {

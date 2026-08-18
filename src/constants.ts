@@ -186,7 +186,7 @@ export const COOLING_REQUIRED_WBGT = 25;
 export const COOLING_RECOMMENDED_WBGT = 21;
 
 /** 冷房要否の表示ラベル（LAUNDRY_LEVEL_LABELSと同様、表示文言は本ファイルに集約する） */
-export const COOLING_LABELS: Record<CoolingNeed, string> = {
+export const COOLING_LABELS: Readonly<Record<CoolingNeed, string>> = {
   required: '冷房必須',
   recommended: '冷房推奨',
   none: '冷房なしでも可',
@@ -240,7 +240,7 @@ export const LAUNDRY_BANDS: readonly LaundryBand[] = [
  * 洗濯乾燥レベルの表示ラベル
  * スコア由来の5段階に加え、例外レベル（降雨・低温）を含む全レベル分を一元管理する
  */
-export const LAUNDRY_LEVEL_LABELS: Record<LaundryLevelId, string> = {
+export const LAUNDRY_LEVEL_LABELS: Readonly<Record<LaundryLevelId, string>> = {
   noDryRain: '外干しNG（雨）',
   noDryCold: '乾きにくい（低温）',
   indoorDry: '部屋干し推奨',
@@ -289,7 +289,7 @@ export const GEOCODING_MAX_RESULTS = 5;
  * 2文字以下で0件のときに限り、これらを順に補って再検索する
  * （3文字以上は部分一致が働くため対象外。上流呼び出しの増幅も防ぐ）
  */
-export const GEOCODING_CITY_SUFFIXES = ['市', '町', '村', '区'];
+export const GEOCODING_CITY_SUFFIXES: readonly string[] = ['市', '町', '村', '区'];
 
 /**
  * 郵便番号から得た市区町村名を段階的に短くして再検索する回数の上限

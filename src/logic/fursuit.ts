@@ -22,16 +22,14 @@ import { estimateIndoorWbgt, estimateOutdoorWbgt, roundWbgt } from './wbgt';
 
 /** 着ぐるみ補正後のWBGTを暑熱5段階で判定する */
 function classifyHeat(suitWbgt: number): (typeof HEAT_BANDS)[number] {
-  const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound);
   // upperBoundにInfinityの帯があるため必ず見つかる
-  return band ?? HEAT_BANDS[HEAT_BANDS.length - 1]!;
+  return HEAT_BANDS.find((b) => suitWbgt < b.upperBound)!;
 }
 
 /** 体感温度を低温側の段階で判定する */
 function classifyCold(apparentTemperature: number): (typeof COLD_BANDS)[number] {
-  const band = COLD_BANDS.find((b) => apparentTemperature > b.lowerBound);
   // lowerBoundに-Infinityの帯があるため必ず見つかる
-  return band ?? COLD_BANDS[COLD_BANDS.length - 1]!;
+  return COLD_BANDS.find((b) => apparentTemperature > b.lowerBound)!;
 }
 
 /**

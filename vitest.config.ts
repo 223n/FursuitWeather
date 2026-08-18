@@ -9,7 +9,8 @@ export default defineConfig({
     coverage: {
       include: ['src/**'],
       // docs/development.mdで宣言している「100%を維持」をCIで強制する。
-      // branchesは番兵値により到達しない防御フォールバックが含まれるため対象外
+      // branchesはしきい値の対象外（既定引数などツール上の部分分岐が含まれるため。
+      // statements・lines・functionsの100%で検証水準を担保する）
       thresholds: {
         statements: 100,
         lines: 100,

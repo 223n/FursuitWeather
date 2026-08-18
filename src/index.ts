@@ -38,7 +38,7 @@ export default {
       try {
         return await route(request);
       } catch (error) {
-        const upstream = upstreamErrorResponse(error, '上流エラー:', url);
+        const upstream = upstreamErrorResponse(error, url);
         if (upstream) {
           return upstream;
         }

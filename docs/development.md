@@ -50,8 +50,8 @@ npm run test:coverage
 
 ステートメント・行・関数は100%を維持しています。このしきい値は
 `vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
-未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
-防御フォールバックのみです。
+分岐（branches）はしきい値の対象外です（既定引数などツール上の
+部分分岐が含まれるため）。
 `public/app.js`・`public/wbgt-tool.js`はブラウザ実行のためカバレッジ
 対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、実挙動は
 E2Eテスト（`e2e/`配下）が実ブラウザで検証します。
