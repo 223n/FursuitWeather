@@ -3,10 +3,10 @@
  * レベル表示は色だけに依存せず、記号（◎○△✕）とテキストを必ず併記する */
 
 :root {
-  /* CUD推奨のメインカラー */
+  /* CUD推奨のメインカラー
+   * （CUD推奨色のうち橙#E69F00・緑#009E73は現在未使用のため定義しない。
+   *   緑・橙系の実表示は--level-*-accent等の専用トークンが担う） */
   --color-blue: #0072B2;
-  --color-orange: #E69F00;
-  --color-green: #009E73;
   --color-red: #CC3311;
 
   /* ニュートラル */
@@ -188,10 +188,6 @@ h2 {
   color: var(--color-blue);
   margin-right: 0.4rem;
   vertical-align: -0.1em;
-}
-
-.hidden {
-  display: none;
 }
 
 .hint,
@@ -673,6 +669,8 @@ input[type='number']:focus {
   align-items: center;
   gap: 0.5rem;
   list-style: none;
+  color: var(--color-blue);
+  font-weight: 700;
 }
 
 .legend-details summary::-webkit-details-marker {
@@ -691,11 +689,6 @@ input[type='number']:focus {
 .legend-details[open] summary::before {
   content: '▼';
   content: '▼' / '';
-}
-
-.legend-details summary {
-  color: var(--color-blue);
-  font-weight: 700;
 }
 
 .legend-details summary:focus {
@@ -1030,8 +1023,6 @@ section h3 {
 @media (prefers-color-scheme: dark) {
   :root {
     --color-blue: #56B4E9; /* CUD空色。暗背景でのアクセント・リンク色 */
-    --color-orange: #E69F00;
-    --color-green: #36C48F;
     --color-red: #F07C6C;
 
     --color-text: #E8E8E8;

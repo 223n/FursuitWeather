@@ -111,6 +111,45 @@
   /** 地点セレクトのデバウンス用タイマー */
   let cityChangeTimer = null;
 
+  /**
+   * 保留中のセレクトデバウンスを解除する
+   * nullへの再代入までがワンセット（現在地コールバックのcityChangeTimer !== null
+   * ガードが「保留操作の有無」を正しく判定できるようにする）
+   */
+  function cancelPendingCitySelect() {
+    clearTimeout(cityChangeTimer);
+    cityChangeTimer = null;
+  }
+
+  /**
+   * 地点リストの項目（li > button、location-dotアイコン+ラベル）を組み立てる
+   * お気に入りチップと検索候補で共通。クリック時の処理はクロージャで受け取る
+   */
+  function createLocationItem(label, onClick) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.appendChild(faIcon('location-dot', 'btn-icon'));
+    button.appendChild(document.createTextNode(label));
+    button.addEventListener('click', onClick);
+    item.appendChild(button);
+    return item;
+  }
+
+  /** 「地名（都道府県）」形式のラベルを作る（検索候補と郵便番号解決で共通の表示形式） */
+  function placeLabel(name, admin1) {
+    return typeof admin1 === 'string' && admin1 !== '' ? `${name}（${admin1}）` : name;
+  }
+
+  /**
+   * 座標を予報クエリ文字列にする（プライバシー契約の単一実装）
+   * URLに現れる座標はすべて小数2桁（約1km）に統一する。予報は約5kmメッシュの
+   * ため結果への影響はなく、自宅を特定できる精度の位置がURLへ流れない
+   */
+  function coordQuery(lat, lon) {
+    return `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
+  }
+
   /** 2地点間の距離（km）をハーバーサイン公式で求める */
   function distanceKm(lat1, lon1, lat2, lon2) {
     const toRad = (deg) => (deg * Math.PI) / 180;
@@ -153,6 +192,9 @@
   // プライベートモードなどlocalStorageが使えない環境では黙って無効になる
   const LOCATION_STORAGE_KEY = 'fursuitweather:lastLocation';
 
+  // localStorageに保存する地点クエリの受け入れ形式（記憶とお気に入りで共通）
+  const STORED_QUERY_PATTERN = /^lat=-?[\d.]+&lon=-?[\d.]+$/;
+
   /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
   function readStoredLocation() {
     try {
@@ -164,7 +206,7 @@
       if (
         !stored ||
         typeof stored.query !== 'string' ||
-        !/^lat=-?[\d.]+&lon=-?[\d.]+$/.test(stored.query) ||
+        !STORED_QUERY_PATTERN.test(stored.query) ||
         typeof stored.locationName !== 'string'
       ) {
         return null;
@@ -212,7 +254,7 @@
           (item) =>
             item &&
             typeof item.query === 'string' &&
-            /^lat=-?[\d.]+&lon=-?[\d.]+$/.test(item.query) &&
+            STORED_QUERY_PATTERN.test(item.query) &&
             typeof item.name === 'string' &&
             item.name !== '',
         )
@@ -491,8 +533,7 @@
       manualTabSeq += 1;
       selectedDate = day.date;
       updateSelectedCard();
-      const index = currentForecast.days.findIndex((d) => d.date === day.date);
-      const dayTab = TABS.find((t) => t.dayIndex === index);
+      const dayTab = dayTabForDate(day.date);
       if (dayTab) {
         activateTab(dayTab.tabId, false);
       }
@@ -517,7 +558,6 @@
     updateSelectedCard();
   }
 
-  /** 時間別テーブルを描画する */
   /** 日本時間の現在日付（YYYY-MM-DD）と時（0〜23）を返す
    * 予報データの時刻はAsia/Tokyoのため、端末のタイムゾーンに依存せずJSTで比較する */
   function nowInJst() {
@@ -536,6 +576,12 @@
     { tabId: 'tab-planner', panelId: 'planner-section' },
     { tabId: 'tab-measured', panelId: 'measured-section' },
   ];
+
+  /** 日付に対応する日別タブを返す。予報範囲外の日付はundefined（呼び出し側で防御する） */
+  function dayTabForDate(date) {
+    const index = currentForecast.days.findIndex((d) => d.date === date);
+    return TABS.find((t) => t.dayIndex === index);
+  }
   /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
    * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
    * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
@@ -745,6 +791,7 @@
     nowCard.replaceChildren(timeLine, headline, advice, indoor);
   }
 
+  /** 時間別テーブルを描画する */
   function renderHours() {
     const now = nowInJst();
     const hours = currentForecast.hours.filter((h) => {
@@ -753,7 +800,7 @@
       }
       // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
       if (selectedDate === now.date) {
-        return Number.parseInt(h.time.slice(11, 13), 10) >= now.hour;
+        return hourNumberOf(h.time) >= now.hour;
       }
       return true;
     });
@@ -762,7 +809,7 @@
 
     for (const hour of hours) {
       const row = document.createElement('tr');
-      const hourNumber = Number.parseInt(hour.time.slice(11, 13), 10);
+      const hourNumber = hourNumberOf(hour.time);
       if (hourNumber < 6 || hourNumber >= 19) {
         row.classList.add('night');
       }
@@ -867,8 +914,7 @@
     const shareName = urlName ?? locationName;
     // 確定ロードは保留中のセレクトデバウンスと検索応答を無効化し、後から
     // 古い地点選択・検索候補が発火して最後の明示操作を上書きするのを防ぐ
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     searchSeq += 1;
     // 「予報を更新」が常に「最後に要求した条件の再試行」になるよう、
     // クエリと地点名は成功を待たずペアで記録する（表示ラベルの更新は成功時のみ）
@@ -1000,8 +1046,7 @@
     if (!city) {
       return;
     }
-    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
-    loadForecast(`lat=${city.lat.toFixed(2)}&lon=${city.lon.toFixed(2)}`, city.name, { cityIndex });
+    loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -1032,8 +1077,7 @@
 
   document.getElementById('geolocation-button').addEventListener('click', () => {
     // GPS取得待ちの間に保留中のセレクトデバウンスが発火しないよう先に解除する
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     if (!navigator.geolocation) {
       setStatus('このブラウザは位置情報に対応していません。', true);
       return;
@@ -1052,10 +1096,8 @@
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         loadForecast(
-          // プライバシー保護: GPS座標は小数2桁（約1km）へ丸めてから使う。
-          // 予報は約5kmメッシュのため結果は変わらず、APIリクエストや
-          // 「共有」のURLに自宅を特定できる精度の位置が流れない
-          `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`,
+          // プライバシー保護: GPS座標はcoordQueryが小数2桁（約1km）へ丸める
+          coordQuery(lat, lon),
           describeCurrentLocation(lat, lon),
           // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）。
           // 共有リンクの名前は座標由来の説明だけにする（受け取った人にとっては
@@ -1125,21 +1167,14 @@
       favoritesList.replaceChildren(hint);
       return;
     }
-    const items = favorites.map((fav) => {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.appendChild(faIcon('location-dot', 'btn-icon'));
-      button.appendChild(document.createTextNode(fav.name));
-      button.addEventListener('click', () => {
+    const items = favorites.map((fav) =>
+      createLocationItem(fav.name, () => {
         loadForecast(fav.query, fav.name, {
           cityIndex: fav.cityIndex,
           storedName: fav.name,
         });
-      });
-      item.appendChild(button);
-      return item;
-    });
+      }),
+    );
     favoritesList.replaceChildren(...items);
   }
 
@@ -1203,6 +1238,28 @@
     searchResults.replaceChildren();
   }
 
+  /**
+   * /api/geocodeへ問い合わせ、レスポンスと解析済みボディを返す
+   * 通信失敗は固定の日本語文へ差し替える。JSONの解析失敗はbody=nullとし、
+   * 応答の採否（世代ガード）とエラー判定は呼び出し側が行う
+   */
+  async function fetchGeocode(query) {
+    const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`).catch(() => {
+      throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
+    });
+    const body = await response.json().catch(() => null);
+    return { response, body };
+  }
+
+  /** 地点検索の失敗応答を利用者向けメッセージの例外にする */
+  function throwIfGeocodeError(response, body) {
+    if (!response.ok) {
+      throw new Error(
+        (body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`,
+      );
+    }
+  }
+
   async function searchPlace() {
     const query = searchInput.value.trim();
     if (query === '') {
@@ -1215,18 +1272,11 @@
     clearSearchResults();
     setStatus('地点を検索しています…', false);
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`).catch(() => {
-        throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
-      });
-      const body = await response.json().catch(() => null);
+      const { response, body } = await fetchGeocode(query);
       if (seq !== searchSeq) {
         return;
       }
-      if (!response.ok) {
-        throw new Error(
-          (body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`,
-        );
-      }
+      throwIfGeocodeError(response, body);
       if (!body || !Array.isArray(body.results)) {
         throw new Error('地点検索の結果の形式が不正です');
       }
@@ -1239,11 +1289,11 @@
         ) {
           continue;
         }
-        const label =
-          typeof place.admin1 === 'string' && place.admin1 !== ''
-            ? `${place.name}（${place.admin1}）`
-            : place.name;
-        places.push({ label, latitude: place.latitude, longitude: place.longitude });
+        places.push({
+          label: placeLabel(place.name, place.admin1),
+          latitude: place.latitude,
+          longitude: place.longitude,
+        });
       }
       if (places.length === 0) {
         setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
@@ -1252,12 +1302,7 @@
       const selectPlace = (choice) => {
         clearSearchResults();
         searchInput.value = '';
-        loadForecast(
-          // 座標はURLに現れるためすべて小数2桁（約1km）に統一する。予報は約5km
-          // メッシュのため結果への影響はない
-          `lat=${choice.latitude.toFixed(2)}&lon=${choice.longitude.toFixed(2)}`,
-          choice.label,
-        );
+        loadForecast(coordQuery(choice.latitude, choice.longitude), choice.label);
       };
       // 候補が1件だけなら選ばせる必要がないため、そのまま予報を表示する
       // （郵便番号検索は市区町村1件に決まることが多く、この経路になる）
@@ -1265,16 +1310,9 @@
         selectPlace(places[0]);
         return;
       }
-      const items = places.map((choice) => {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.appendChild(faIcon('location-dot', 'btn-icon'));
-        button.appendChild(document.createTextNode(choice.label));
-        button.addEventListener('click', () => selectPlace(choice));
-        item.appendChild(button);
-        return item;
-      });
+      const items = places.map((choice) =>
+        createLocationItem(choice.label, () => selectPlace(choice)),
+      );
       // 追記ではなく全置換にして、万一の競合でも新旧候補が混在しないようにする
       searchResults.replaceChildren(...items);
       searchResultsBox.hidden = false;
@@ -1415,13 +1453,8 @@
   /** 郵便番号から開催地の座標を1件解決する（候補が無ければnull）。
    * 郵便番号→市区町村名→座標の変換はWorker側（/api/geocode）が担う */
   async function geocodeZip(zip) {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(zip)}`).catch(() => {
-      throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
-    });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`);
-    }
+    const { response, body } = await fetchGeocode(zip);
+    throwIfGeocodeError(response, body);
     const first = body && Array.isArray(body.results) ? body.results[0] : null;
     if (!first || typeof first.latitude !== 'number' || typeof first.longitude !== 'number') {
       return null;
@@ -1433,8 +1466,8 @@
     return {
       latitude: first.latitude,
       longitude: first.longitude,
-      // 地点検索の候補表示と同じ「地名（都道府県）」形式に揃える
-      label: name === '' ? '' : admin1 === '' ? name : `${name}（${admin1}）`,
+      // 空名のときだけ空文字（呼び出し側が郵便番号表記で代替する）
+      label: name === '' ? '' : placeLabel(name, admin1),
     };
   }
 
@@ -1488,8 +1521,7 @@
     const tabSeqAtStart = manualTabSeq;
     // 保留中のセレクト操作が郵便番号の検索中に発火して、この明示操作を
     // 追い越さないよう先に解除する（loadForecast・現在地ボタンと同じ扱い）
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     // 直前の地点検索の候補が残っていると、どれが表示中か紛らわしいため消す
     clearSearchResults();
     // 開催地は郵便番号から検索する（地点検索と同じ/api/geocode経由。
@@ -1523,8 +1555,7 @@
         ? `${event.name}（${event.place}）`
         : `${event.name}（${event.place}・${place.label}付近）`;
     const loaded = await loadForecast(
-      // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
-      `lat=${place.latitude.toFixed(2)}&lon=${place.longitude.toFixed(2)}`,
+      coordQuery(place.latitude, place.longitude),
       label,
       // 記憶・お気に入りにはイベント名を残さず地名を使う。イベントは日付を
       // 過ぎれば意味を失うが、記憶した地点は次回以降も表示され続けるため
@@ -1536,8 +1567,7 @@
     // 開催中（今日が期間内）なら今日、これからなら初日の予報を見せる
     const today = nowInJst().date;
     const targetDate = event.startDate <= today && today <= event.endDate ? today : event.startDate;
-    const index = currentForecast.days.findIndex((d) => d.date === targetDate);
-    const dayTab = TABS.find((t) => t.dayIndex === index);
+    const dayTab = dayTabForDate(targetDate);
     // オフライン表示中も案内は出すが、保存済み予報である注記（安全に関わる）は前置きして残す
     const prefix = displayedFromCache ? 'オフライン表示（保存済みの予報）: ' : '';
     if (dayTab) {
@@ -1727,7 +1757,7 @@
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
       : coordName;
     // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
-    loadForecast(`lat=${sharedLat.toFixed(2)}&lon=${sharedLon.toFixed(2)}`, displayLabel, {
+    loadForecast(coordQuery(sharedLat, sharedLon), displayLabel, {
       storedName: coordName,
       // URL・共有リンクへは注記なしの名前だけを書き戻す。displayLabelをそのまま
       // 載せると、共有が1往復するたびに「（共有・…）」が積み重なって名前が伸び、

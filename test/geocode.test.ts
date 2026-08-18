@@ -16,7 +16,7 @@ import {
   parseGeocodingResponse,
   preferSamePrefecture,
 } from '../src/weather/geocoding';
-import { UpstreamError } from '../src/weather/openMeteo';
+import { UpstreamError } from '../src/weather/upstream';
 
 // spyモード: 実装はそのままに、個別テストでfetchGeocodingの失敗を注入できるようにする
 vi.mock('../src/weather/geocoding', { spy: true });

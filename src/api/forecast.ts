@@ -1,49 +1,12 @@
 // /api/forecast エンドポイント
 // クエリパラメータを検証し、気象データの取得と予報の組み立てを行う
 
-import {
-  DEFAULT_FORECAST_DAYS,
-  MAX_FORECAST_DAYS,
-  RESPONSE_CACHE_MAX_AGE_SECONDS,
-} from '../constants';
+import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS } from '../constants';
 import { buildForecast } from '../logic/forecast';
 import { demoWeather } from '../weather/demoData';
-import { fetchWeather, UpstreamError, type WeatherResult } from '../weather/openMeteo';
-
-/** JSONレスポンスを生成する */
-export function json(body: unknown, status = 200, cacheable = false): Response {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json; charset=utf-8',
-    // 個人開発の公開APIとして他サイトからの利用も許可する
-    'Access-Control-Allow-Origin': '*',
-    // Content-Typeを無視した推測実行を防ぐ（静的アセット側はpublic/_headersで設定）
-    'X-Content-Type-Options': 'nosniff',
-  };
-  if (cacheable) {
-    headers['Cache-Control'] = `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`;
-  } else {
-    headers['Cache-Control'] = 'no-store';
-  }
-  return new Response(JSON.stringify(body), { status, headers });
-}
-
-/** エラーレスポンスを生成する */
-export function jsonError(status: number, message: string): Response {
-  return json({ error: message }, status);
-}
-
-/** CORSプリフライト（OPTIONS）への応答を生成する（全APIエンドポイント共通） */
-export function preflightResponse(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Access-Control-Allow-Headers': '*',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
-}
+import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
+import { UpstreamError } from '../weather/upstream';
+import { json, jsonError, methodGuard } from './http';
 
 /** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
 function parseNumberParam(params: URLSearchParams, name: string): number | null {
@@ -66,13 +29,9 @@ function todayInJst(now: Date): string {
  * GET /api/forecast?demo=1 （デモデータで応答）
  */
 export async function handleForecast(request: Request): Promise<Response> {
-  // 他サイトからのAPI利用（CORS）のため、プリフライトリクエストに応答する
-  if (request.method === 'OPTIONS') {
-    return preflightResponse();
-  }
-
-  if (request.method !== 'GET') {
-    return jsonError(405, 'GETメソッドのみ対応しています');
+  const guard = methodGuard(request);
+  if (guard) {
+    return guard;
   }
 
   const url = new URL(request.url);
@@ -96,10 +55,12 @@ export async function handleForecast(request: Request): Promise<Response> {
     }
 
     // daysは省略時のみ既定値とし、指定されていて解析できない場合は明示的にエラーを返す
+    // （Number()による解析はlat・lonのparseNumberParamと同じで、NaN・Infinityは
+    //   Number.isIntegerが弾くため受け入れる値は従来と同一）
     const daysRaw = params.get('days');
     const daysSpecified = daysRaw !== null && daysRaw.trim() !== '';
-    const days = daysSpecified ? parseNumberParam(params, 'days') : DEFAULT_FORECAST_DAYS;
-    if (days === null || !Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
+    const days = daysSpecified ? Number(daysRaw) : DEFAULT_FORECAST_DAYS;
+    if (!Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
       return jsonError(400, `daysは1〜${MAX_FORECAST_DAYS}の整数で指定してください`);
     }
 

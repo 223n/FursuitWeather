@@ -18,16 +18,7 @@ import type {
 } from '../types';
 import { assessIndoor, assessOutdoor } from './fursuit';
 import { assessLaundry } from './laundry';
-
-/** 時刻文字列（YYYY-MM-DDTHH:mm）から時（0〜23）を取り出す */
-function hourOf(time: string): number {
-  return Number.parseInt(time.slice(11, 13), 10);
-}
-
-/** 時刻文字列から日付（YYYY-MM-DD）を取り出す */
-function dateOf(time: string): string {
-  return time.slice(0, 10);
-}
+import { dateOf, hourOf } from './time';
 
 /** 1時間分の予報を組み立てる */
 export function buildHourForecast(weather: HourlyWeather): HourForecast {

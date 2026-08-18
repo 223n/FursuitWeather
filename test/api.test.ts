@@ -9,8 +9,8 @@ import {
   buildProbabilityUrl,
   fetchWeather,
   parseWeatherResponse,
-  UpstreamError,
 } from '../src/weather/openMeteo';
+import { UpstreamError } from '../src/weather/upstream';
 
 // spyモード: 実装はそのままに、個別テストでfetchWeatherの失敗を注入できるようにする
 vi.mock('../src/weather/openMeteo', { spy: true });

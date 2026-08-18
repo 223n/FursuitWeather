@@ -1,7 +1,14 @@
 // FursuitWeather 定数定義
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
-import type { ColdLevelId, CoolingNeed, Grade, HeatLevelId, LaundryLevelId } from './types';
+import type {
+  ColdLevelId,
+  CoolingNeed,
+  Grade,
+  HeatLevelId,
+  LaundryLevelId,
+  OutdoorLevelId,
+} from './types';
 
 /**
  * 小野ら（2014）によるWBGT推定式の係数
@@ -52,16 +59,24 @@ export const COLD_SWITCH_TEMPERATURE = 15;
  */
 export const HEAT_STROKE_ALERT_WBGT = 33;
 
-/** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
-export interface HeatBand {
-  /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */
-  upperBound: number;
-  id: HeatLevelId;
+/**
+ * 活動レベル定義の共通形（暑熱側・低温側で共有するフィールド）
+ * 判定結果の組み立て（fursuit.tsのassessOutdoor）はこの形だけに依存する
+ */
+export interface ActivityBand {
+  id: OutdoorLevelId;
   label: string;
   grade: Grade;
   /** 1回あたりの連続活動時間の目安（分） */
   activityMinutes: number;
   advice: string;
+}
+
+/** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
+interface HeatBand extends ActivityBand {
+  /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */
+  upperBound: number;
+  id: HeatLevelId;
 }
 
 /**
@@ -118,14 +133,10 @@ export const HEAT_BANDS: readonly HeatBand[] = [
 ] as const;
 
 /** 低温側レベル定義 */
-export interface ColdBand {
+interface ColdBand extends ActivityBand {
   /** この値より大きければ該当（℃、体感温度と比較） */
   lowerBound: number;
   id: ColdLevelId;
-  label: string;
-  grade: Grade;
-  activityMinutes: number;
-  advice: string;
 }
 
 /**
@@ -209,7 +220,7 @@ export const LAUNDRY = {
 } as const;
 
 /** 洗濯乾燥レベル定義（スコアしきい値はtenki.jp互換） */
-export interface LaundryBand {
+interface LaundryBand {
   /** この値以下なら該当 */
   upperBound: number;
   id: LaundryLevelId;

@@ -9,9 +9,9 @@ import {
   OPEN_METEO_FORECAST_BASE_URL,
   UPSTREAM_CACHE_TTL_SECONDS,
   UPSTREAM_RETRY_DELAY_MS,
-  UPSTREAM_TIMEOUT_MS,
 } from '../constants';
 import type { HourlyWeather } from '../types';
+import { readErrorDetail, UpstreamError, upstreamErrorMessage, upstreamInit } from './upstream';
 
 /**
  * 取得・検証に使うhourlyデータフィールド（時刻timeを除く）
@@ -44,14 +44,6 @@ interface OpenMeteoResponse {
     shortwave_radiation: (number | null)[];
     wind_speed_10m: (number | null)[];
   };
-}
-
-/** 上流APIの取得失敗を表すエラー */
-export class UpstreamError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'UpstreamError';
-  }
 }
 
 /** 取得URLを組み立てる */
@@ -185,30 +177,6 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
   };
 }
 
-/** 上流リクエスト共通の初期化子（UA・エッジキャッシュ・タイムアウト） */
-function upstreamInit(): RequestInit {
-  return {
-    headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-    // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
-    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと。
-    // ステータスごとにTTLを分けるのが要点で、cacheTtl（一律）にすると上流の
-    // エラー応答まで同じ時間キャッシュしてしまう。実際に上流が525を返した際、
-    // 上流の復旧後もキャッシュされた525が返り続けて障害が長引いた
-    cf: {
-      cacheTtlByStatus: {
-        '200-299': UPSTREAM_CACHE_TTL_SECONDS,
-        // エラーは残さない。上流が直り次第すぐ取り直せるようにする
-        '400-499': 0,
-        '500-599': 0,
-      },
-      cacheEverything: true,
-    },
-    // 上流の応答停滞時にユーザーリクエストを長時間待たせないための打ち切り。
-    // 中断はfetchのrejectとしてcatchに入り、既存のUpstreamError（502）分類に乗る
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-  };
-}
-
 /**
  * 降水確率を標準予報APIから取得し、時刻→確率のMapに変換する
  * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
@@ -225,8 +193,7 @@ async function fetchPrecipitationProbability(
     // （UpstreamErrorはこの関数のcatchが受け止め、空のMapに落ちる）
     const response = await requestUpstream(url, fetchImpl);
     if (!response.ok) {
-      const detail = (await response.text().catch(() => '')).slice(0, 200);
-      console.error('降水確率APIエラー:', url, response.status, detail);
+      console.error('降水確率APIエラー:', url, response.status, await readErrorDetail(response));
       return new Map();
     }
     const data = (await response.json()) as {
@@ -253,23 +220,12 @@ async function fetchPrecipitationProbability(
   }
 }
 
-/**
- * 上流が非2xxを返したときに、利用者へ見せるメッセージを組み立てる
- *
- * HTTPステータスは利用者にとって意味がなく、対処の判断にも使えないため文面に
- * 含めない（ステータスと本文はconsole.errorへ残し、運用側の切り分けに使う）。
- * 5xxは提供元の障害で「待てば直る」ため、その旨が伝わる文面にする
- */
-export function upstreamErrorMessage(subject: string, status: number): string {
-  return status >= 500
-    ? `${subject}の提供元で障害が発生しています。しばらく時間をおいてから再度お試しください`
-    : `${subject}を取得できませんでした。時間をおいて再度お試しください`;
-}
-
 /** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
 async function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
   try {
-    return await fetchImpl(url, upstreamInit());
+    // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
+    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
+    return await fetchImpl(url, upstreamInit(UPSTREAM_CACHE_TTL_SECONDS));
   } catch (error) {
     // 原因（英語のランタイムメッセージ）はログにのみ残し、
     // 利用者へ返すメッセージには固定の日本語文を使う
@@ -301,8 +257,7 @@ async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Re
   if (response.status < 500) {
     return response;
   }
-  // 破棄する応答も本文を読み切る（未読ストリームが上流接続を保持するのを防ぐ）
-  const detail = (await response.text().catch(() => '')).slice(0, 200);
+  const detail = await readErrorDetail(response);
   console.error('上流の一時エラー（取り直します）:', url, response.status, detail);
   await new Promise((resolve) => setTimeout(resolve, UPSTREAM_RETRY_DELAY_MS));
   return requestOnce(url, fetchImpl);
@@ -328,10 +283,8 @@ export async function fetchWeather(
   ]);
 
   if (!response.ok) {
-    // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す。
-    // ボディを消費することで、未読ストリームによる上流接続の保持も防ぐ
-    const detail = (await response.text().catch(() => '')).slice(0, 200);
-    console.error('気象データAPIエラー:', url, response.status, detail);
+    // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す
+    console.error('気象データAPIエラー:', url, response.status, await readErrorDetail(response));
     throw new UpstreamError(upstreamErrorMessage('気象データ', response.status));
   }
 

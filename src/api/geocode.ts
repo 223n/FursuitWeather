@@ -4,21 +4,17 @@
 
 import { GEOCODING_MAX_QUERY_LENGTH } from '../constants';
 import { fetchGeocoding } from '../weather/geocoding';
-import { UpstreamError } from '../weather/openMeteo';
-import { json, jsonError, preflightResponse } from './forecast';
+import { UpstreamError } from '../weather/upstream';
+import { json, jsonError, methodGuard } from './http';
 
 /**
  * GET /api/geocode?q=松山
  * GET /api/geocode?q=790-0067 （郵便番号でも検索できる）
  */
 export async function handleGeocode(request: Request): Promise<Response> {
-  // /api/forecastと同じCORS契約（プリフライト対応）を維持する
-  if (request.method === 'OPTIONS') {
-    return preflightResponse();
-  }
-
-  if (request.method !== 'GET') {
-    return jsonError(405, 'GETメソッドのみ対応しています');
+  const guard = methodGuard(request);
+  if (guard) {
+    return guard;
   }
 
   const url = new URL(request.url);

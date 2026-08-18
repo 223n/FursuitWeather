@@ -2,13 +2,20 @@
 // /api/* とHTMLページを本Workerが処理し、それ以外は静的アセット（public/）が
 // 配信される（wrangler.jsoncのassets.run_worker_first設定による）
 
-import { handleForecast, jsonError } from './api/forecast';
+import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
+import { jsonError } from './api/http';
 import { buildHtmlCsp, isHtmlPath } from './csp';
 
 export interface Env {
   ASSETS: Fetcher;
 }
+
+/** APIパスとハンドラの対応表。エンドポイントの追加はここへ1行足す */
+const API_ROUTES = new Map<string, (request: Request) => Promise<Response>>([
+  ['/api/forecast', handleForecast],
+  ['/api/geocode', handleGeocode],
+]);
 
 /**
  * HTMLへリクエストごとのnonceを差し込んで返す
@@ -19,7 +26,7 @@ export interface Env {
  * 紛らわしいので明示的に除外する）。
  * nonceは毎回変わるため、共有キャッシュに載らないようno-storeを付ける
  */
-export async function withNonce(asset: Response, nonce: string): Promise<Response> {
+async function withNonce(asset: Response, nonce: string): Promise<Response> {
   const rewritten = new HTMLRewriter()
     .on('script', {
       element(element): void {
@@ -49,22 +56,14 @@ export default {
   async fetch(request, env, _ctx): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === '/api/forecast') {
+    const route = API_ROUTES.get(url.pathname);
+    if (route) {
       // 最終防衛線: 予期しない例外もCORSヘッダー付きのJSONで返し、公開APIの契約を守る
       // （awaitなしのreturnでは非同期の失敗を捕捉できないため必ずawaitする）
       try {
-        return await handleForecast(request);
+        return await route(request);
       } catch (error) {
         // ログ行単体で再現条件（座標・日数）が分かるよう、リクエストの文脈を添える
-        console.error('予期しないエラー:', url.pathname + url.search, error);
-        return jsonError(500, 'サーバー内部でエラーが発生しました');
-      }
-    }
-
-    if (url.pathname === '/api/geocode') {
-      try {
-        return await handleGeocode(request);
-      } catch (error) {
         console.error('予期しないエラー:', url.pathname + url.search, error);
         return jsonError(500, 'サーバー内部でエラーが発生しました');
       }

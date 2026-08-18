@@ -103,12 +103,8 @@ export interface LaundryAssessment {
   advice: string;
 }
 
-/** レベルの要約（日別サマリー用） */
-export interface LevelSummary {
-  level: OutdoorLevelId;
-  label: string;
-  grade: Grade;
-}
+/** レベルの要約（日別サマリー用）。ActivityAssessmentの部分集合であることを型で明示する */
+export type LevelSummary = Pick<ActivityAssessment, 'level' | 'label' | 'grade'>;
 
 /** 1日分の予報サマリー */
 export interface DayForecast {

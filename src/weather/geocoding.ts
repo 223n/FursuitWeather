@@ -15,7 +15,7 @@ import {
   ZIPCLOUD_BASE_URL,
 } from '../constants';
 import type { GeocodeResult } from '../types';
-import { UpstreamError, upstreamErrorMessage } from './openMeteo';
+import { readErrorDetail, UpstreamError, upstreamErrorMessage, upstreamInit } from './upstream';
 
 /** Open-Meteoジオコーディングのレスポンスのうち本サービスが使用する部分 */
 interface GeocodingResponse {
@@ -90,6 +90,10 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
  * 都市名・郵便番号から地点候補を検索する
  * 1回分の地名検索を実行する
  *
+ * 気象データ側（openMeteo.tsのrequestUpstream）と異なり5xxの取り直しはしない。
+ * 地点検索は接尾辞補完・郵便番号フォールバックで最大数回の直列呼び出しが起きるため、
+ * リトライを重ねると待ち時間と上流無料枠の消費が増幅する。検索は利用者の再操作も容易
+ *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
 async function searchByName(
@@ -100,28 +104,15 @@ async function searchByName(
 
   let response: Response;
   try {
-    response = await fetchImpl(url, {
-      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-      // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
-      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
-      cf: {
-        cacheTtlByStatus: {
-          '200-299': GEOCODING_CACHE_TTL_SECONDS,
-          '400-499': 0,
-          '500-599': 0,
-        },
-        cacheEverything: true,
-      },
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
+    response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
   } catch (error) {
     console.error('地点検索の取得に失敗:', url, error);
     throw new UpstreamError('地点検索に失敗しました。時間をおいて再度お試しください');
   }
 
   if (!response.ok) {
-    const detail = (await response.text().catch(() => '')).slice(0, 200);
-    console.error('地点検索APIエラー:', url, response.status, detail);
+    console.error('地点検索APIエラー:', url, response.status, await readErrorDetail(response));
     throw new UpstreamError(upstreamErrorMessage('地点検索', response.status));
   }
 
@@ -254,20 +245,8 @@ async function resolvePostalCode(
 ): Promise<PostalAddress | null> {
   const url = `${ZIPCLOUD_BASE_URL}?zipcode=${digits}`;
   try {
-    const response = await fetchImpl(url, {
-      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-      // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
-      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
-      cf: {
-        cacheTtlByStatus: {
-          '200-299': GEOCODING_CACHE_TTL_SECONDS,
-          '400-499': 0,
-          '500-599': 0,
-        },
-        cacheEverything: true,
-      },
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
+    const response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
     if (!response.ok) {
       console.error('郵便番号APIエラー:', url, response.status);
       return null;

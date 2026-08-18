@@ -3,6 +3,7 @@
 // 低温域（気温15℃未満）はWBGT式の適用範囲外のため、体感温度による低温判定に切り替える
 
 import {
+  type ActivityBand,
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   COOLING_LABELS,
@@ -52,10 +53,7 @@ export function assessOutdoor(weather: HourlyWeather): ActivityAssessment {
   const suitWbgt = roundWbgt(wbgt + SUIT_WBGT_ADJUSTMENT);
   const heatBand = classifyHeat(suitWbgt);
 
-  let band: Pick<
-    (typeof HEAT_BANDS)[number],
-    'label' | 'grade' | 'activityMinutes' | 'advice'
-  > & { id: ActivityAssessment['level'] } = heatBand;
+  let band: ActivityBand = heatBand;
 
   if (weather.temperature < COLD_SWITCH_TEMPERATURE) {
     const coldBand = classifyCold(weather.apparentTemperature);
