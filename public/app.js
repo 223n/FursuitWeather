@@ -996,7 +996,7 @@
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
       displayedFromCache = response.headers.get('X-Served-From-Cache') === '1';
-      setStatus(displayedFromCache ? cachedStatusText(response) : '予報を取得しました', false);
+      setStatus(displayedFromCache ? cachedStatusText(response) : '予報を取得しました。', false);
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）。
       // 名前は画面用ラベルではなく注記なしのshareNameを使う（共有のたびに注記が
@@ -1182,7 +1182,7 @@
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setStatus('共有用URLをコピーしました', false);
+      setStatus('共有用URLをコピーしました。', false);
     } catch {
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
