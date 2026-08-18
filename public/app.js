@@ -1558,6 +1558,7 @@
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
+  const planButton = document.getElementById('plan-button');
   const planStart = document.getElementById('plan-start');
   const planEnd = document.getElementById('plan-end');
   const planResult = document.getElementById('plan-result');
@@ -1575,8 +1576,16 @@
     const previous = planDate.value;
     planDate.replaceChildren();
     if (!currentForecast) {
+      // 予報が無いときは空のセレクトにせず、理由が分かる選択肢を残して操作を止める。
+      // 空のままだと上流障害中に「画面が壊れている」と見えてしまう
+      // （イベント選択が定義0件のときに取る扱いと揃える）
+      planDate.appendChild(new Option('予報を読み込むと選べます', ''));
+      planDate.disabled = true;
+      planButton.disabled = true;
       return;
     }
+    planDate.disabled = false;
+    planButton.disabled = false;
     const names = ['今日', '明日', '明後日'];
     currentForecast.days.forEach((day, index) => {
       const prefix = names[index] ? `${names[index]} ` : '';
@@ -1675,7 +1684,7 @@
     setStatus('活動計画を作成しました。', false);
   }
 
-  document.getElementById('plan-button').addEventListener('click', renderPlan);
+  planButton.addEventListener('click', renderPlan);
 
   // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
