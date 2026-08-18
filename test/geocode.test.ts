@@ -68,8 +68,15 @@ describe('handleGeocode', () => {
     const upstreamUrl = String(fetchMock.mock.calls[0]![0]);
     expect(upstreamUrl).toContain('geocoding-api.open-meteo.com');
     expect(upstreamUrl).toContain(`name=${encodeURIComponent('松山')}`);
-    const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: { cacheTtl?: number } };
-    expect(init.cf?.cacheTtl).toBe(GEOCODING_CACHE_TTL_SECONDS);
+    const init = fetchMock.mock.calls[0]![1] as RequestInit & {
+      cf?: { cacheTtlByStatus?: Record<string, number> };
+    };
+    // 成功応答だけを長期キャッシュし、エラーは残さない
+    expect(init.cf?.cacheTtlByStatus).toEqual({
+      '200-299': GEOCODING_CACHE_TTL_SECONDS,
+      '400-499': 0,
+      '500-599': 0,
+    });
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 

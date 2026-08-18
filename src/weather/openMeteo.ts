@@ -190,9 +190,17 @@ function upstreamInit(): RequestInit {
   return {
     headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
     // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
-    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
+    // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと。
+    // ステータスごとにTTLを分けるのが要点で、cacheTtl（一律）にすると上流の
+    // エラー応答まで同じ時間キャッシュしてしまう。実際に上流が525を返した際、
+    // 上流の復旧後もキャッシュされた525が返り続けて障害が長引いた
     cf: {
-      cacheTtl: UPSTREAM_CACHE_TTL_SECONDS,
+      cacheTtlByStatus: {
+        '200-299': UPSTREAM_CACHE_TTL_SECONDS,
+        // エラーは残さない。上流が直り次第すぐ取り直せるようにする
+        '400-499': 0,
+        '500-599': 0,
+      },
       cacheEverything: true,
     },
     // 上流の応答停滞時にユーザーリクエストを長時間待たせないための打ち切り。

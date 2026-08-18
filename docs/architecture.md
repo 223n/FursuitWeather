@@ -268,7 +268,7 @@ Workerは世界中に分散したCloudflareのデータセンター網（エッ�
 
 | 対象 | 上流へのエッジキャッシュ | 自レスポンスのブラウザキャッシュ |
 |------|--------------------------|----------------------------------|
-| 予報（/api/forecast） | 30分（`cf.cacheTtl: 1800`） | 10分（`Cache-Control: max-age=600`） |
+| 予報（/api/forecast） | 30分（`cf.cacheTtlByStatus`の200番台） | 10分（`Cache-Control: max-age=600`） |
 | 地点検索（/api/geocode） | 7日（地名・郵便番号はほぼ不変） | なし（`no-store`） |
 
 予報データは2段階でキャッシュされます。
@@ -276,12 +276,12 @@ Workerは世界中に分散したCloudflareのデータセンター網（エッ�
 ```mermaid
 flowchart LR
     B[ブラウザ] <-->|"(1) ブラウザキャッシュ 10分<br>Cache-Control: max-age=600"| E["Cloudflareエッジ（Worker）"]
-    E <-->|"(2) エッジキャッシュ 30分<br>cf.cacheTtl: 1800"| O["Open-Meteo API<br>（気象庁MSM/GSM）"]
+    E <-->|"(2) エッジキャッシュ 30分<br>cf.cacheTtlByStatus（成功応答のみ）"| O["Open-Meteo API<br>（気象庁MSM/GSM）"]
 ```
 
 1. エッジでの気象データキャッシュ（30分）: 同じ地点・同じ日数の
    リクエストが30分以内に来た場合、Open-Meteoへは問い合わせず保存済みの
-   コピーから応答します（`fetch`の`cf.cacheTtl`による。URL単位・
+   コピーから応答します（`fetch`の`cf.cacheTtlByStatus`による。URL単位・
    データセンター単位で独立）。データ提供元の無料枠
    （1日1万コール）を守る目的もあります
 1. ブラウザキャッシュ（10分）: APIレスポンスの

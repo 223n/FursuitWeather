@@ -527,6 +527,7 @@
     { tabId: 'tab-day-1', panelId: 'hours-section', dayIndex: 1 },
     { tabId: 'tab-day-2', panelId: 'hours-section', dayIndex: 2 },
     { tabId: 'tab-planner', panelId: 'planner-section' },
+    { tabId: 'tab-measured', panelId: 'measured-section' },
   ];
   /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
    * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
@@ -625,6 +626,15 @@
       }
     }
   });
+
+  // aboutページなどから「/#tab-measured」のように直接タブを開けるようにする。
+  // 予報の取得を待たずに開けるため、上流障害中でも実測WBGTの判定は使える
+  const hashTabId = window.location.hash.slice(1);
+  if (TABS.some((tab) => tab.tabId === hashTabId)) {
+    // 利用者の明示操作と同じ扱いにし、後から届く自動切り替えに上書きされないようにする
+    manualTabSeq += 1;
+    forecastTabs.activate(hashTabId, false);
+  }
 
   /** 予報タブを選択する（他の処理からの自動切り替え用） */
   function activateTab(tabId, focusTab) {

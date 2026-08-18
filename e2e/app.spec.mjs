@@ -407,3 +407,29 @@ test('上流障害時: 提供元の障害と分かる案内を出し、HTTPス�
   await expect(page.locator('#plan-date')).toContainText('予報を読み込むと選べます');
   await expect(page.locator('#plan-button')).toBeDisabled();
 });
+
+test('実測WBGT: トップページのタブで判定でき、ハッシュから直接開ける', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.click('#tab-measured');
+  await expect(page.locator('#measured-section')).toBeVisible();
+  await page.fill('#wbgt-input', '31');
+  await page.click('#wbgt-judge-button');
+  await expect(page.locator('#wbgt-result')).not.toBeEmpty();
+
+  // aboutページからの「/#tab-measured」で、クリックせずにタブが開く
+  await page.goto('/#tab-measured');
+  await expect(page.locator('#tab-measured')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#measured-section')).toBeVisible();
+});
+
+test('実測WBGT: 予報が取得できないときでも判定できる', async ({ page }) => {
+  // 上流障害中でも、実測値からの判定はapp.jsの予報取得と独立して動く
+  await page.unroute('**/api/forecast*');
+  await page.route('**/api/forecast*', (route) => route.abort());
+  await page.goto('/#tab-measured');
+  await page.fill('#wbgt-input', '31');
+  await page.click('#wbgt-judge-button');
+  await expect(page.locator('#wbgt-result')).not.toBeEmpty();
+});
