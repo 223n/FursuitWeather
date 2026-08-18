@@ -103,8 +103,13 @@ async function searchByName(
     response = await fetchImpl(url, {
       headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
       // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
+      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
       cf: {
-        cacheTtl: GEOCODING_CACHE_TTL_SECONDS,
+        cacheTtlByStatus: {
+          '200-299': GEOCODING_CACHE_TTL_SECONDS,
+          '400-499': 0,
+          '500-599': 0,
+        },
         cacheEverything: true,
       },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
@@ -252,8 +257,13 @@ async function resolvePostalCode(
     const response = await fetchImpl(url, {
       headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
       // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
+      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
       cf: {
-        cacheTtl: GEOCODING_CACHE_TTL_SECONDS,
+        cacheTtlByStatus: {
+          '200-299': GEOCODING_CACHE_TTL_SECONDS,
+          '400-499': 0,
+          '500-599': 0,
+        },
         cacheEverything: true,
       },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),

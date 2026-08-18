@@ -107,7 +107,16 @@ describe('handleForecast', () => {
 
     // 意図的に追加した防御（エッジキャッシュ・タイムアウト）が黙って消えないよう固定する
     const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: unknown };
-    expect(init.cf).toEqual({ cacheTtl: UPSTREAM_CACHE_TTL_SECONDS, cacheEverything: true });
+    // 成功応答だけをキャッシュする（上流のエラーをキャッシュすると、復旧後も
+    // 古い失敗が返り続けて障害が長引く。実際に525で発生した）
+    expect(init.cf).toEqual({
+      cacheTtlByStatus: {
+        '200-299': UPSTREAM_CACHE_TTL_SECONDS,
+        '400-499': 0,
+        '500-599': 0,
+      },
+      cacheEverything: true,
+    });
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 

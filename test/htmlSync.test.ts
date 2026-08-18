@@ -252,7 +252,7 @@ describe('公開仕様（about・api.md・llms.txt）と定数の同期', () => 
 
   it('キャッシュ時間と着衣補正値がllms.txt・キャッシュ解説と一致する', () => {
     expect(aboutHtml).toContain(`max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`);
-    expect(aboutHtml).toContain(`cacheTtl: ${UPSTREAM_CACHE_TTL_SECONDS}`);
+    expect(aboutHtml).toContain(`cacheTtlByStatus: ${UPSTREAM_CACHE_TTL_SECONDS}`);
     expect(aboutHtml).toContain(
       `エッジでの気象データキャッシュ（${UPSTREAM_CACHE_TTL_SECONDS / 60}分）`,
     );
