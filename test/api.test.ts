@@ -513,11 +513,9 @@ describe('fetchWeather', () => {
     const result = await fetchWeather(35.68, 139.68, 1, flaky);
     expect(jmaCalls).toBe(2);
     expect(result.hours).toHaveLength(24);
-    // 1回目はエッジキャッシュ経由、取り直しはキャッシュ層を経由しない素のfetchにする
-    // （同じURLでもブラウザからは通るのにWorkerからは525が返り続ける事象への逃げ道）
+    // 取り直しも同じ条件（エッジキャッシュ・UA・タイムアウト）で投げる
     expect(jmaInits[0]!.cf).toBeDefined();
-    expect(jmaInits[1]!.cf).toBeUndefined();
-    // 取り直しでもUAとタイムアウトは維持する
+    expect(jmaInits[1]!.cf).toEqual(jmaInits[0]!.cf);
     expect(jmaInits[1]!.headers).toEqual(jmaInits[0]!.headers);
     expect(jmaInits[1]!.signal).toBeInstanceOf(AbortSignal);
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(

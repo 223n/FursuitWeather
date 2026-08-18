@@ -54,6 +54,15 @@ npm run build                        # minify + CSSインライン化（下記�
 - 初期表示の優先順位: demo指定 → 共有URLの座標 → 記憶した地点（localStorage） → 既定都市
 - イベント予報: `public/events.json`（運営者が編集するデータファイル）のイベントを選ぶと、開催地の郵便番号を`/api/geocode`で座標へ解決して予報を表示する。形式は`test/events.test.ts`がCIで検証し、フロントも不正項目を黙って除外する（書き方は`docs/events.md`）
 
+## 障害時の切り分け
+
+上流APIが取れないときは、**まずworkers.devとカスタムドメインを比べる**
+（`wrangler.jsonc`の`workers_dev: true`はこのため）。同じWorker・同じ上流URLで
+環境だけが違うので、1回でコード側の可能性を排除できる。workers.devだけ成功する
+なら原因は223n.techゾーンのCloudflare設定。HTTP 525はCloudflareエッジと接続先
+オリジンのTLSハンドシェイク失敗で、上流のアプリまで届いていない
+（実例と経緯は`docs/architecture.md`の「Worker外向きfetchの525」）。
+
 ## 開発フロー
 
 - mainへは直接pushできない（ブランチ保護）。PR必須で、CI+CodeQL（デフォルトセットアップ運用のためワークフローファイルはない）がマージを阻む

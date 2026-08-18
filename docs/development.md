@@ -159,6 +159,20 @@ CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構
 `style-src`ではそのCSSをアセット側はハッシュで、HTMLページ側はnonceで
 許可しています。
 
+## 上流APIが取れないとき
+
+まず**workers.devとカスタムドメインを比べます**。同じWorker・同じ上流URLで
+環境だけが違うため、1回でコード側の可能性を排除できます。
+
+```bash
+curl -s "https://fursuit-weather.223n.workers.dev/api/forecast?lat=35.68&lon=139.68&days=3"
+curl -s "https://fursuit-weather.223n.tech/api/forecast?lat=35.68&lon=139.68&days=3"
+```
+
+workers.devだけ成功するなら、原因は223n.techゾーンのCloudflare設定です
+（過去にSSL/TLSの「配信元の接続」のポスト量子暗号化で全滅した実績があります。
+詳細は`docs/architecture.md`の「Worker外向きfetchの525」）。
+
 ## 依存関係の更新
 
 `.github/dependabot.yml`により、npmパッケージとGitHub Actionsの更新PRが
