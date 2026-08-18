@@ -103,7 +103,7 @@ export function buildForecast(
     location,
     generatedAt,
     model,
-    attribution: { ...ATTRIBUTION },
+    attribution: ATTRIBUTION,
     notices: YEAR_ROUND_NOTICES,
     hours,
     days,

@@ -181,7 +181,7 @@ async function fetchPrecipitationProbability(
   try {
     // 予報本体と同じ上流のため、瞬断の取り直しも同じ扱いにする
     // （UpstreamErrorはこの関数のcatchが受け止め、空のMapに落ちる）
-    const response = await requestUpstream(url, fetchImpl);
+    const response = await requestUpstream(url, fetchImpl, PROBABILITY_FETCH_MESSAGES);
     if (!response.ok) {
       await logUpstreamStatus('降水確率APIエラー:', url, response);
       return new Map();
@@ -211,16 +211,36 @@ async function fetchPrecipitationProbability(
   }
 }
 
-/** 気象データ用の上流リクエスト1回分（エッジキャッシュTTLと失敗・タイムアウト文言を束ねてfetchUpstreamへ委譲する） */
-function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
+/** 上流リクエストの文言セット（fetchUpstreamへ渡すログラベルと利用者向け文言） */
+type UpstreamMessages = Parameters<typeof fetchUpstream>[3];
+
+/** 予報本体（気象データ）用の文言 */
+const WEATHER_FETCH_MESSAGES: UpstreamMessages = {
+  logLabel: '気象データの取得に失敗:',
+  failure: '気象データの取得に失敗しました。時間をおいて再度お試しください',
+  // タイムアウトは「待てば直る」ことが多いため専用文言で区別する
+  timeout: '気象データの取得がタイムアウトしました。時間をおいて再度お試しください',
+};
+
+/**
+ * 補助取得（降水確率）用の文言。件名を分けることで、本体障害（利用者に502が出る）と
+ * 補助取得の失敗（利用者影響なし）をログの1行目で切り分けられるようにする
+ * （failureは呼び出し側のcatchが握り潰し利用者へ届かないが、方針どおり固定の日本語文にする）
+ */
+const PROBABILITY_FETCH_MESSAGES: UpstreamMessages = {
+  logLabel: '降水確率の取得に失敗:',
+  failure: '降水確率を取得できませんでした',
+};
+
+/** 上流リクエスト1回分（エッジキャッシュTTLと文言セットを束ねてfetchUpstreamへ委譲する） */
+function requestOnce(
+  url: string,
+  fetchImpl: typeof fetch,
+  messages: UpstreamMessages,
+): Promise<Response> {
   // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
   // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと
-  return fetchUpstream(url, UPSTREAM_CACHE_TTL_SECONDS, fetchImpl, {
-    logLabel: '気象データの取得に失敗:',
-    failure: '気象データの取得に失敗しました。時間をおいて再度お試しください',
-    // タイムアウトは「待てば直る」ことが多いため専用文言で区別する
-    timeout: '気象データの取得がタイムアウトしました。時間をおいて再度お試しください',
-  });
+  return fetchUpstream(url, UPSTREAM_CACHE_TTL_SECONDS, fetchImpl, messages);
 }
 
 /**
@@ -236,14 +256,18 @@ function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
  * 相手オリジンの間のTLSハンドシェイク失敗で、ゾーン側の設定が原因のことがある
  * （docs/architecture.mdの「Worker外向きfetchの525」を参照）
  */
-async function requestUpstream(url: string, fetchImpl: typeof fetch): Promise<Response> {
-  const response = await requestOnce(url, fetchImpl);
+async function requestUpstream(
+  url: string,
+  fetchImpl: typeof fetch,
+  messages: UpstreamMessages,
+): Promise<Response> {
+  const response = await requestOnce(url, fetchImpl, messages);
   if (response.status < 500) {
     return response;
   }
   await logUpstreamStatus('上流の一時エラー（取り直します）:', url, response);
   await new Promise((resolve) => setTimeout(resolve, UPSTREAM_RETRY_DELAY_MS));
-  return requestOnce(url, fetchImpl);
+  return requestOnce(url, fetchImpl, messages);
 }
 
 /**
@@ -261,7 +285,7 @@ export async function fetchWeather(
 ): Promise<WeatherResult> {
   const url = buildForecastUrl(latitude, longitude, days);
   const [response, probabilities] = await Promise.all([
-    requestUpstream(url, fetchImpl),
+    requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES),
     fetchPrecipitationProbability(latitude, longitude, days, fetchImpl),
   ]);
 

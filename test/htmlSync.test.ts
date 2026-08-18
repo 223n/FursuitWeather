@@ -151,6 +151,8 @@ describe('aboutページとconstantsの同期', () => {
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryRain);
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryCold);
     expect(aboutHtml).toContain(`平均気温${LAUNDRY.coldLimit}℃未満`);
+    // docs/api.mdのレスポンス例のラベル（excellent）も実ラベルと同期させる
+    expect(apiMd).toContain(LAUNDRY_LEVEL_LABELS.excellent);
   });
 
   it('干し時間帯と乾燥目安の数値がLAUNDRY定数と一致する', () => {

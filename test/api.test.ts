@@ -418,6 +418,12 @@ describe('fetchWeather', () => {
       expect.stringContaining('latitude=35.6800'),
       '接続拒否',
     );
+    // 補助取得（降水確率）の失敗は本体と件名を分けてログし、障害の切り分けに使う
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '降水確率の取得に失敗:',
+      expect.stringContaining('/v1/forecast'),
+      expect.anything(),
+    );
   });
 
   it('200応答の本文読み取りに失敗した場合は解析失敗として扱い、原因をログに残す', async () => {

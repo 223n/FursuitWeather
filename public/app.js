@@ -965,8 +965,7 @@
     const seq = ++requestSeq;
     setStatus('予報を取得しています…', false);
     try {
-      // ネットワーク断ではブラウザ固有の英語メッセージ（Failed to fetch等）になるため、
-      // 生メッセージを出さず日本語の定型文に差し替える
+      // 第2引数は通信断時に表示する日本語の定型文（差し替えの仕組みはfetchJsonBodyを参照）
       const { response, body } = await fetchJsonBody(
         `/api/forecast?${query}&days=${FORECAST_DAYS}`,
         '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
@@ -1396,8 +1395,8 @@
 
   /** イベントの日付の表示文を作る。翌年以降の開催は年を添えて取り違えを防ぐ */
   function formatEventDate(dateText) {
-    const year = Number(dateText.slice(0, 4));
-    const prefix = year === Number(nowInJst().date.slice(0, 4)) ? '' : `${year}年`;
+    const { year } = parseDateText(dateText);
+    const prefix = year === parseDateText(nowInJst().date).year ? '' : `${year}年`;
     return `${prefix}${formatDate(dateText)}`;
   }
 
@@ -1439,10 +1438,12 @@
               (event.endTime === undefined || isValidTimeText(event.endTime)),
           )
           .map((event) => ({ ...event, endDate: event.endDate ?? event.startDate }))
-          // 終了済みのイベントは表示せず、開催が近い順に並べる（日付はJST基準で比較。
-          // YYYY-MM-DD形式のため文字列比較で日付の前後を正しく判定できる）
+          // 終了日が開始日より前の不正な定義と、終了済みのイベントは表示しない
+          // （前者はtest/events.test.tsと同じ基準の防御）。残りは開催が近い順に並べる
+          // （日付はJST基準で比較。YYYY-MM-DD形式のため文字列比較で前後を正しく判定できる。
+          //   開始日が同じイベントは定義順を保つ）
           .filter((event) => event.endDate >= event.startDate && event.endDate >= today)
-          .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+          .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
       }
     } catch {
       emptyMessage = 'イベント情報を読み込めませんでした';

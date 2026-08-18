@@ -135,7 +135,7 @@ WBGT計算に必要な気象値（気温・湿度・体感温度・風速・日�
       "outdoorWorst": { "level": "danger", "label": "危険", "grade": 4 },
       "recommendedHours": [],
       "coolingRequired": true,
-      "laundry": { "score": 88, "level": "excellent", "label": "超速乾" }
+      "laundry": { "score": 88, "level": "excellent", "label": "大変よく乾く" }
     }
   ]
 }

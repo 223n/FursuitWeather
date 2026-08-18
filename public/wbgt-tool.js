@@ -1,5 +1,5 @@
 // 実測WBGTから着ぐるみ判定を行う簡易ツール（トップページの「実測WBGT」タブ専用）
-// イベント会場などでWBGT計により実測した値に着衣補正を加えて判定する。
+// イベント会場などでWBGT計（暑さ指数計）で測った値に着衣補正を加えて判定する。
 // しきい値・補正値はsrc/constants.tsと手動同期し、test/htmlSync.test.tsが機械検証する
 
 (() => {
@@ -44,7 +44,7 @@
   /** SVGスプライト（index.html内で定義）からアイコン要素を作る（app.jsのfaIconと同形式）
    * 本ツールはindex.htmlのタブでのみ動くため、同一文書内のスプライトに依存してよい。
    * スプライトを持たないページへ移設する場合はパス埋め込みへ戻すこと */
-  function createIcon(name) {
+  function faIcon(name) {
     const svgNs = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNs, 'svg');
     svg.setAttribute('class', 'fa-icon');
@@ -67,7 +67,7 @@
       if (typeof part === 'string') {
         symbol.appendChild(document.createTextNode(part));
       } else {
-        symbol.appendChild(createIcon(part.icon));
+        symbol.appendChild(faIcon(part.icon));
       }
     }
     badge.appendChild(symbol);
@@ -87,9 +87,15 @@
 
   /** 入力値から判定して結果を描画する */
   function judge() {
+    // 空欄（type=numberでは不正文字もvalueが空になる）はまず入力を促す文にする。
+    // 範囲の話から始めると「まず値を入れる」ことが伝わりにくいため分ける
+    if (input.value.trim() === '') {
+      resultArea.textContent = '実測したWBGTの値を入力してください。';
+      return;
+    }
     const measured = Number.parseFloat(input.value);
     if (!Number.isFinite(measured) || measured < -20 || measured > 50) {
-      resultArea.textContent = 'WBGTは-20〜50の範囲の数値で入力してください。';
+      resultArea.textContent = '実測WBGTは−20℃から50℃までの数値で入力してください。';
       return;
     }
 

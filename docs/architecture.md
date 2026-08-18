@@ -368,7 +368,8 @@ PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担�
 
 - **オンライン時は常にネットワーク優先**で、キャッシュは裏で更新する
   だけです（デプロイ後に古い画面を配らないための方針）
-- オフライン時は、シェル（`SHELL_URLS`のHTML・JS・CSS）と直近の予報
+- オフライン時は、シェル（`SHELL_URLS`のHTML・JS・favicon・`events.json`。
+  CSSはビルドでHTMLへインライン化済みのためHTML側に含まれる）と直近の予報
   （`DATA_CACHE`、上限10件）から応答します
 - 保存済みの予報で応答するときは`X-Served-From-Cache`と`X-Cached-At`
   ヘッダーを付けます。これは`sw.js`と`public/app.js`

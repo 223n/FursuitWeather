@@ -329,7 +329,8 @@
       <h2 id="planner-heading">活動プランナー</h2>
       <p class="hint">
         日付とイベントの時間帯を選ぶと、その時間帯の判定と、
-        休憩を挟んだ着用計画の目安を表示します（終了時刻は含みません）。
+        休憩を挟んだ着用計画の目安を表示します。終了に選んだ時刻の行は
+        含みません（例: 終了を16時にすると15時台まで）。
       </p>
       <div class="control-row">
         <label for="plan-date">日付</label>
@@ -353,12 +354,12 @@
       <h2 id="measured-heading">実測WBGTから判定</h2>
       <div class="wbgt-tool-box">
         <p>
-          イベント会場などでWBGT計により実測した値から、着ぐるみ着用時の判定を確認できます。
+          イベント会場などでWBGT計（暑さ指数計）で測った値から、着ぐるみ着用時の判定を確認できます。
           実測値に着衣補正を加えて、予報と同じ基準で判定します。
         </p>
         <div class="control-row">
           <label for="wbgt-input">実測WBGT（℃）</label>
-          <input type="number" id="wbgt-input" min="-20" max="50" step="0.1" inputmode="decimal">
+          <input type="number" id="wbgt-input" min="-20" max="50" step="0.1" inputmode="decimal" enterkeyhint="go">
           <button type="button" id="wbgt-judge-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-temperature-half"/></svg>判定する</button>
         </div>
         <!-- 結果は事前に高さを確保した領域へ書き込み、判定時のレイアウトシフトを防ぐ -->

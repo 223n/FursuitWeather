@@ -148,9 +148,9 @@ export interface ForecastLocation {
 
 /** APIレスポンスの帰属表示（Open-Meteo利用規約による出典明記） */
 export interface Attribution {
-  weatherData: string;
-  weatherDataUrl: string;
-  license: string;
+  readonly weatherData: string;
+  readonly weatherDataUrl: string;
+  readonly license: string;
 }
 
 /** APIレスポンス全体 */

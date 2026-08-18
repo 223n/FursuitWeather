@@ -62,7 +62,7 @@ export const HEAT_STROKE_ALERT_WBGT = 33;
 
 /**
  * 活動レベル定義の共通形（暑熱側・低温側で共有するフィールド）
- * 判定結果の組み立て（fursuit.tsのassessOutdoor）はこの形だけに依存する
+ * 判定結果の組み立て（fursuit.tsのassessOutdoor・assessIndoor）はこの形だけに依存する
  */
 export interface ActivityBand {
   id: OutdoorLevelId;

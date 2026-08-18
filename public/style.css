@@ -1106,4 +1106,10 @@ section h3 {
     display: inline-block;
     padding: 0.6rem 0.25rem;
   }
+
+  /* 404ページの復帰リンクも確実に押せるようタップ領域を確保する */
+  .error-nav a {
+    display: inline-block;
+    padding: 0.6rem 0.25rem;
+  }
 }
