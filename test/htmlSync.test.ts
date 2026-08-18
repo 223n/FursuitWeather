@@ -94,6 +94,9 @@ describe('静的HTMLとconstantsの同期', () => {
     expect(days).not.toBeNull();
     const skeletons = html.match(/class="day-card skeleton-card"/g) ?? [];
     expect(skeletons.length).toBe(Number(days![1]));
+    // 消し残しの検出: 行スケルトンはカードの内側にのみ現れる。カードの閉じタグ直後に
+    // 行スケルトンが続く形は、カード削除時の取り残し（第11周で実際に検出した不具合）
+    expect(html).not.toMatch(/<\/div>\s*<div class="skeleton-line/);
   });
 
   it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {
