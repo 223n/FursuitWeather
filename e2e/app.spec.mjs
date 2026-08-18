@@ -279,6 +279,8 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   );
   await expect(page.locator('#tab-day-0')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
+  // 開催日の予報が出せているので注意表示にはしない
+  await expect(page.locator('#status')).not.toHaveClass(/status-warning/);
   await expect(page).toHaveURL(/lat=35\.63&lon=139\.79/);
   // 開催時間はプランナーへ設定される（終了17:30は18時へ切り上げ）
   await expect(page.locator('#plan-start')).toHaveValue('11');
@@ -296,6 +298,16 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   await expect(page.locator('#location-label')).toContainText('ウィンターフェス（幕張メッセ');
   await expect(page.locator('#status')).toContainText('予報の範囲外です（あと10日）');
   await expect(page.locator('#status')).toContainText('開催日の予報ではありません');
+  // 誤読を防ぐため、注意配色（黄）と△!アイコンで通常の案内と区別する
+  await expect(page.locator('#status')).toHaveClass(/status-warning/);
+  await expect(page.locator('#status use[href="#fa-triangle-exclamation"]')).toBeAttached();
+
+  // 開催日の予報が出せるイベントへ戻すと注意表示は解除される
+  await page.selectOption('#event-select', '0');
+  await page.click('#event-button');
+  await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
+  await expect(page.locator('#status')).not.toHaveClass(/status-warning/);
+  await expect(page.locator('#status use[href="#fa-triangle-exclamation"]')).toHaveCount(0);
 });
 
 test('イベント: 郵便番号で開催地が見つからないときは日本語の案内を出す', async ({ page }) => {
@@ -432,4 +444,46 @@ test('実測WBGT: 予報が取得できないときでも判定できる', async
   await page.fill('#wbgt-input', '31');
   await page.click('#wbgt-judge-button');
   await expect(page.locator('#wbgt-result')).not.toBeEmpty();
+});
+
+test('活動時の注意と位置情報の扱い: 注意は常時見え、位置情報の詳細は折りたためる', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 活動時の注意は安全に関わるため、注意配色と△!で常に見える状態にする
+  const notices = page.locator('#notices-section');
+  await expect(notices).toBeVisible();
+  await expect(notices.locator('h2 use[href="#fa-triangle-exclamation"]')).toBeAttached();
+  await expect(notices.locator('#notices-list li').first()).toBeVisible();
+
+  // 位置情報の扱いは折りたたみ。閉じていても「保存しません」の約束は読める
+  const privacy = page.locator('.control-note-details');
+  await expect(privacy.locator('summary')).toContainText('現在地は保存しません');
+  await expect(privacy.locator('.control-note')).toBeHidden();
+
+  await privacy.locator('summary').click();
+  await expect(privacy.locator('.control-note')).toContainText('約1kmの精度に丸めた');
+  await expect(privacy.locator('.control-note')).toContainText('このブラウザ内にのみ保存');
+
+  await privacy.locator('summary').click();
+  await expect(privacy.locator('.control-note')).toBeHidden();
+});
+
+test('about: 見出しアイコンが描画され、レスポンス例が有効なJSONになっている', async ({ page }) => {
+  await page.goto('/about');
+
+  // アイコンはパスデータを直接埋め込んでいる（スプライト無し）。
+  // パスが壊れると幅0で「消えたことに気付けない」ため、実寸で確認する
+  const icons = page.locator('.heading-icon');
+  expect(await icons.count()).toBeGreaterThan(0);
+  const widths = await icons.evaluateAll((els) =>
+    els.map((e) => e.getBoundingClientRect().width),
+  );
+  expect(widths.every((w) => w > 0)).toBe(true);
+
+  // レスポンス例は整形ツールへそのまま貼れる有効なJSONにしておく
+  const json = await page.locator('pre.formula').last().textContent();
+  expect(() => JSON.parse(json)).not.toThrow();
 });

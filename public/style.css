@@ -183,6 +183,13 @@ h2 {
   font-size: 1.2rem;
 }
 
+/* 見出しの先頭に置くアイコン。装飾なので意味は見出しの文字が担う（aria-hidden） */
+.heading-icon {
+  color: var(--color-blue);
+  margin-right: 0.4rem;
+  vertical-align: -0.1em;
+}
+
 .hidden {
   display: none;
 }
@@ -191,6 +198,16 @@ h2 {
 .control-note {
   color: var(--color-text-muted);
   font-size: 0.85rem;
+}
+
+/* 位置情報の扱い（折りたたみ）。summaryは補足情報なので凡例より控えめにする */
+.control-note-details > summary {
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.control-note-details > .control-note {
+  margin: 0.4rem 0 0;
 }
 
 /* 表示中の地点ラベル（後から出現してもシフトしないよう高さを常に確保する） */
@@ -506,6 +523,21 @@ input[type='number']:focus {
 #status-error:not(:empty) {
   background-color: var(--level-3-surface);
   border-left-color: var(--color-red);
+}
+
+/* 注意状態の通常メッセージ（開催日の予報ではない、など）。
+   判定バッジと同じ「注意」レベルの配色を使い、色だけに頼らせないよう
+   本文の先頭（左上）に△!アイコンを添える */
+#status.status-warning:not(:empty) {
+  background-color: var(--level-1-surface);
+  border-left-color: var(--level-1-accent);
+}
+
+#status.status-warning > .fa-icon {
+  color: var(--level-1-accent);
+  margin-right: 0.4rem;
+  /* 本文が折り返しても1行目の先頭に留まる（ぶら下げない） */
+  vertical-align: -0.15em;
 }
 
 /* 日別カード */
@@ -845,6 +877,20 @@ tbody tr.night {
 }
 
 /* 注意事項・フッター */
+
+/* 活動時の注意は安全に関わるため、注意レベルの配色で他の節と区別する。
+   色だけに頼らせないよう、見出しの先頭（左上）に△!を置く */
+#notices-section {
+  border: 2px solid var(--level-1-accent);
+  background-color: var(--level-1-surface);
+}
+
+#notices-section > h2 > .fa-icon {
+  color: var(--level-1-accent);
+  margin-right: 0.4rem;
+  vertical-align: -0.1em;
+}
+
 #notices-list li {
   margin-bottom: 0.4rem;
 }

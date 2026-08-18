@@ -206,10 +206,15 @@
           <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
         </div>
       </div>
-      <p class="control-note">
-        現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
-        最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
-      </p>
+      <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
+           summary自体に約束を書き、詳細だけを開閉対象にする -->
+      <details class="legend-details control-note-details">
+        <summary>現在地は保存しません（扱いの詳細）</summary>
+        <p class="control-note">
+          現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
+          最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
+        </p>
+      </details>
     </section>
 
     <!-- 通常メッセージはpolite、エラーはalertで即時に読み上げられるよう領域を分ける。
@@ -403,7 +408,7 @@
     </section>
 
     <section id="notices-section" aria-label="注意事項">
-      <h2>活動時の注意</h2>
+      <h2><svg class="fa-icon" aria-hidden="true"><use href="#fa-triangle-exclamation"/></svg>活動時の注意</h2>
       <!-- 初期表示から高さを確保するため静的に記載する（内容はsrc/constants.tsの
            YEAR_ROUND_NOTICESと同期し、データ到着時にAPIの値で上書きされる） -->
       <ul id="notices-list">
@@ -440,7 +445,7 @@
       <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.3.2</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.3.3</a>
     </p>
   </footer>
 
