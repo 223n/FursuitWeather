@@ -1114,3 +1114,13 @@ section h3 {
     padding: 0.6rem 0.25rem;
   }
 }
+
+/* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって
+   サイト名が読めなくなる。印刷時は背景を外し、本文と同じ濃色文字で出す
+   （「背景も印刷する」設定でも濃色文字on青帯の低コントラストにならない） */
+@media print {
+  .site-header {
+    background-color: transparent;
+    color: var(--color-text);
+  }
+}
