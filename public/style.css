@@ -878,17 +878,33 @@ tbody tr.night {
 
 /* 注意事項・フッター */
 
-/* 活動時の注意は安全に関わるため、注意レベルの配色で他の節と区別する。
-   色だけに頼らせないよう、見出しの先頭（左上）に△!を置く */
-#notices-section {
+/* 注意文の共通枠。安全に関わる文は注意レベルの配色（黄色系）で囲み、
+   色だけに頼らせないよう左上（見出しまたは本文の先頭）に△!を置く。
+   節全体（index.htmlの活動時の注意・about.htmlの免責事項）にも、
+   節の一部（about.htmlの利用上の注意）にも同じ形で使う */
+.notice-panel {
   border: 2px solid var(--level-1-accent);
+  border-radius: 8px;
   background-color: var(--level-1-surface);
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
-#notices-section > h2 > .fa-icon {
+.notice-panel > h2 > .fa-icon,
+.notice-panel > h3 > .fa-icon,
+.notice-panel > .fa-icon {
   color: var(--level-1-accent);
   margin-right: 0.4rem;
   vertical-align: -0.1em;
+}
+
+/* 枠の内側の余白を上下で揃える（見出し・最終要素のマージンを打ち消す） */
+.notice-panel > :first-child {
+  margin-top: 0;
+}
+
+.notice-panel > :last-child {
+  margin-bottom: 0;
 }
 
 #notices-list li {
@@ -912,6 +928,11 @@ tbody tr.night {
   padding-left: 1.2rem;
   font-size: 0.9rem;
   color: var(--color-text-muted);
+}
+
+/* 「この予報について」の注意文は説明の箇条書きと同じ字送りにそろえる */
+.about > .notice-panel {
+  font-size: 0.9rem;
 }
 
 .site-footer {
