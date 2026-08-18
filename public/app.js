@@ -85,7 +85,7 @@
   const hoursTitle = document.getElementById('hours-title');
   const noticesList = document.getElementById('notices-list');
 
-  // 可変状態はこのブロックの変数のみ（描画関数はここを参照する）
+  // 描画が参照する可変状態はこのブロックに集約する（イベント一覧の可変状態はイベント予報セクションのeventListを参照）
   let currentForecast = null;
   let selectedDate = null;
   /** 最後に予報を要求したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
@@ -106,10 +106,15 @@
   let displayedCityIndex = null;
   /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
   let requestSeq = 0;
-  /** 進行中の地点検索の識別番号（古い検索応答で候補が汚染されるのを防ぐ） */
+  /** 進行中の地点検索・イベント開催地解決の識別番号。古い応答が候補やステータスを
+   * 上書きするのを防ぎ、確定ロード時（loadForecast）は加算して保留中の検索応答を無効化する */
   let searchSeq = 0;
   /** 地点セレクトのデバウンス用タイマー */
   let cityChangeTimer = null;
+  /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
+   * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
+   * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
+  let manualTabSeq = 0;
 
   /**
    * 保留中のセレクトデバウンスを解除する
@@ -144,6 +149,32 @@
     paragraph.className = 'hint';
     paragraph.textContent = text;
     return paragraph;
+  }
+
+  /**
+   * APIへ問い合わせ、レスポンスと解析済みボディを返す
+   * 通信失敗（ネットワーク断）はブラウザ固有の英語メッセージになるため、
+   * 呼び出し側から渡された日本語の定型文へ差し替える。
+   * 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを
+   * 出さないよう、パース失敗はbody=nullに落とす。エラー判定は呼び出し側が行う
+   */
+  async function fetchJsonBody(url, networkErrorMessage) {
+    const response = await fetch(url).catch(() => {
+      throw new Error(networkErrorMessage);
+    });
+    const body = await response.json().catch(() => null);
+    return { response, body };
+  }
+
+  /** HTTPエラー応答を利用者向けメッセージの例外にする（APIのerrorフィールドを優先） */
+  function throwIfHttpError(response, body, label) {
+    if (!response.ok) {
+      // ステータス番号は利用者の対処に役立たないため画面に出さず、切り分け用にconsoleへ残す
+      console.error(`${label}失敗: HTTP ${response.status}`);
+      throw new Error(
+        (body && body.error) || `${label}に失敗しました。しばらくたってからもう一度お試しください。`,
+      );
+    }
   }
 
   /**
@@ -365,6 +396,11 @@
     statusElement.classList.toggle('status-warning', warn);
     if (warn) {
       statusElement.prepend(faIcon('triangle-exclamation'));
+    }
+    // エラーも色だけに頼らせない（グレースケール・色覚多様性の環境でも枠の意味が
+    // 伝わるよう△!を付ける）。アイコンは装飾（aria-hidden）で、意味は本文が担う
+    if (Boolean(isError) && Boolean(message)) {
+      statusErrorElement.prepend(faIcon('triangle-exclamation'));
     }
   }
 
@@ -614,11 +650,6 @@
     const index = currentForecast.days.findIndex((d) => d.date === date);
     return TABS.find((t) => t.dayIndex === index);
   }
-  /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
-   * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
-   * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
-  let manualTabSeq = 0;
-
   /** WAI-ARIAタブパターンの共通実装（予報の切り替えと地点の選び方で共用する）
    *
    * 選択状態・パネルの表示・キーボード操作（矢印キーで隣へ移動して自動選択、
@@ -1244,37 +1275,11 @@
     searchResults.replaceChildren();
   }
 
-  /**
-   * APIへ問い合わせ、レスポンスと解析済みボディを返す
-   * 通信失敗（ネットワーク断）はブラウザ固有の英語メッセージになるため、
-   * 呼び出し側から渡された日本語の定型文へ差し替える。
-   * 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを
-   * 出さないよう、パース失敗はbody=nullに落とす。エラー判定は呼び出し側が行う
-   */
-  async function fetchJsonBody(url, networkErrorMessage) {
-    const response = await fetch(url).catch(() => {
-      throw new Error(networkErrorMessage);
-    });
-    const body = await response.json().catch(() => null);
-    return { response, body };
-  }
-
   async function fetchGeocode(query) {
     return fetchJsonBody(
       `/api/geocode?q=${encodeURIComponent(query)}`,
       '通信に失敗しました。ネットワーク接続を確認してください。',
     );
-  }
-
-  /** HTTPエラー応答を利用者向けメッセージの例外にする（APIのerrorフィールドを優先） */
-  function throwIfHttpError(response, body, label) {
-    if (!response.ok) {
-      // ステータス番号は利用者の対処に役立たないため画面に出さず、切り分け用にconsoleへ残す
-      console.error(`${label}失敗: HTTP ${response.status}`);
-      throw new Error(
-        (body && body.error) || `${label}に失敗しました。しばらくたってからもう一度お試しください。`,
-      );
-    }
   }
 
   async function searchPlace() {

@@ -27,7 +27,9 @@
 
   /**
    * 冷房要否の表示設定（Indexページの時間別テーブルと同じ配色・記号）
-   * app.jsのCOOLING_BADGESと同期
+   * app.jsのCOOLING_BADGESと配色（grade）・記号（symbol）を揃える。
+   * app.js側のラベルはAPIのcoolingLabel由来のため本ツールでは固定文言を持ち、
+   * htmlSyncテストの機械検証対象はapp.js側のみ
    */
   const COOLING_BADGES = {
     required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' },

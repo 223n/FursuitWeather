@@ -25,7 +25,7 @@ const UPSTREAM_USER_AGENT = 'FursuitWeather (https://github.com/223n/FursuitWeat
  *
  * @param cacheTtlSeconds 成功応答（2xx）のエッジキャッシュ時間（秒）
  */
-export function upstreamInit(cacheTtlSeconds: number): RequestInit {
+function upstreamInit(cacheTtlSeconds: number): RequestInit {
   return {
     headers: { 'User-Agent': UPSTREAM_USER_AGENT },
     cf: {

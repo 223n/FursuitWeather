@@ -120,7 +120,7 @@ export interface DayForecast {
   /** 日中（9〜18時）の最も穏やかな屋外判定（日中データがない日は全時間帯で代替） */
   outdoorBest: LevelSummary;
   /** 屋外活動に適した時間帯（HH:00形式、9〜18時のうちgrade1以下かつ降水量0） */
-  recommendedHours: string[];
+  recommendedHours: readonly string[];
   /** 日中に冷房必須となる時間があるか（日中データがない日は全時間帯で判定） */
   coolingRequired: boolean;
   /** その日の素のWBGT（着衣補正前）の最大値（℃）。熱中症警戒アラートの
@@ -146,6 +146,13 @@ export interface ForecastLocation {
   timezone: string;
 }
 
+/** APIレスポンスの帰属表示（Open-Meteo利用規約による出典明記） */
+export interface Attribution {
+  weatherData: string;
+  weatherDataUrl: string;
+  license: string;
+}
+
 /** APIレスポンス全体 */
 export interface ForecastResponse {
   location: ForecastLocation;
@@ -153,13 +160,9 @@ export interface ForecastResponse {
   generatedAt: string;
   /** 使用した気象モデル */
   model: string;
-  attribution: {
-    weatherData: string;
-    weatherDataUrl: string;
-    license: string;
-  };
+  attribution: Attribution;
   /** 通年の注意事項 */
   notices: readonly string[];
-  hours: HourForecast[];
-  days: DayForecast[];
+  hours: readonly HourForecast[];
+  days: readonly DayForecast[];
 }

@@ -22,7 +22,6 @@ import {
   readUpstreamJson,
   throwUpstreamStatus,
   UpstreamError,
-  upstreamInit,
 } from './upstream';
 
 /** Open-Meteoジオコーディングのレスポンスのうち本サービスが使用する部分 */
@@ -254,14 +253,19 @@ async function resolvePostalCode(
   const url = `${ZIPCLOUD_BASE_URL}?zipcode=${digits}`;
   try {
     // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
-    const response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
+    // （失敗文言は外側のcatchが握り潰すため利用者へは届かないが、方針どおり固定の日本語文にする）
+    const response = await fetchUpstream(url, GEOCODING_CACHE_TTL_SECONDS, fetchImpl, {
+      logLabel: '郵便番号の変換に失敗:',
+      failure: '郵便番号を住所へ変換できませんでした',
+    });
     if (!response.ok) {
       await logUpstreamStatus('郵便番号APIエラー:', url, response);
       return null;
     }
-    const data = (await response.json()) as {
+    const { data: parsed } = await readUpstreamJson(response, url, '郵便番号');
+    const data = parsed as {
       results?: { address1?: unknown; address2?: unknown }[] | null;
-    };
+    } | null;
     const first = data?.results?.[0];
     const city = first?.address2;
     if (typeof city !== 'string' || city === '') {

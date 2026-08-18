@@ -283,9 +283,7 @@ input[type='search']:focus {
   outline-offset: 2px;
 }
 
-/* ステータス表示
- * 通常メッセージ（#status）とエラー（#status-error、role=alert）をgridで同じ位置に重ね、
- * 出現・消滅でレイアウトシフト（CLS）が発生しないよう高さは常に確保しておく */
+/* 数値入力欄（実測WBGTツールのWBGT入力） */
 input[type='number'] {
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
@@ -372,6 +370,9 @@ input[type='number']:focus {
   gap: 0.5rem;
 }
 
+/* ステータス表示
+ * 通常メッセージ（#status）とエラー（#status-error、role=alert）をgridで同じ位置に重ね、
+ * 出現・消滅でレイアウトシフト（CLS）が発生しないよう高さは常に確保しておく */
 .status-area {
   display: grid;
   min-height: 3.4rem;
@@ -408,8 +409,6 @@ input[type='number']:focus {
   padding-left: 1.2rem;
 }
 
-/* タブバー（主要コンテンツの切り替え）。選択中は青の下線+文字色で示し、
- * 色だけに依存しないようaria-selectedと太字・下線の形でも区別する */
 /* タブ（ノートのタックインデックス風）
  * 未選択のタブは地色を敷いて奥に、選択中のタブは下辺を開いて内容と地続きに
  * 見せる。選択状態は色だけでなく「つながった形」と太字でも判別できる */
@@ -455,7 +454,6 @@ input[type='number']:focus {
   border-top-right-radius: 0;
 }
 
-/* いまの判定カード。読み込み前後で高さが揺れないようmin-heightを確保する */
 /* いまの判定カード。読み込み中のスケルトンと実データで高さが変わらないよう、
  * 実データ4行分（時刻・判定・アドバイス・屋内）の高さを常に確保する
  * （スケルトンはこの高さに収まる行数にしてある） */
@@ -531,6 +529,14 @@ input[type='number']:focus {
 
 #status.status-warning > .fa-icon {
   color: var(--level-1-accent);
+  margin-right: 0.4rem;
+  /* 本文が折り返しても1行目の先頭に留まる（ぶら下げない） */
+  vertical-align: -0.15em;
+}
+
+/* エラーの△!アイコン（注意状態と同形式。色だけに頼らせない） */
+#status-error > .fa-icon {
+  color: var(--color-red);
   margin-right: 0.4rem;
   /* 本文が折り返しても1行目の先頭に留まる（ぶら下げない） */
   vertical-align: -0.15em;
@@ -1088,5 +1094,16 @@ section h3 {
   input[type='search'],
   input[type='number'] {
     min-height: 2.75rem;
+  }
+
+  /* 折りたたみの見出し行（判定の見方・位置情報の扱い）もタップ対象のため確保する */
+  .legend-details summary {
+    min-height: 2.75rem;
+  }
+
+  /* aboutページのパンくずリンクは密集しているため、リンク単位でタップ領域を広げる */
+  .breadcrumb a {
+    display: inline-block;
+    padding: 0.6rem 0.25rem;
   }
 }

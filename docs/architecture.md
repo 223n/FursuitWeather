@@ -85,8 +85,10 @@ src/
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
+├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
+e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検証）
 ```
 
 - 判定ロジック（`src/logic/`）は純粋関数で構成し、IO（fetch）から
@@ -359,6 +361,19 @@ flowchart LR
 ありません。キャッシュ時間は`src/constants.ts`の
 `UPSTREAM_CACHE_TTL_SECONDS`・`RESPONSE_CACHE_MAX_AGE_SECONDS`・
 `GEOCODING_CACHE_TTL_SECONDS`で調整できます。
+
+## オフライン表示（Service Worker）
+
+PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担います。
+
+- **オンライン時は常にネットワーク優先**で、キャッシュは裏で更新する
+  だけです（デプロイ後に古い画面を配らないための方針）
+- オフライン時は、シェル（`SHELL_URLS`のHTML・JS・CSS）と直近の予報
+  （`DATA_CACHE`、上限10件）から応答します
+- 保存済みの予報で応答するときは`X-Served-From-Cache`と`X-Cached-At`
+  ヘッダーを付けます。これは`sw.js`と`public/app.js`
+  （`cachedStatusText`・`displayedFromCache`）の間の契約で、フロントは
+  これを使って「オフライン表示である旨と取得時刻」を利用者へ明示します
 
 ## 配信ドメイン
 

@@ -211,7 +211,7 @@ async function fetchPrecipitationProbability(
   }
 }
 
-/** 上流へのHTTPリクエスト1回分。トランスポート失敗はUpstreamErrorへ変換する */
+/** 気象データ用の上流リクエスト1回分（エッジキャッシュTTLと失敗・タイムアウト文言を束ねてfetchUpstreamへ委譲する） */
 function requestOnce(url: string, fetchImpl: typeof fetch): Promise<Response> {
   // Cloudflareのエッジで上流レスポンスをキャッシュし、Open-Meteoの
   // 無料枠レート制限（1万コール/日）を守る。MSMの更新は3時間ごと

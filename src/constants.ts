@@ -2,6 +2,7 @@
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
 import type {
+  Attribution,
   ColdLevelId,
   CoolingNeed,
   Grade,
@@ -342,7 +343,8 @@ export const ATTRIBUTION = {
   weatherData: 'Weather data by Open-Meteo.com（気象庁MSM/GSMモデル）',
   weatherDataUrl: 'https://open-meteo.com/',
   license: 'CC BY 4.0',
-} as const;
+  // satisfiesでレスポンス型（types.tsのAttribution）との形の一致をコンパイル時に強制する
+} as const satisfies Attribution;
 
 /** 通年で表示する注意事項 */
 export const YEAR_ROUND_NOTICES: readonly string[] = [

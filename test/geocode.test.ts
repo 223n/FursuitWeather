@@ -204,6 +204,24 @@ describe('fetchGeocoding（郵便番号）', () => {
     expect(calls).toHaveLength(3);
   });
 
+  it('zipcloudが非JSONを返しても一次証拠をログに残し、直接検索へフォールバックする', async () => {
+    const { impl, calls } = routePostal({
+      zipcloud: () => new Response('<html>error</html>', { status: 200 }),
+      search: () => new Response(cityHit, { status: 200 }),
+    });
+
+    const results = await fetchGeocoding('4430041', impl);
+    expect(results).toHaveLength(1);
+    // 200応答でも中身が壊れている障害の切り分けに使えるよう、本文先頭がログに残る
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '郵便番号APIレスポンスの解析に失敗:',
+      expect.stringContaining('zipcode='),
+      expect.stringContaining('<html>'),
+    );
+    // zipcloud→ハイフン付き直接検索の順で継続している
+    expect(calls).toHaveLength(2);
+  });
+
   it('zipcloudへの接続失敗でも検索全体は継続する', async () => {
     const { impl } = routePostal({
       zipcloud: () => {
