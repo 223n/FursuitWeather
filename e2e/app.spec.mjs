@@ -471,6 +471,50 @@ test('活動時の注意と位置情報の扱い: 注意は常時見え、位置
   await expect(privacy.locator('.control-note')).toBeHidden();
 });
 
+test('注意文: どのページでも同じ黄色系の枠と左上の△!でそろえる', async ({ page }) => {
+  // 注意文の見た目はページをまたいで1つの決まりに従う。枠の太さ・色・地色と、
+  // 色だけに頼らせないための△!の位置（枠の左上）をまとめて確認する
+  const readPanels = () =>
+    page.locator('.notice-panel').evaluateAll((elements) =>
+      elements.map((element) => {
+        const style = getComputedStyle(element);
+        const icon = element.querySelector('.fa-icon');
+        const panelBox = element.getBoundingClientRect();
+        const iconBox = icon ? icon.getBoundingClientRect() : null;
+        return {
+          borderWidth: style.borderTopWidth,
+          borderColor: style.borderTopColor,
+          background: style.backgroundColor,
+          iconColor: icon ? getComputedStyle(icon).color : null,
+          iconOffsetX: iconBox ? iconBox.left - panelBox.left : null,
+          iconOffsetY: iconBox ? iconBox.top - panelBox.top : null,
+        };
+      }),
+    );
+
+  await page.goto('/');
+  await waitForForecast(page);
+  // 活動時の注意と、この予報についての注意文
+  const topPanels = await readPanels();
+  expect(topPanels).toHaveLength(2);
+
+  await page.goto('/about');
+  // 利用上の注意と免責事項
+  const aboutPanels = await readPanels();
+  expect(aboutPanels).toHaveLength(2);
+
+  const panels = [...topPanels, ...aboutPanels];
+  for (const panel of panels) {
+    expect(panel.borderWidth).toBe('2px');
+    expect(panel.borderColor).toBe(panels[0].borderColor);
+    expect(panel.background).toBe(panels[0].background);
+    // アイコンは枠と同じ注意色で、枠の左上に置く
+    expect(panel.iconColor).toBe(panel.borderColor);
+    expect(panel.iconOffsetX).toBeLessThan(40);
+    expect(panel.iconOffsetY).toBeLessThan(60);
+  }
+});
+
 test('about: 見出しアイコンが描画され、レスポンス例が有効なJSONになっている', async ({ page }) => {
   await page.goto('/about');
 
