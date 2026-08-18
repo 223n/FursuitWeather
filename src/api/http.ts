@@ -3,9 +3,14 @@
 // 応答するための単一情報源。エンドポイント固有の検証・処理は各ハンドラに置く
 
 import { RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
+import { UpstreamError } from '../weather/upstream';
 
 /** JSONレスポンスを生成する */
-export function json(body: unknown, status = 200, cacheable = false): Response {
+export function json(
+  body: unknown,
+  options: { status?: number; cacheable?: boolean } = {},
+): Response {
+  const { status = 200, cacheable = false } = options;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=utf-8',
     // 個人開発の公開APIとして他サイトからの利用も許可する
@@ -21,9 +26,22 @@ export function json(body: unknown, status = 200, cacheable = false): Response {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-/** エラーレスポンスを生成する */
+/** エラーレスポンスを生成する（cacheableを渡さないことでエラー=no-storeの契約を保つ） */
 export function jsonError(status: number, message: string): Response {
-  return json({ error: message }, status);
+  return json({ error: message }, { status });
+}
+
+/**
+ * 上流障害（UpstreamError）を502レスポンスへ変換する。それ以外のエラーはnullを
+ * 返すので、呼び出し側で再throwして最終防衛線（index.tsの500）に委ねること。
+ * 上流障害（レート制限・仕様変更など）を運用で検知できるよう、502もログに残す
+ */
+export function upstreamErrorResponse(error: unknown, logLabel: string, url: URL): Response | null {
+  if (error instanceof UpstreamError) {
+    console.error(logLabel, url.pathname + url.search, error.message);
+    return jsonError(502, error.message);
+  }
+  return null;
 }
 
 /** CORSプリフライト（OPTIONS）への応答を生成する */

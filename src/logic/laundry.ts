@@ -6,7 +6,7 @@
 
 import { LAUNDRY, LAUNDRY_BANDS, LAUNDRY_LEVEL_LABELS } from '../constants';
 import type { HourlyWeather, LaundryAssessment, LaundryLevelId } from '../types';
-import { hourOf } from './time';
+import { filterByHourRange } from './time';
 
 /**
  * 飽和水蒸気圧（hPa）をTetensの式で求める
@@ -51,10 +51,7 @@ export function fursuitDryingHours(score: number): number {
  * @param hours その日の時間別気象データ（干し時間帯以外も含んでよい）
  */
 export function assessLaundry(hours: readonly HourlyWeather[]): LaundryAssessment {
-  const window = hours.filter((h) => {
-    const hour = hourOf(h.time);
-    return hour >= LAUNDRY.windowStartHour && hour < LAUNDRY.windowEndHour;
-  });
+  const window = filterByHourRange(hours, LAUNDRY.windowStartHour, LAUNDRY.windowEndHour);
 
   if (window.length === 0) {
     // 干し時間帯のデータがない日（当日の夕方以降など）は判定不能として最低評価を返す

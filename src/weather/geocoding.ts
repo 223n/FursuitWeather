@@ -87,7 +87,6 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
 }
 
 /**
- * 都市名・郵便番号から地点候補を検索する
  * 1回分の地名検索を実行する
  *
  * 気象データ側（openMeteo.tsのrequestUpstream）と異なり5xxの取り直しはしない。
@@ -128,6 +127,33 @@ async function searchByName(
 }
 
 /**
+ * 候補クエリを順に検索し、最初に見つかった結果を返す
+ *
+ * 再検索の連鎖には全体の時間予算（UPSTREAM_TIMEOUT_MS）を設け、上流が遅いときに
+ * 利用者を数十秒待たせない（各呼び出しの個別タイムアウトとは別枠）。
+ * 時間切れ・全滅時は空配列を返す
+ */
+async function searchFirstMatch(
+  queries: readonly string[],
+  timeoutLogLabel: string,
+  timeoutLogValue: string,
+  fetchImpl: typeof fetch,
+): Promise<GeocodeResult[]> {
+  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
+  for (const query of queries) {
+    if (Date.now() >= deadline) {
+      console.error(timeoutLogLabel, timeoutLogValue);
+      break;
+    }
+    const results = await searchByName(query, fetchImpl);
+    if (results.length > 0) {
+      return results;
+    }
+  }
+  return [];
+}
+
+/**
  * 市区町村の接尾辞を補いながら地名検索する
  * Open-Meteoジオコーディングは2文字以下の検索語を完全一致でしか照合しないため、
  * 「蒲郡」のように登録名が「蒲郡市」の地点は素の検索で0件になる。
@@ -144,24 +170,11 @@ async function searchByNameWithCitySuffixes(
   if (results.length > 0 || [...query].length > 2) {
     return results;
   }
-  // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに
-  // 利用者を数十秒待たせない（各呼び出しの個別タイムアウトとは別枠）
-  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
-  for (const suffix of GEOCODING_CITY_SUFFIXES) {
-    if (Date.now() >= deadline) {
-      console.error('地点検索の接尾辞補完を時間切れで打ち切り:', query);
-      break;
-    }
-    // 「大村」→「大村村」のように同じ接尾辞を重ねない
-    if (query.endsWith(suffix)) {
-      continue;
-    }
-    const retried = await searchByName(query + suffix, fetchImpl);
-    if (retried.length > 0) {
-      return retried;
-    }
-  }
-  return [];
+  // 「大村」→「大村村」のように同じ接尾辞は重ねない
+  const retryQueries = GEOCODING_CITY_SUFFIXES.filter(
+    (suffix) => !query.endsWith(suffix),
+  ).map((suffix) => query + suffix);
+  return searchFirstMatch(retryQueries, '地点検索の接尾辞補完を時間切れで打ち切り:', query, fetchImpl);
 }
 
 /** 全角の数字・ハイフン類を半角へ正規化する */
@@ -248,7 +261,7 @@ async function resolvePostalCode(
     // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
     const response = await fetchImpl(url, upstreamInit(GEOCODING_CACHE_TTL_SECONDS));
     if (!response.ok) {
-      console.error('郵便番号APIエラー:', url, response.status);
+      console.error('郵便番号APIエラー:', url, response.status, await readErrorDetail(response));
       return null;
     }
     const data = (await response.json()) as {
@@ -292,18 +305,15 @@ export async function fetchGeocoding(
   //   市名・町村名・接尾辞なしの順にフォールバックする）
   const address = await resolvePostalCode(digits, fetchImpl);
   if (address !== null) {
-    // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに利用者を待たせすぎない
-    const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
-    for (const candidate of buildCityCandidates(address.city)) {
-      if (Date.now() >= deadline) {
-        console.error('郵便番号からの地名検索を時間切れで打ち切り:', address.city);
-        break;
-      }
-      const results = await searchByName(candidate, fetchImpl);
-      if (results.length > 0) {
-        // 同名地名で別の土地を返さないよう、郵便番号の都道府県と一致する候補を優先する
-        return preferSamePrefecture(results, address.prefecture);
-      }
+    const results = await searchFirstMatch(
+      buildCityCandidates(address.city),
+      '郵便番号からの地名検索を時間切れで打ち切り:',
+      address.city,
+      fetchImpl,
+    );
+    if (results.length > 0) {
+      // 同名地名で別の土地を返さないよう、郵便番号の都道府県と一致する候補を優先する
+      return preferSamePrefecture(results, address.prefecture);
     }
   }
 

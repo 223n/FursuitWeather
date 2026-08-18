@@ -5,8 +5,7 @@ import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS } from '../constants';
 import { buildForecast } from '../logic/forecast';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
-import { UpstreamError } from '../weather/upstream';
-import { json, jsonError, methodGuard } from './http';
+import { json, jsonError, upstreamErrorResponse } from './http';
 
 /** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
 function parseNumberParam(params: URLSearchParams, name: string): number | null {
@@ -29,11 +28,6 @@ function todayInJst(now: Date): string {
  * GET /api/forecast?demo=1 （デモデータで応答）
  */
 export async function handleForecast(request: Request): Promise<Response> {
-  const guard = methodGuard(request);
-  if (guard) {
-    return guard;
-  }
-
   const url = new URL(request.url);
   const params = url.searchParams;
   const now = new Date();
@@ -67,10 +61,9 @@ export async function handleForecast(request: Request): Promise<Response> {
     try {
       weather = await fetchWeather(latitude, longitude, days);
     } catch (error) {
-      if (error instanceof UpstreamError) {
-        // 上流障害（レート制限・仕様変更など）を運用で検知できるよう、502もログに残す
-        console.error('上流エラー:', url.pathname + url.search, error.message);
-        return jsonError(502, error.message);
+      const response = upstreamErrorResponse(error, '上流エラー:', url);
+      if (response) {
+        return response;
       }
       throw error;
     }
@@ -88,5 +81,5 @@ export async function handleForecast(request: Request): Promise<Response> {
     now.toISOString(),
   );
 
-  return json(forecast, 200, true);
+  return json(forecast, { cacheable: true });
 }

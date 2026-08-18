@@ -355,7 +355,7 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     // 日別サマリーAPI（coolingRequired: boolean）にはラベルが無くapp.jsが文言を
     // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
     // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
-    expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+    expect(appJs).toContain(`coolingBadge('required', '${COOLING_LABELS.required}')`);
   });
 
   it('OpenAPI仕様（docs/openapi.yaml）の列挙・上限はconstantsと一致する', () => {

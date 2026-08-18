@@ -121,6 +121,23 @@
     cityChangeTimer = null;
   }
 
+  /** 文字列ならtextContentで置き、ノードなら子として追加する（セル・値欄の中身設定で共通） */
+  function appendContent(parent, content) {
+    if (typeof content === 'string') {
+      parent.textContent = content;
+    } else {
+      parent.appendChild(content);
+    }
+  }
+
+  /** class=hintの案内文（p要素）を組み立てる（データ無し時の表示で共通） */
+  function hintParagraph(text) {
+    const paragraph = document.createElement('p');
+    paragraph.className = 'hint';
+    paragraph.textContent = text;
+    return paragraph;
+  }
+
   /**
    * 地点リストの項目（li > button、location-dotアイコン+ラベル）を組み立てる
    * お気に入りチップと検索候補で共通。クリック時の処理はクロージャで受け取る
@@ -148,6 +165,15 @@
    */
   function coordQuery(lat, lon) {
     return `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
+  }
+
+  /** 共有URL用のクエリ文字列を組み立てる（名前があればname=を付ける） */
+  function shareQueryString(query, name) {
+    const params = new URLSearchParams(query);
+    if (name) {
+      params.set('name', name);
+    }
+    return params.toString();
   }
 
   /** 2地点間の距離（km）をハーバーサイン公式で求める */
@@ -195,42 +221,46 @@
   // localStorageに保存する地点クエリの受け入れ形式（記憶とお気に入りで共通）
   const STORED_QUERY_PATTERN = /^lat=-?[\d.]+&lon=-?[\d.]+$/;
 
-  /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
-  function readStoredLocation() {
+  /** localStorageからJSONを読み出す。未保存・破損・使えない環境ではnullを返す */
+  function readStorageJson(key) {
     try {
-      const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY);
-      if (!raw) {
-        return null;
-      }
-      const stored = JSON.parse(raw);
-      if (
-        !stored ||
-        typeof stored.query !== 'string' ||
-        !STORED_QUERY_PATTERN.test(stored.query) ||
-        typeof stored.locationName !== 'string'
-      ) {
-        return null;
-      }
-      return {
-        query: stored.query,
-        locationName: stored.locationName,
-        cityIndex: Number.isInteger(stored.cityIndex) ? stored.cityIndex : null,
-      };
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   }
 
-  /** 表示に成功した地点を記憶する */
-  function writeStoredLocation(query, locationName, cityIndex) {
+  /** localStorageへJSONを書き込む */
+  function writeStorageJson(key, value) {
     try {
-      window.localStorage.setItem(
-        LOCATION_STORAGE_KEY,
-        JSON.stringify({ query, locationName, cityIndex }),
-      );
+      window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
       // 保存できなくても予報表示自体には影響しないため無視する
     }
+  }
+
+  /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
+  function readStoredLocation() {
+    const stored = readStorageJson(LOCATION_STORAGE_KEY);
+    if (
+      !stored ||
+      typeof stored.query !== 'string' ||
+      !STORED_QUERY_PATTERN.test(stored.query) ||
+      typeof stored.locationName !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      query: stored.query,
+      locationName: stored.locationName,
+      cityIndex: Number.isInteger(stored.cityIndex) ? stored.cityIndex : null,
+    };
+  }
+
+  /** 表示に成功した地点を記憶する */
+  function writeStoredLocation(query, locationName, cityIndex) {
+    writeStorageJson(LOCATION_STORAGE_KEY, { query, locationName, cityIndex });
   }
 
   // お気に入り地点（このブラウザ内にのみ保存する）。
@@ -240,42 +270,30 @@
 
   /** お気に入り一覧を読み出す。形式が不正・破損している場合は空配列を返す */
   function readFavorites() {
-    try {
-      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (!raw) {
-        return [];
-      }
-      const list = JSON.parse(raw);
-      if (!Array.isArray(list)) {
-        return [];
-      }
-      return list
-        .filter(
-          (item) =>
-            item &&
-            typeof item.query === 'string' &&
-            STORED_QUERY_PATTERN.test(item.query) &&
-            typeof item.name === 'string' &&
-            item.name !== '',
-        )
-        .slice(0, MAX_FAVORITES)
-        .map((item) => ({
-          query: item.query,
-          name: item.name,
-          cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
-        }));
-    } catch {
+    const list = readStorageJson(FAVORITES_STORAGE_KEY);
+    if (!Array.isArray(list)) {
       return [];
     }
+    return list
+      .filter(
+        (item) =>
+          item &&
+          typeof item.query === 'string' &&
+          STORED_QUERY_PATTERN.test(item.query) &&
+          typeof item.name === 'string' &&
+          item.name !== '',
+      )
+      .slice(0, MAX_FAVORITES)
+      .map((item) => ({
+        query: item.query,
+        name: item.name,
+        cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
+      }));
   }
 
   /** お気に入り一覧を保存する */
   function writeFavorites(list) {
-    try {
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(list));
-    } catch {
-      // 保存できなくても表示自体には影響しないため無視する
-    }
+    writeStorageJson(FAVORITES_STORAGE_KEY, list);
   }
 
   /** スクリーンリーダー向けに、その日の予報を文章で組み立てる
@@ -402,6 +420,11 @@
     none: { grade: 0 },
   };
 
+  /** 冷房要否のバッジを組み立てる（日別カード・いまの判定・時間別テーブルで共通） */
+  function coolingBadge(cooling, label) {
+    return createBadge({ ...(COOLING_BADGES[cooling] ?? COOLING_BADGES.none), label });
+  }
+
   /** 着ぐるみ乾燥目安のバッジ設定を組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
@@ -419,11 +442,16 @@
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
    * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める */
+  /** YYYY-MM-DD文字列を数値成分とUTCミリ秒に解析する（日付計算の共通基準） */
+  function parseDateText(text) {
+    const [year, month, day] = text.split('-').map(Number);
+    return { year, month, day, utc: Date.UTC(year, month - 1, day) };
+  }
+
   function formatDate(dateText) {
-    const [year, month, day] = dateText.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    const { month, day, utc } = parseDateText(dateText);
     const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-    return `${month}月${day}日（${weekdays[date.getUTCDay()]}）`;
+    return `${month}月${day}日（${weekdays[new Date(utc).getUTCDay()]}）`;
   }
 
   /** 選択状態の見た目とARIA属性を更新する（カードは再生成せずフォーカスを保つ） */
@@ -487,11 +515,7 @@
       const dt = document.createElement('dt');
       dt.textContent = label;
       const dd = document.createElement('dd');
-      if (typeof valueNode === 'string') {
-        dd.textContent = valueNode;
-      } else {
-        dd.appendChild(valueNode);
-      }
+      appendContent(dd, valueNode);
       list.appendChild(dt);
       list.appendChild(dd);
     };
@@ -512,11 +536,9 @@
     // 日別サマリーのAPIレスポンス（coolingRequired）にはラベルが無いため、ここの文言はフロントで持つ
     addRow(
       '屋内（空調なしの場合）',
-      createBadge(
-        day.coolingRequired
-          ? { ...COOLING_BADGES.required, label: '冷房必須' }
-          : { ...COOLING_BADGES.none, label: '冷房なしでも可の時間帯あり' },
-      ),
+      day.coolingRequired
+        ? coolingBadge('required', '冷房必須')
+        : coolingBadge('none', '冷房なしでも可の時間帯あり'),
     );
     const laundryValue = badgeWithText(
       { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
@@ -738,11 +760,9 @@
       todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
       todayHours.find((h) => hourNumberOf(h.time) > now.hour);
     if (!target) {
-      const message = document.createElement('p');
-      message.className = 'hint';
-      message.textContent =
-        '本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。';
-      nowCard.replaceChildren(message);
+      nowCard.replaceChildren(
+        hintParagraph('本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。'),
+      );
       return;
     }
 
@@ -781,12 +801,7 @@
     indoor.className = 'now-time now-indoor';
     indoor.appendChild(faIcon('house', 'th-icon'));
     indoor.appendChild(document.createTextNode('屋内（空調なし想定）:'));
-    indoor.appendChild(
-      createBadge({
-        ...(COOLING_BADGES[target.indoor.cooling] ?? COOLING_BADGES.none),
-        label: target.indoor.coolingLabel,
-      }),
-    );
+    indoor.appendChild(coolingBadge(target.indoor.cooling, target.indoor.coolingLabel));
 
     nowCard.replaceChildren(timeLine, headline, advice, indoor);
   }
@@ -816,11 +831,7 @@
 
       const addCell = (content) => {
         const cell = document.createElement('td');
-        if (typeof content === 'string') {
-          cell.textContent = content;
-        } else {
-          cell.appendChild(content);
-        }
+        appendContent(cell, content);
         row.appendChild(cell);
       };
 
@@ -855,12 +866,7 @@
       const indoorCell = document.createElement('span');
       indoorCell.className = 'badge-line';
       indoorCell.appendChild(createBadge(hour.indoor));
-      indoorCell.appendChild(
-        createBadge({
-          ...(COOLING_BADGES[hour.indoor.cooling] ?? COOLING_BADGES.none),
-          label: hour.indoor.coolingLabel,
-        }),
-      );
+      indoorCell.appendChild(coolingBadge(hour.indoor.cooling, hour.indoor.coolingLabel));
       addCell(indoorCell);
 
       hoursBody.appendChild(row);
@@ -963,21 +969,8 @@
 
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
-      // オフライン時はService Workerが保存済みの予報で応答するため、
-      // その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
       displayedFromCache = response.headers.get('X-Served-From-Cache') === '1';
-      if (displayedFromCache) {
-        const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
-        const timeText = Number.isNaN(cachedAt.getTime())
-          ? '以前'
-          : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
-        setStatus(
-          `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`,
-          false,
-        );
-      } else {
-        setStatus('予報を取得しました', false);
-      }
+      setStatus(displayedFromCache ? cachedStatusText(response) : '予報を取得しました', false);
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）。
       // 名前は画面用ラベルではなく注記なしのshareNameを使う（共有のたびに注記が
@@ -996,29 +989,14 @@
           // 反映してそのまま共有・ブックマークできるようにする。
           // 記憶する名前はstoredName優先（共有URL由来の名前を鵜呑みにしないため）
           writeStoredLocation(query, storedName ?? locationName, cityIndex);
-          const urlParams = new URLSearchParams(query);
-          if (shareName) {
-            urlParams.set('name', shareName);
-          }
-          window.history.replaceState(null, '', `?${urlParams.toString()}`);
+          window.history.replaceState(null, '', `?${shareQueryString(query, shareName)}`);
         } else {
           // 現在地は「位置情報は保存しません」の約束どおり記憶もURL反映もしない。
           // 以前の地点パラメータが残っているとアドレスバーと表示が食い違うため消す
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
-      renderNowCard();
-      renderDayCards();
-      renderNotices();
-      // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
-      // 地点や取得結果が変わったら古い前提の計画を残さない
-      updateDayTabs();
-      populatePlanDates();
-      clearPlan();
-
-      if (selectedDate) {
-        renderHours();
-      }
+      renderForecast();
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
@@ -1036,6 +1014,34 @@
         dayCardsElement.replaceChildren();
         hoursBody.replaceChildren();
       }
+    }
+  }
+
+  /**
+   * オフライン表示（Service Workerの保存済み予報）の案内文を作る
+   * その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
+   */
+  function cachedStatusText(response) {
+    const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
+    const timeText = Number.isNaN(cachedAt.getTime())
+      ? '以前'
+      : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
+    return `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`;
+  }
+
+  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す */
+  function renderForecast() {
+    renderNowCard();
+    renderDayCards();
+    renderNotices();
+    // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
+    // 地点や取得結果が変わったら古い前提の計画を残さない
+    updateDayTabs();
+    populatePlanDates();
+    clearPlan();
+
+    if (selectedDate) {
+      renderHours();
     }
   }
 
@@ -1086,11 +1092,13 @@
     // GPS取得中に別の地点操作でロードが始まっていたら、遅れて届いた結果は破棄する
     // （requestSeqのfetch応答ガードはコールバック起点の新規ロードには効かないため）
     const startedAt = requestSeq;
+    // 取得中に新しいロードが始まった、または新しいセレクト操作が保留されて
+    // いたら、遅れて届いたGPS結果はそちらに譲る（最後の明示操作が勝つ）。
+    // コールバック到着時に評価するため関数にしておく
+    const superseded = () => requestSeq !== startedAt || cityChangeTimer !== null;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        // 取得中に新しいロードが始まった、または新しいセレクト操作が保留されて
-        // いたら、遅れて届いたGPS結果はそちらに譲る（最後の明示操作が勝つ）
-        if (requestSeq !== startedAt || cityChangeTimer !== null) {
+        if (superseded()) {
           return;
         }
         const lat = position.coords.latitude;
@@ -1106,7 +1114,7 @@
         );
       },
       () => {
-        if (requestSeq !== startedAt || cityChangeTimer !== null) {
+        if (superseded()) {
           return;
         }
         setStatus('現在地を取得できませんでした。地点を選択してください。', true);
@@ -1126,11 +1134,7 @@
     if (displayedQuery === 'demo=1') {
       shareUrl = `${window.location.origin}/?demo=1`;
     } else if (displayedQuery) {
-      const params = new URLSearchParams(displayedQuery);
-      if (displayedName) {
-        params.set('name', displayedName);
-      }
-      shareUrl = `${window.location.origin}/?${params.toString()}`;
+      shareUrl = `${window.location.origin}/?${shareQueryString(displayedQuery, displayedName)}`;
     }
     if (navigator.share) {
       try {
@@ -1350,8 +1354,8 @@
     if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) {
       return false;
     }
-    const [year, month, day] = text.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    const { year, month, day, utc } = parseDateText(text);
+    const date = new Date(utc);
     return (
       date.getUTCFullYear() === year &&
       date.getUTCMonth() === month - 1 &&
@@ -1372,11 +1376,7 @@
 
   /** YYYY-MM-DD同士の日数差（toDate − fromDate、日数） */
   function daysBetween(fromDate, toDate) {
-    const toUtc = (text) => {
-      const [year, month, day] = text.split('-').map(Number);
-      return Date.UTC(year, month - 1, day);
-    };
-    return Math.round((toUtc(toDate) - toUtc(fromDate)) / 86400000);
+    return Math.round((parseDateText(toDate).utc - parseDateText(fromDate).utc) / 86400000);
   }
 
   /** イベントの日付の表示文を作る。翌年以降の開催は年を添えて取り違えを防ぐ */
@@ -1669,11 +1669,9 @@
       return hour >= start && hour < end;
     });
     if (hours.length === 0) {
-      const message = document.createElement('p');
-      message.className = 'hint';
-      message.textContent =
-        '選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。';
-      planResult.replaceChildren(message);
+      planResult.replaceChildren(
+        hintParagraph('選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。'),
+      );
       setStatus('選択した時間帯の予報データがありませんでした。', true);
       return;
     }

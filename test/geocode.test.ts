@@ -105,22 +105,6 @@ describe('handleGeocode', () => {
     expect(body.error).toContain('100文字以内');
   });
 
-  it('GET以外のメソッドは405を返す', async () => {
-    const response = await handleGeocode(
-      new Request('https://example.com/api/geocode?q=松山', { method: 'POST' }),
-    );
-    expect(response.status).toBe(405);
-  });
-
-  it('OPTIONSプリフライトには204とCORSヘッダーを返す（/api/forecastと同じ契約）', async () => {
-    const response = await handleGeocode(
-      new Request('https://example.com/api/geocode', { method: 'OPTIONS' }),
-    );
-    expect(response.status).toBe(204);
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
-  });
-
   it('上流APIのエラーは502として返し、運用検知のためログに残す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
 
@@ -213,6 +197,7 @@ describe('fetchGeocoding（郵便番号）', () => {
       '郵便番号APIエラー:',
       expect.stringContaining('zipcode='),
       500,
+      'error',
     );
     // zipcloud→ハイフン付き→ハイフンなしの順で試している
     expect(calls).toHaveLength(3);

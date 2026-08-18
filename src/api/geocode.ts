@@ -4,19 +4,13 @@
 
 import { GEOCODING_MAX_QUERY_LENGTH } from '../constants';
 import { fetchGeocoding } from '../weather/geocoding';
-import { UpstreamError } from '../weather/upstream';
-import { json, jsonError, methodGuard } from './http';
+import { json, jsonError, upstreamErrorResponse } from './http';
 
 /**
  * GET /api/geocode?q=松山
  * GET /api/geocode?q=790-0067 （郵便番号でも検索できる）
  */
 export async function handleGeocode(request: Request): Promise<Response> {
-  const guard = methodGuard(request);
-  if (guard) {
-    return guard;
-  }
-
   const url = new URL(request.url);
   const query = (url.searchParams.get('q') ?? '').trim();
   if (query === '') {
@@ -34,9 +28,9 @@ export async function handleGeocode(request: Request): Promise<Response> {
     // 0件時の接尾辞補完も2文字以下に限定しているため、上流の無料枠への負荷は限定的
     return json({ results });
   } catch (error) {
-    if (error instanceof UpstreamError) {
-      console.error('地点検索の上流エラー:', url.pathname + url.search, error.message);
-      return jsonError(502, error.message);
+    const response = upstreamErrorResponse(error, '地点検索の上流エラー:', url);
+    if (response) {
+      return response;
     }
     throw error;
   }

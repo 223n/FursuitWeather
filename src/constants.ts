@@ -332,6 +332,16 @@ export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
 export const DEFAULT_FORECAST_DAYS = 4;
 export const MAX_FORECAST_DAYS = 4;
 
+/**
+ * APIレスポンスの帰属表示（Open-Meteoの利用規約により表示時の出典明記が必要。
+ * CC BY 4.0。https://open-meteo.com/en/license）
+ */
+export const ATTRIBUTION = {
+  weatherData: 'Weather data by Open-Meteo.com（気象庁MSM/GSMモデル）',
+  weatherDataUrl: 'https://open-meteo.com/',
+  license: 'CC BY 4.0',
+} as const;
+
 /** 通年で表示する注意事項 */
 export const YEAR_ROUND_NOTICES: readonly string[] = [
   '着ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。',

@@ -61,6 +61,31 @@ describe('Workerルーティング', () => {
     expect(consoleError).toHaveBeenCalled();
   });
 
+  it('APIルートはGET以外のメソッドに405を返す（全エンドポイント共通の契約）', async () => {
+    for (const path of ['/api/forecast?lat=35&lon=139', '/api/geocode?q=松山']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`, { method: 'POST' }),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(405);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+    }
+  });
+
+  it('APIルートはOPTIONSプリフライトに204とCORSヘッダーを返す', async () => {
+    for (const path of ['/api/forecast', '/api/geocode']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`, { method: 'OPTIONS' }),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(204);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+    }
+  });
+
   it('存在しない/api/*パスはCORSヘッダー付きのJSON 404を返す', async () => {
     const response = await worker.fetch(
       new Request('https://example.com/api/unknown'),

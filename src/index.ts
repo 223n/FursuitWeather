@@ -4,14 +4,18 @@
 
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
-import { jsonError } from './api/http';
+import { jsonError, methodGuard } from './api/http';
 import { buildHtmlCsp, isHtmlPath } from './csp';
 
 export interface Env {
   ASSETS: Fetcher;
 }
 
-/** APIパスとハンドラの対応表。エンドポイントの追加はここへ1行足す */
+/**
+ * APIパスとハンドラの対応表。エンドポイントの追加はここへ1行足す。
+ * ハンドラはこのルーター経由でのみ呼ばれ、GET前提でよい
+ * （メソッド制約・CORSプリフライトはルーターが一括適用する）
+ */
 const API_ROUTES = new Map<string, (request: Request) => Promise<Response>>([
   ['/api/forecast', handleForecast],
   ['/api/geocode', handleGeocode],
@@ -58,6 +62,10 @@ export default {
 
     const route = API_ROUTES.get(url.pathname);
     if (route) {
+      const guard = methodGuard(request);
+      if (guard) {
+        return guard;
+      }
       // 最終防衛線: 予期しない例外もCORSヘッダー付きのJSONで返し、公開APIの契約を守る
       // （awaitなしのreturnでは非同期の失敗を捕捉できないため必ずawaitする）
       try {

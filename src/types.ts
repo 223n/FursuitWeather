@@ -159,7 +159,7 @@ export interface ForecastResponse {
     license: string;
   };
   /** 通年の注意事項 */
-  notices: string[];
+  notices: readonly string[];
   hours: HourForecast[];
   days: DayForecast[];
 }

@@ -164,22 +164,6 @@ describe('handleForecast', () => {
     expect(response.status).toBe(400);
   });
 
-  it('GET以外のメソッドは405を返す', async () => {
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast?lat=35&lon=139', { method: 'POST' }),
-    );
-    expect(response.status).toBe(405);
-  });
-
-  it('OPTIONSプリフライトには204とCORSヘッダーを返す', async () => {
-    const response = await handleForecast(
-      new Request('https://example.com/api/forecast', { method: 'OPTIONS' }),
-    );
-    expect(response.status).toBe(204);
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
-  });
-
   it('上流APIへの接続自体が失敗（タイムアウト・ネットワーク断）した場合は502を返す', async () => {
     // AbortSignal.timeoutによる打ち切りもfetchのrejectとしてこの経路に入る
     vi.stubGlobal(
