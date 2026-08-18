@@ -389,6 +389,8 @@ describe('fetchWeather', () => {
     expect(vi.mocked(console.error)).toHaveBeenCalledWith(
       '降水確率APIレスポンスの形式異常:',
       expect.stringContaining('/v1/forecast'),
+      // 一次証拠として本文先頭がログに残る（予報本体の形式異常ログと同形式）
+      expect.stringContaining('"message"'),
     );
 
     // 時刻の不一致（別日）と要素の非数値は該当時間のみnull

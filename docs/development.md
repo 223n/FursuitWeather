@@ -151,7 +151,7 @@ npm run deploy
 （CSP・X-Content-Type-Options・Referrer-Policy・Permissions-Policy・
 HSTS）。HTMLページのCSPだけは`src/csp.ts`が組み立て、Workerが
 リクエストごとのnonce付きで付与します（`docs/architecture.md`を参照）。
-APIレスポンスのヘッダーは`src/api/forecast.ts`の`json()`で設定します。
+APIレスポンスのヘッダーは`src/api/http.ts`の`json()`で設定します（CORS・キャッシュ・nosniffを含む全`/api/*`共通の単一情報源）。
 
 CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構成のため、
 外部CDN・Webフォント・外部画像などを追加する場合は`_headers`と`src/csp.ts`の

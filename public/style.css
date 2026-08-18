@@ -1072,3 +1072,21 @@ section h3 {
     padding: 0.5rem;
   }
 }
+
+/* 時間別テーブルの横スクロール案内はスマホ向け（広い画面では表が収まるため出さない） */
+@media (min-width: 60rem) {
+  .table-scroll-hint {
+    display: none;
+  }
+}
+
+/* タッチ端末ではタップ領域を約44px（2.75rem）確保する（WCAG 2.5.8目安。
+ * マウス環境は従来の高さのままにし、密度を保つ） */
+@media (pointer: coarse) {
+  button,
+  select,
+  input[type='search'],
+  input[type='number'] {
+    min-height: 2.75rem;
+  }
+}

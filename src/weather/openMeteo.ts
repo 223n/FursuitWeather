@@ -186,13 +186,14 @@ async function fetchPrecipitationProbability(
       await logUpstreamStatus('降水確率APIエラー:', url, response);
       return new Map();
     }
-    const data = (await response.json()) as {
-      hourly?: { time?: unknown; precipitation_probability?: unknown };
-    };
-    const times = data?.hourly?.time;
-    const probabilities = data?.hourly?.precipitation_probability;
+    const { raw, data } = await readUpstreamJson(response, url, '降水確率');
+    const hourly = (
+      data as { hourly?: { time?: unknown; precipitation_probability?: unknown } } | null
+    )?.hourly;
+    const times = hourly?.time;
+    const probabilities = hourly?.precipitation_probability;
     if (!Array.isArray(times) || !Array.isArray(probabilities)) {
-      console.error('降水確率APIレスポンスの形式異常:', url);
+      console.error('降水確率APIレスポンスの形式異常:', url, raw.slice(0, 200));
       return new Map();
     }
     const byTime = new Map<string, number>();

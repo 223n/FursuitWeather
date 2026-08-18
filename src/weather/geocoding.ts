@@ -314,9 +314,10 @@ export async function fetchGeocoding(
 
   // 変換できない・市区町村名で見つからない場合は、郵便番号のまま両形式で試す
   const hyphenated = `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  const direct = await searchByName(hyphenated, fetchImpl);
-  if (direct.length > 0) {
-    return direct;
-  }
-  return searchByName(digits, fetchImpl);
+  return searchFirstMatch(
+    [hyphenated, digits],
+    '郵便番号の直接検索を時間切れで打ち切り:',
+    digits,
+    fetchImpl,
+  );
 }

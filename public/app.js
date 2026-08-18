@@ -954,7 +954,7 @@
         !Array.isArray(body.hours) ||
         !Array.isArray(body.notices)
       ) {
-        throw new Error('予報データの形式が不正です');
+        throw new Error('予報データを正しく受け取れませんでした。しばらくたってから「予報を更新」をお試しください。');
       }
 
       currentForecast = body;
@@ -1109,11 +1109,17 @@
           { persist: false, urlName: nearestCityText(lat, lon) },
         );
       },
-      () => {
+      (geoError) => {
         if (superseded()) {
           return;
         }
-        setStatus('現在地を取得できませんでした。地点を選択してください。', true);
+        // 最頻原因の許可拒否（code=1）だけは、次に何をすればよいかが分かる文面にする
+        setStatus(
+          geoError.code === 1
+            ? '現在地の利用が許可されていません。ブラウザの設定で位置情報を許可するか、都市の選択や地点検索をご利用ください。'
+            : '現在地を取得できませんでした。地点を選択してください。',
+          true,
+        );
       },
       // 位置情報源が応答しない環境でコールバックが来ず「取得しています…」のまま
       // 固まらないよう、待ち時間を有界にする（TIMEOUTは上のエラー表示に合流する）。
@@ -1263,8 +1269,10 @@
   /** HTTPエラー応答を利用者向けメッセージの例外にする（APIのerrorフィールドを優先） */
   function throwIfHttpError(response, body, label) {
     if (!response.ok) {
+      // ステータス番号は利用者の対処に役立たないため画面に出さず、切り分け用にconsoleへ残す
+      console.error(`${label}失敗: HTTP ${response.status}`);
       throw new Error(
-        (body && body.error) || `${label}に失敗しました（HTTP ${response.status}）`,
+        (body && body.error) || `${label}に失敗しました。しばらくたってからもう一度お試しください。`,
       );
     }
   }
@@ -1287,7 +1295,7 @@
       }
       throwIfHttpError(response, body, '地点検索');
       if (!body || !Array.isArray(body.results)) {
-        throw new Error('地点検索の結果の形式が不正です');
+        throw new Error('検索結果を正しく受け取れませんでした。しばらくたってからもう一度お試しください。');
       }
       const places = body.results
         .filter(

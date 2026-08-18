@@ -175,7 +175,7 @@
       <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
         <div class="control-row">
           <label for="place-search">検索</label>
-          <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off">
+          <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off" enterkeyhint="search">
           <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
           <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
         </div>
@@ -295,6 +295,9 @@
 
     <section id="hours-section" role="tabpanel" aria-labelledby="tab-day-0" tabindex="0" hidden>
       <h2 id="hours-title">時間別予報</h2>
+      <!-- 屋外判定・連続活動目安の列が画面外に隠れることをスマホ利用者へ知らせる
+           （広い画面では表が収まるためCSSで非表示にする） -->
+      <p class="hint table-scroll-hint">表が画面に収まらないときは、表を横にずらす（スクロールする）と屋外判定などの続きが見られます。</p>
       <div class="table-wrapper">
         <table id="hours-table">
           <caption class="sr-only">
@@ -371,7 +374,7 @@
     <section class="legend" aria-labelledby="legend-heading">
       <h2 id="legend-heading">判定の見方</h2>
       <details class="legend-details">
-        <summary>説明を開閉</summary>
+        <summary>説明を見る（押すと開閉できます）</summary>
       <p class="hint">
         段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
         低温側の判定には温度計マークが付きます。

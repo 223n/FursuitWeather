@@ -112,16 +112,16 @@ export interface DayForecast {
   date: string;
   temperatureMin: number;
   temperatureMax: number;
-  /** 日中の代表天気コード */
+  /** 日中の代表天気コード（日中データがない日は全時間帯で代替） */
   weatherCode: number;
   weatherLabel: string;
-  /** 日中（9〜18時）の最も厳しい屋外判定 */
+  /** 日中（9〜18時）の最も厳しい屋外判定（日中データがない日は全時間帯で代替） */
   outdoorWorst: LevelSummary;
-  /** 日中（9〜18時）の最も穏やかな屋外判定 */
+  /** 日中（9〜18時）の最も穏やかな屋外判定（日中データがない日は全時間帯で代替） */
   outdoorBest: LevelSummary;
   /** 屋外活動に適した時間帯（HH:00形式、9〜18時のうちgrade1以下かつ降水量0） */
   recommendedHours: string[];
-  /** 日中に冷房必須となる時間があるか */
+  /** 日中に冷房必須となる時間があるか（日中データがない日は全時間帯で判定） */
   coolingRequired: boolean;
   /** その日の素のWBGT（着衣補正前）の最大値（℃）。熱中症警戒アラートの
    * 発表基準（33以上）への該当判断に使える */

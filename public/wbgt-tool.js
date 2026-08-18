@@ -21,8 +21,9 @@
   const COOLING_REQUIRED_WBGT = 25;
   const COOLING_RECOMMENDED_WBGT = 21;
 
-  /** 深刻度に対応する記号（grade 4はテキストではなく禁止マークSVGで表示） */
-  const GRADE_SYMBOLS = ['◎', '○', '△', '✕', { icon: 'ban' }];
+  /** 深刻度に対応する記号（grade 4はテキストではなく禁止マークSVGで表示）。
+   * app.jsのGRADE_SYMBOLSと同形式（記号パーツ配列の配列） */
+  const GRADE_SYMBOLS = [['◎'], ['○'], ['△'], ['✕'], [{ icon: 'ban' }]];
 
   /**
    * 冷房要否の表示設定（Indexページの時間別テーブルと同じ配色・記号）
@@ -45,6 +46,7 @@
     const svgNs = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNs, 'svg');
     svg.setAttribute('class', 'fa-icon');
+    svg.setAttribute('aria-hidden', 'true');
     const use = document.createElementNS(svgNs, 'use');
     use.setAttribute('href', `#fa-${name}`);
     svg.appendChild(use);
@@ -117,7 +119,7 @@
         '判定',
         createBadge(
           band.grade,
-          [GRADE_SYMBOLS[band.grade]],
+          GRADE_SYMBOLS[band.grade],
           band.activityMinutes > 0
             ? `${band.label}（連続${band.activityMinutes}分まで）`
             : `${band.label}（着用中止）`,

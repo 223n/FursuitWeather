@@ -42,7 +42,7 @@ export async function handleForecast(request: Request): Promise<Response> {
     const latitude = parseNumberParam(params, 'lat');
     const longitude = parseNumberParam(params, 'lon');
     if (latitude === null || longitude === null) {
-      return jsonError(400, 'クエリパラメータlat（緯度）とlon（経度）を指定してください');
+      return jsonError(400, 'クエリパラメータlat（緯度）とlon（経度）を数値で指定してください');
     }
     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       return jsonError(400, '緯度は-90〜90、経度は-180〜180の範囲で指定してください');

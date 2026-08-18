@@ -65,17 +65,21 @@ sequenceDiagram
 ```text
 src/
 ├── index.ts            Workerエントリポイント（ルーティング・最終防衛線）
+├── csp.ts              HTMLページのCSP組み立てとnonce差し込み
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
-│   └── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
 │   ├── geocoding.ts    ジオコーディングAPIクライアント（都市名・郵便番号検索）
+│   ├── upstream.ts     上流fetchの共通基盤（UA・エッジキャッシュ・タイムアウト・UpstreamError）
 │   └── demoData.ts     デモデータ生成
 ├── logic/
 │   ├── wbgt.ts         WBGT推定（小野2014式）
 │   ├── fursuit.ts      着ぐるみ活動判定（暑熱・低温・冷房）
 │   ├── laundry.ts      洗濯乾燥指数
+│   ├── time.ts         時刻文字列の切り出しと時間帯フィルタ
 │   └── forecast.ts     予報レスポンスの組み立て（純粋ロジック）
 ├── constants.ts        係数・しきい値の集約（出典コメント付き）
 └── types.ts            共有型定義
@@ -173,7 +177,7 @@ style-src  'self' 'nonce-<同じ値>'
 ```
 
 - Workerが`HTMLRewriter`で`script`・`style`タグへnonceを付け、同じ値を
-  CSPヘッダーにも入れます（`src/index.ts`の`withNonce`）
+  CSPヘッダーにも入れます（`src/csp.ts`の`withNonce`）
 - `'strict-dynamic'`があるとホスト許可リストは無視されるため、外部
   スクリプト（アクセス解析）もHTML内のタグにnonceが付くことで読み込まれます
 - JSON-LDは実行されないデータブロックのためnonceを付けません
