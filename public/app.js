@@ -272,11 +272,18 @@
   }
 
   /** ステータスメッセージを表示する */
-  function setStatus(message, isError) {
+  function setStatus(message, isError, isWarning) {
     // エラーはrole=alert領域に書き、スクリーンリーダーへ即時に通知する
     // （politeの#statusだと他の読み上げ待ちで遅延・埋没するため）
     statusElement.textContent = isError ? '' : message;
     statusErrorElement.textContent = isError ? message : '';
+    // 注意状態（開催日の予報ではない、など）は黄系の配色と△!アイコンで区別する。
+    // 色だけに頼らせないため、アイコンは装飾（aria-hidden）で、意味は本文が担う
+    const warn = !isError && Boolean(isWarning) && Boolean(message);
+    statusElement.classList.toggle('status-warning', warn);
+    if (warn) {
+      statusElement.prepend(faIcon('triangle-exclamation'));
+    }
   }
 
   /** バッジ要素を作る
@@ -1559,7 +1566,7 @@
       `${prefix}「${event.name}」の開催日（${formatEventPeriod(event)}）は予報の範囲外です` +
       `（あと${daysBetween(today, event.startDate)}日）。` +
       `表示しているのは開催地の${range}の予報で、開催日の予報ではありません。`;
-    setStatus(message, false);
+    setStatus(message, false, true);
     srAnnounce.textContent = message;
   }
 
