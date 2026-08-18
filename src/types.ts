@@ -119,7 +119,7 @@ export interface DayForecast {
   outdoorWorst: LevelSummary;
   /** 日中（9〜18時）の最も穏やかな屋外判定 */
   outdoorBest: LevelSummary;
-  /** 屋外活動に適した時間帯（HH:00形式、9〜18時のうちgrade1以下） */
+  /** 屋外活動に適した時間帯（HH:00形式、9〜18時のうちgrade1以下かつ降水量0） */
   recommendedHours: string[];
   /** 日中に冷房必須となる時間があるか */
   coolingRequired: boolean;

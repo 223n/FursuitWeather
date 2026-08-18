@@ -66,7 +66,10 @@ export function methodGuard(request: Request): Response | null {
     return preflightResponse();
   }
   if (request.method !== 'GET') {
-    return jsonError(405, 'GETメソッドのみ対応しています');
+    const response = jsonError(405, 'GETメソッドのみ対応しています');
+    // RFC 9110 §15.5.6: 405には対応メソッドを示すAllowヘッダーを必ず付ける
+    response.headers.set('Allow', 'GET');
+    return response;
   }
   return null;
 }

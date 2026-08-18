@@ -70,6 +70,8 @@ describe('Workerルーティング', () => {
       );
       expect(response.status).toBe(405);
       expect(response.headers.get('Cache-Control')).toBe('no-store');
+      // RFC 9110 §15.5.6: 405には対応メソッドを示すAllowヘッダーが必須
+      expect(response.headers.get('Allow')).toBe('GET');
     }
   });
 

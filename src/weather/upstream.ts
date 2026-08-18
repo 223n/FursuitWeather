@@ -60,7 +60,7 @@ function upstreamErrorMessage(subject: string, status: number): string {
  * 破棄する応答の本文を読み切り、ログ用に先頭200字を返す
  * 本文を消費することで、未読ストリームが上流接続を保持するのを防ぐ
  */
-export async function readErrorDetail(response: Response): Promise<string> {
+async function readErrorDetail(response: Response): Promise<string> {
   return (await response.text().catch(() => '')).slice(0, 200);
 }
 

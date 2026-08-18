@@ -90,7 +90,8 @@
     }
 
     const suitWbgt = Math.round((measured + SUIT_WBGT_ADJUSTMENT) * 10) / 10;
-    const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound) ?? HEAT_BANDS[4];
+    // upperBoundにInfinityの帯があるため必ず見つかる
+    const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound);
     const cooling =
       suitWbgt >= COOLING_REQUIRED_WBGT
         ? COOLING_BADGES.required
@@ -116,7 +117,7 @@
         '判定',
         createBadge(
           band.grade,
-          GRADE_SYMBOLS[band.grade] !== undefined ? [GRADE_SYMBOLS[band.grade]] : ['?'],
+          [GRADE_SYMBOLS[band.grade]],
           band.activityMinutes > 0
             ? `${band.label}（連続${band.activityMinutes}分まで）`
             : `${band.label}（着用中止）`,

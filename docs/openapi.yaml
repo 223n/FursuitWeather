@@ -87,6 +87,10 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     MethodNotAllowed:
       description: GET・OPTIONS以外のメソッド
+      headers:
+        Allow:
+          description: 対応メソッド（GET）
+          schema: { type: string }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
