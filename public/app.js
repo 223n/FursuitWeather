@@ -1,5 +1,6 @@
-// FursuitWeather フロントエンド
-// /api/forecast から予報を取得して描画する
+// FursuitWeather トップページのフロントエンド一式
+// 予報の取得と描画・地点の選択/検索/お気に入り・イベント予報・活動プランナー・
+// 共有と会場表示モードへの導線・Service Worker登録
 
 (() => {
   'use strict';
@@ -1436,7 +1437,8 @@
     try {
       const response = await fetch('/events.json');
       if (!response.ok) {
-        throw new Error(`イベント定義の取得に失敗しました（HTTP ${response.status}）`);
+        // メッセージはcatch側で固定文言に置き換わるため持たない
+        throw new Error();
       }
       const body = await response.json();
       if (body && Array.isArray(body.events)) {

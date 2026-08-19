@@ -182,6 +182,7 @@ export const COLD_BANDS: readonly ColdBand[] = [
 /**
  * 冷房要否のしきい値（℃、屋内の着ぐるみ補正後WBGTと比較）
  * 補正後WBGTが「警戒」帯に入るなら冷房必須、「注意」帯なら冷房推奨
+ * （HEAT_BANDSの帯境界との対応はtest/fursuit.test.tsで機械検証される）
  */
 export const COOLING_REQUIRED_WBGT = 25;
 export const COOLING_RECOMMENDED_WBGT = 21;

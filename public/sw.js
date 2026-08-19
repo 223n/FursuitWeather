@@ -56,9 +56,8 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/** キャッシュの件数を上限までに間引く（古いものから削除） */
-async function trimCache(cacheName, max) {
-  const cache = await caches.open(cacheName);
+/** 開いたCacheを受け取り、件数を上限までに間引く（古いものから削除） */
+async function trimCache(cache, max) {
   const keys = await cache.keys();
   for (let i = 0; i < keys.length - max; i += 1) {
     await cache.delete(keys[i]);
@@ -84,7 +83,7 @@ async function dataNetworkFirst(request, cacheName, maxEntries) {
     const response = await fetch(request);
     if (response.ok) {
       await cache.put(request, await withCachedAt(response));
-      await trimCache(cacheName, maxEntries);
+      await trimCache(cache, maxEntries);
     }
     return response;
   } catch {

@@ -49,6 +49,7 @@ async function fetchCitySummary(
   date: string,
 ): Promise<NationalCitySummary | null> {
   try {
+    // fetchWeatherBaseは位置引数のため、第5引数dateへ届けるだけの目的で既定のfetchを明示している
     return buildCitySummary(city, await fetchWeatherBase(city.lat, city.lon, 1, fetch, date), date);
   } catch (error) {
     console.error('全国天気の取得に失敗:', city.name, error);

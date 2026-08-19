@@ -1,6 +1,11 @@
 // 着ぐるみ活動判定のテスト
 
 import { describe, expect, it } from 'vitest';
+import {
+  COOLING_RECOMMENDED_WBGT,
+  COOLING_REQUIRED_WBGT,
+  HEAT_BANDS,
+} from '../src/constants';
 import { assessCooling, assessIndoor, assessOutdoor } from '../src/logic/fursuit';
 import type { HourlyWeather } from '../src/types';
 
@@ -147,5 +152,14 @@ describe('assessCooling', () => {
     expect(assessCooling(21)).toBe('recommended');
     expect(assessCooling(24.9)).toBe('recommended');
     expect(assessCooling(25)).toBe('required');
+  });
+});
+
+describe('冷房しきい値とHEAT_BANDSの対応', () => {
+  it('冷房しきい値はHEAT_BANDSの帯境界と一致する（constants.tsのコメントの主張の機械検証）', () => {
+    // 「補正後WBGTが警戒帯なら冷房必須、注意帯なら冷房推奨」という対応を固定する。
+    // 帯のしきい値だけを変えると冷房要否の表示と帯表示が黙って食い違うため
+    expect(COOLING_RECOMMENDED_WBGT).toBe(HEAT_BANDS.find((band) => band.id === 'safe')!.upperBound);
+    expect(COOLING_REQUIRED_WBGT).toBe(HEAT_BANDS.find((band) => band.id === 'caution')!.upperBound);
   });
 });

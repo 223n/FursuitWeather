@@ -1375,7 +1375,6 @@
   );
   document.title = `${demo ? 'デモ表示' : place.name}の会場表示 - FursuitWeather 着ぐるみ天気予報`;
   updateClock();
-  updateProgress();
   updateAlerts();
   currentKey = activeSlides()[0].key;
   slideDeadline = Date.now() + currentSlide().seconds * 1000;

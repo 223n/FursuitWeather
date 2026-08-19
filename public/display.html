@@ -13,6 +13,7 @@
        重複コンテンツ対策としてカスタムドメインを正規URLに指定する -->
   <link rel="canonical" href="https://fursuit-weather.223n.tech/display">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/display.css">
   <script src="/display.js" defer></script>
   <!-- favicon: 太陽+肉球（SVG優先、旧ブラウザ・クローラー向けにICO、iOS向けにタッチアイコン） -->
   <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -43,7 +44,6 @@
     <symbol id="fa-smog" viewBox="0 0 576 512"><path d="M176 288C96.5 288 32 223.5 32 144S96.5 0 176 0c27.2 0 52.6 7.5 74.3 20.6 20.1-13 44-20.6 69.7-20.6 47.4 0 88.7 25.7 110.9 64l1.1 0c61.9 0 112 50.1 112 112 0 60.3-47.6 109.4-107.2 111.9-22.6 20-52.3 32.1-84.8 32.1-32.5 0-62.1-12.1-84.7-32L176 288zM512 392c0 13.3-10.7 24-24 24L24 416c-13.3 0-24-10.7-24-24s10.7-24 24-24l464 0c13.3 0 24 10.7 24 24zM88 464l80 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm176 0l288 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-288 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/></symbol>
     <symbol id="fa-cloud-bolt" viewBox="0 0 512 512"><path d="M0 224c0 53 43 96 96 96l38.6 0 124.1-111c12.2-10.9 28-17 44.4-17 44.6 0 76.5 43 63.7 85.7L354.1 320 416 320c53 0 96-43 96-96s-43-96-96-96c-.5 0-1.1 0-1.6 0 1.1-5.2 1.6-10.5 1.6-16 0-44.2-35.8-80-80-80-24.3 0-46.1 10.9-60.8 28-18.7-35.7-56.1-60-99.2-60-61.9 0-112 50.1-112 112 0 7.1 .7 14.1 1.9 20.8-38.3 12.6-65.9 48.7-65.9 91.2zM160.6 400l61.8 0-31.2 104.1c-3.6 11.9 5.3 23.9 17.8 23.9 4.6 0 9-1.7 12.4-4.7L362.5 396.9c3.5-3.1 5.5-7.6 5.5-12.4 0-9.2-7.4-16.6-16.6-16.6l-61.8 0 31.2-104.1c3.6-11.9-5.3-23.9-17.8-23.9-4.6 0-9 1.7-12.4 4.7L149.5 371.1c-3.5 3.1-5.5 7.6-5.5 12.4 0 9.2 7.4 16.6 16.6 16.6z"/></symbol>
     <symbol id="fa-circle-question" viewBox="0 0 512 512"><path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zm0-336c-17.7 0-32 14.3-32 32 0 13.3-10.7 24-24 24s-24-10.7-24-24c0-44.2 35.8-80 80-80s80 35.8 80 80c0 47.2-36 67.2-56 74.5l0 3.8c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-8.1c0-20.5 14.8-35.2 30.1-40.2 6.4-2.1 13.2-5.5 18.2-10.3 4.3-4.2 7.7-10 7.7-19.6 0-17.7-14.3-32-32-32zM224 368a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/></symbol>
-    <symbol id="fa-clock" viewBox="0 0 512 512"><path d="M256 0a256 256 0 1 1 0 512 256 256 0 1 1 0-512zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.4 33.3-6.7s4.4-25.9-6.7-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></symbol>
   </svg>
 
   <header class="display-header">
@@ -70,7 +70,7 @@
   <main class="display-main" id="display-main">
     <section class="display-slide" id="slide-now" aria-label="いまの判定">
       <h2>いまの判定</h2>
-      <div class="display-now-card" id="display-now-card">
+      <div class="display-now-card">
         <p class="display-slide-note">予報を読み込んでいます…</p>
       </div>
     </section>
@@ -80,7 +80,7 @@
     </section>
     <section class="display-slide" id="slide-days" aria-label="3日間の天気" hidden>
       <h2>3日間の天気</h2>
-      <div class="display-days-grid" id="display-days-grid"></div>
+      <div class="display-days-grid"></div>
     </section>
     <section class="display-slide" id="slide-national" aria-label="全国の天気" hidden>
       <h2>全国の天気</h2>
@@ -120,7 +120,7 @@
         <label><input type="checkbox" id="settings-slide-hours" data-slide="hours" checked>この後の予報</label>
         <label><input type="checkbox" id="settings-slide-days" data-slide="days" checked>3日間の天気</label>
         <label><input type="checkbox" id="settings-slide-national" data-slide="national" checked>全国の天気</label>
-        <p class="hint" id="settings-slides-hint">最低1枚は表示されます（すべて外すと全スライドの表示に戻ります）。</p>
+        <p class="hint">最低1枚は表示されます（すべて外すと全スライドの表示に戻ります）。</p>
       </fieldset>
       <fieldset class="display-settings-group">
         <legend>全国の天気に表示する都市</legend>

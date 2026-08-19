@@ -88,6 +88,7 @@ public/                 静的アセット（HTML・CSS・JS・アイコン類�
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
 ├── display.html        会場表示モード（モニター掲示用の自動表示ページ。使い方はdisplay.md）
 ├── display.js          会場表示モードのフロント（スライドショー・自動更新・長時間稼働対策）
+├── display.css         会場表示モード専用スタイル（通常ページの配信サイズを増やさないよう分離）
 ├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
