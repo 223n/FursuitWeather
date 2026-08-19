@@ -15,6 +15,8 @@ export const HTML_PATHS: readonly string[] = [
   '/about.html',
   '/display',
   '/display.html',
+  '/emergency',
+  '/emergency.html',
   '/404.html',
 ];
 

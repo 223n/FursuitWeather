@@ -11,16 +11,22 @@ import {
   parseWeatherResponse,
 } from '../src/weather/openMeteo';
 import { UpstreamError } from '../src/weather/upstream';
+import { todayInJst } from '../src/logic/time';
 
 // spyモード: 実装はそのままに、個別テストでfetchWeatherの失敗を注入できるようにする
 vi.mock('../src/weather/openMeteo', { spy: true });
+
+/** モックの気象データの対象日（実行時の日本時間の当日。
+ * handleForecastが過去分を分離する（past_days対応）ため、固定日付だと
+ * 実行日によっては全時間が「過去」に分類されてしまう） */
+const MOCK_DATE = todayInJst(new Date());
 
 /** Open-Meteoレスポンスのモックを作る */
 function openMeteoBody(): unknown {
   const time: string[] = [];
   const values: number[] = [];
   for (let hour = 0; hour < 24; hour += 1) {
-    time.push(`2026-08-15T${String(hour).padStart(2, '0')}:00`);
+    time.push(`${MOCK_DATE}T${String(hour).padStart(2, '0')}:00`);
     values.push(hour);
   }
   return {
@@ -44,7 +50,7 @@ function openMeteoBody(): unknown {
 function probabilityBody(): unknown {
   const time: string[] = [];
   for (let hour = 0; hour < 24; hour += 1) {
-    time.push(`2026-08-15T${String(hour).padStart(2, '0')}:00`);
+    time.push(`${MOCK_DATE}T${String(hour).padStart(2, '0')}:00`);
   }
   return {
     hourly: {
@@ -104,6 +110,8 @@ describe('handleForecast', () => {
     expect(upstreamUrl).toContain('latitude=35.6800');
     expect(upstreamUrl).toContain('longitude=139.6800');
     expect(upstreamUrl).toContain('forecast_days=4');
+    // 急な暑さ（暑熱順化前）の判定用に直近の実績も同じ応答で受け取る
+    expect(upstreamUrl).toContain('past_days=7');
 
     // 意図的に追加した防御（エッジキャッシュ・タイムアウト）が黙って消えないよう固定する
     const init = fetchMock.mock.calls[0]![1] as RequestInit & { cf?: unknown };
@@ -132,6 +140,70 @@ describe('handleForecast', () => {
     );
     expect(response.status).toBe(200);
     expect(String(fetchMock.mock.calls[0]![0])).toContain('forecast_days=2');
+  });
+
+  it('past_daysで届いた過去分は予報（hours/days）に出さず、急な暑さの判定にだけ使う', async () => {
+    // 直近7日の最高23℃に対して当日30℃（+7℃）→ suddenHeatが付く
+    const body = openMeteoBody() as {
+      hourly: { time: string[]; [key: string]: unknown[] };
+    };
+    for (let day = 7; day >= 1; day -= 1) {
+      const past = new Date(new Date(`${MOCK_DATE}T00:00:00Z`).getTime() - day * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      for (const hour of [9, 15]) {
+        body.hourly.time.unshift(`${past}T${String(hour).padStart(2, '0')}:00`);
+        body.hourly['temperature_2m']!.unshift(23);
+        body.hourly['relative_humidity_2m']!.unshift(65);
+        body.hourly['apparent_temperature']!.unshift(25);
+        body.hourly['precipitation']!.unshift(0);
+        body.hourly['weather_code']!.unshift(1);
+        body.hourly['shortwave_radiation']!.unshift(400);
+        body.hourly['wind_speed_10m']!.unshift(2);
+      }
+    }
+    (body.hourly['temperature_2m'] as number[]).fill(
+      30,
+      body.hourly.time.findIndex((t) => t.startsWith(MOCK_DATE)),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    const forecast = (await response.json()) as {
+      hours: { time: string }[];
+      days: { date: string; maxWindSpeed: number }[];
+      suddenHeat: unknown;
+    };
+    // 過去分は画面向けの予報に混ざらない
+    expect(forecast.hours).toHaveLength(24);
+    expect(forecast.hours.every((h) => h.time.startsWith(MOCK_DATE))).toBe(true);
+    expect(forecast.days).toHaveLength(1);
+    expect(forecast.days[0]!.date).toBe(MOCK_DATE);
+    // 日別サマリーへ最大風速が載る（当日は全時間2m/s）
+    expect(forecast.days[0]!.maxWindSpeed).toBe(2);
+    expect(forecast.suddenHeat).toEqual({
+      date: MOCK_DATE,
+      recentAverageMax: 23,
+      targetMax: 30,
+    });
+  });
+
+  it('過去分がない応答ではsuddenHeatはnull（欠測時は黙って抑制）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(openMeteoBody()), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    const forecast = (await response.json()) as { suddenHeat: unknown };
+    expect(forecast.suddenHeat).toBeNull();
   });
 
   it('lat/lonがない場合は400を返す', async () => {
@@ -266,7 +338,7 @@ describe('handleForecast', () => {
     expect(response.status).toBe(200);
     const forecast = (await response.json()) as { hours: { time: string }[] };
     expect(forecast.hours).toHaveLength(23);
-    expect(forecast.hours.some((h) => h.time === '2026-08-15T12:00')).toBe(false);
+    expect(forecast.hours.some((h) => h.time === `${MOCK_DATE}T12:00`)).toBe(false);
   });
 
   it('demo=1は上流APIを呼ばずにデモ予報を返す', async () => {
@@ -331,7 +403,7 @@ describe('parseWeatherResponse', () => {
     body.hourly.temperature_2m[3] = '28';
     const result = parseWeatherResponse(body);
     expect(result.hours).toHaveLength(23);
-    expect(result.hours.some((h) => h.time === '2026-08-15T03:00')).toBe(false);
+    expect(result.hours.some((h) => h.time === `${MOCK_DATE}T03:00`)).toBe(false);
   });
 
   it('時刻が文字列でない時間は破棄する', () => {

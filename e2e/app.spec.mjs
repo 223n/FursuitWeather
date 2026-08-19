@@ -531,3 +531,30 @@ test('about: 見出しアイコンが描画され、レスポンス例が有効�
   const json = await page.locator('pre.formula').last().textContent();
   expect(() => JSON.parse(json)).not.toThrow();
 });
+
+test('風速列と応急対応ページ: 時間別に風速が出て、/emergencyの手順が開ける', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 時間別テーブル: 「風速」列ヘッダーとセル値（デモデータは2.5m/s固定）
+  await page.click('#tab-day-0');
+  await expect(page.locator('#hours-table thead th', { hasText: '風速' })).toBeVisible();
+  await expect(page.locator('#hours-body tr').first().locator('td').nth(4)).toHaveText(
+    '2.5m/s',
+  );
+
+  // 日別カード: 最大風速の行が出る
+  await page.click('#tab-days');
+  const firstCard = page.locator('#day-cards .day-card:not(.skeleton-card)').first();
+  await expect(firstCard).toContainText('最大風速');
+  await expect(firstCard).toContainText('2.5m/s');
+
+  // 応急対応ページ: 5つの手順・119発信リンク・免責が表示される
+  await page.goto('/emergency');
+  await expect(page.locator('.emergency-call-button')).toHaveAttribute('href', 'tel:119');
+  await expect(page.locator('.emergency-steps > li')).toHaveCount(5);
+  await expect(page.locator('.emergency-steps')).toContainText('ヘッド');
+  await expect(page.locator('main')).toContainText('医療上の助言に代わるものではありません');
+});

@@ -318,6 +318,72 @@
   font-weight: 700;
 }
 
+/* もしものときスライド（熱中症の応急対応の要点） */
+.display-emergency {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.4rem, 1.2vh, 1rem);
+  min-height: 0;
+}
+
+.display-emergency-steps {
+  list-style: none;
+  counter-reset: display-emergency;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.9vh, 0.8rem);
+  min-height: 0;
+}
+
+.display-emergency-steps > li {
+  counter-increment: display-emergency;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: clamp(0.4rem, 1vw, 1rem);
+  border: 2px solid var(--level-3-accent);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  padding: clamp(0.25rem, 0.9vh, 0.7rem) clamp(0.5rem, 1.2vw, 1.2rem);
+}
+
+.display-emergency-steps > li::before {
+  content: counter(display-emergency);
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background-color: var(--level-3-accent);
+  color: var(--color-on-accent);
+  font-size: clamp(1rem, 2.6vmin, 1.7rem);
+  font-weight: 700;
+}
+
+.display-emergency-title {
+  flex-shrink: 0;
+  font-size: clamp(1.1rem, 3.2vmin, 2.1rem);
+  font-weight: 700;
+}
+
+.display-emergency-detail {
+  font-size: clamp(0.95rem, 2.4vmin, 1.6rem);
+}
+
+.display-emergency-link {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(0.9rem, 2.2vmin, 1.4rem);
+  color: var(--color-text-muted);
+}
+
 /* スライド内の読み込み中・データなし案内 */
 .display-slide-note {
   flex: 1;

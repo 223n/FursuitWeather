@@ -43,6 +43,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.68&lon=139.68"
 | `model` | string | 使用した気象モデル（通常は`jma_seamless（気象庁MSM/GSM）`、デモ時は`demo`） |
 | `attribution` | object | データ出典表記（`weatherData`・`weatherDataUrl`・`license`）。表示時は出典の明記が必要 |
 | `notices` | string[] | 通年の注意事項 |
+| `suddenHeat` | object・null | 急な暑さ（暑熱順化前）の注意。初日の最高気温が直近7日の平均最高気温を5℃以上上回り、かつ最高気温25℃以上のときに`date`（対象日）・`recentAverageMax`（直近平均、℃・小数1桁）・`targetMax`（対象日の最高気温、℃）を返す。該当しない・過去データが5日分未満で判定できないときは`null` |
 | `hours` | array | 1時間ごとの予報 |
 | `days` | array | 日別サマリー |
 
@@ -103,6 +104,7 @@ WBGT計算に必要な気象値（気温・湿度・体感温度・風速・日�
 | `recommendedHours` | string[] | 屋外活動に適した時間帯（`HH:00`形式）。日中（9〜18時）のうち深刻度1以下かつ降水量0の時間帯が対象 |
 | `coolingRequired` | boolean | 日中に冷房必須となる時間があるか |
 | `maxWbgt` | number | その日の素のWBGT（着衣補正前）の最大値（℃）。33以上は環境省の熱中症警戒アラートの発表基準に相当 |
+| `maxWindSpeed` | number | その日の最大風速（m/s、1時間平均の最大。全時間帯から取る）。10以上は気象庁の「やや強い風」に相当し、瞬間風速は平均の1.5〜3倍程度になることがある |
 | `laundry` | object | 洗濯乾燥判定（下記） |
 
 `laundry` は次のフィールドを持ちます。

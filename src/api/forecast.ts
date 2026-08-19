@@ -2,8 +2,9 @@
 // クエリパラメータを検証し、気象データの取得と予報の組み立てを行う
 
 import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS, WEATHER_MODEL_LABEL } from '../constants';
+import { assessSuddenHeat } from '../logic/acclimatization';
 import { buildForecast } from '../logic/forecast';
-import { todayInJst } from '../logic/time';
+import { dateOf, todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
 import { json, jsonError } from './http';
@@ -58,8 +59,14 @@ export async function handleForecast(request: Request): Promise<Response> {
     model = WEATHER_MODEL_LABEL;
   }
 
+  // past_days付きの応答から過去分を分離する（画面の予報には出さず、
+  // 急な暑さ（暑熱順化前）の判定にだけ使う）
+  const today = todayInJst(now);
+  const pastHours = weather.hours.filter((hour) => dateOf(hour.time) < today);
+  const currentHours = weather.hours.filter((hour) => dateOf(hour.time) >= today);
+
   const forecast = buildForecast(
-    weather.hours,
+    currentHours,
     {
       latitude: weather.latitude,
       longitude: weather.longitude,
@@ -69,5 +76,10 @@ export async function handleForecast(request: Request): Promise<Response> {
     now.toISOString(),
   );
 
-  return json(forecast, { cacheable: true });
+  const firstDay = forecast.days[0];
+  const suddenHeat = firstDay
+    ? assessSuddenHeat(pastHours, firstDay.date, firstDay.temperatureMax)
+    : null;
+
+  return json({ ...forecast, suddenHeat }, { cacheable: true });
 }
