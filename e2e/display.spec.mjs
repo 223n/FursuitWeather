@@ -110,3 +110,64 @@ test('会場表示: 地点未指定のときは東京表示の注意が消えず
   await expect(page.locator('#display-alerts')).toContainText('地点が指定されていません');
   await expect(page.locator('#display-location')).toContainText('東京');
 });
+
+test('会場表示: 設定パネルでスライドとお知らせを変更するとURLへ反映される', async ({ page }) => {
+  await page.goto('/display?demo=1');
+  await waitForStrip(page);
+
+  await page.click('#display-settings-button');
+  await expect(page.locator('#display-settings')).toBeVisible();
+
+  // 「3日間の天気」を外すと進行ドットが3個になり、URLへslides=が反映される
+  await page.uncheck('#settings-slide-days');
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(3);
+  await expect(page).toHaveURL(/slides=now(%2C|,)hours(%2C|,)national/);
+
+  // お知らせを設定するとヘッダー下のループ帯が現れ、URLへmsg=が反映される
+  await page.fill('#settings-message', '休憩スペースは2階です');
+  await page.locator('#settings-message').blur();
+  await expect(page.locator('#display-ticker')).toBeVisible();
+  await expect(page.locator('#display-ticker-track')).toContainText('休憩スペースは2階です');
+  await expect(page).toHaveURL(/msg=/);
+
+  await page.click('#settings-close');
+  await expect(page.locator('#display-settings')).toBeHidden();
+});
+
+test('会場表示: 都市の絞り込みと追加都市が全国スライドへ反映される', async ({ page }) => {
+  await page.goto('/display?demo=1&cities=札幌,東京&add=34.69,135.50,ベイエリア');
+  await waitForStrip(page);
+
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#slide-national')).toBeVisible();
+  // 選んだ2都市+追加1都市の3セル。外した都市は表示されない
+  await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(3);
+  await expect(page.locator('#display-national-grid')).toContainText('札幌');
+  await expect(page.locator('#display-national-grid')).toContainText('ベイエリア');
+  await expect(page.locator('#display-national-grid')).not.toContainText('仙台');
+});
+
+test.describe('縦画面（スマホ）', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('会場表示: 縦画面でも全国の都市名と判定がセル内に収まる', async ({ page }) => {
+    await page.goto('/display?demo=1');
+    await waitForStrip(page);
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.locator('#slide-national')).toBeVisible();
+
+    // 全セルで都市名が見え、判定バッジがセルの中に収まっている（切れて消えない）
+    await expect(page.locator('.display-city-cell .display-city-name')).toHaveCount(12);
+    const fits = await page
+      .locator('.display-city-cell .badge')
+      .evaluateAll((badges) =>
+        badges.map((badge) => {
+          const rect = badge.getBoundingClientRect();
+          const cell = badge.closest('.display-city-cell').getBoundingClientRect();
+          return rect.height > 0 && rect.bottom <= cell.bottom + 1;
+        }),
+      );
+    expect(fits).toHaveLength(12);
+    expect(fits.every(Boolean)).toBe(true);
+  });
+});

@@ -494,7 +494,7 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
 
   it('docs/display.mdのスライド表はSLIDES定義（名前・秒数・順序）と一致する', () => {
     const slides = [
-      ...displayJs.matchAll(/\{ id: 'slide-[^']+', name: '([^']+)', seconds: (\d+),/g),
+      ...displayJs.matchAll(/\{ key: '[^']+', id: 'slide-[^']+', name: '([^']+)', seconds: (\d+),/g),
     ].map((m) => ({ name: m[1]!, seconds: Number(m[2]) }));
     expect(slides).toHaveLength(4);
     for (const slide of slides) {
@@ -520,7 +520,7 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
   });
 
   it('スライド名はdisplay.htmlのセクションとaboutの説明に順序込みで現れる', () => {
-    const names = [...displayJs.matchAll(/\{ id: 'slide-[^']+', name: '([^']+)'/g)].map(
+    const names = [...displayJs.matchAll(/\{ key: '[^']+', id: 'slide-[^']+', name: '([^']+)'/g)].map(
       (m) => m[1]!,
     );
     expect(names).toHaveLength(4);
@@ -530,5 +530,15 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     // about.html・llms.txtの紹介文はスライド名を「・」区切りで列挙する
     expect(aboutHtml).toContain(names.join('・'));
     expect(llmsTxt).toContain(names.join('・'));
+  });
+
+  it('設定パネルのスライド選択チェックボックスはSLIDES定義（key・名前）と一致する', () => {
+    const slides = [
+      ...displayJs.matchAll(/\{ key: '([^']+)', id: 'slide-[^']+', name: '([^']+)'/g),
+    ];
+    expect(slides).toHaveLength(4);
+    for (const [, key, name] of slides) {
+      expect(displayHtml).toMatch(new RegExp(`data-slide="${key}" checked>${name}</label>`));
+    }
   });
 });

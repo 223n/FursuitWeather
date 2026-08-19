@@ -1577,3 +1577,241 @@ section h3 {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* お知らせ帯: 設定した文字列をループスクロールで流す（display.jsがテキスト長に
+   応じた速度クラスを付ける）。動きを抑える設定の端末では静止して折り返し表示する */
+.display-ticker {
+  overflow: hidden;
+  background-color: var(--color-surface);
+  border-bottom: 2px solid var(--color-border-subtle);
+  padding: 0.25rem 0;
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.display-ticker-track {
+  display: inline-flex;
+  gap: 4em;
+  padding-left: 100vw;
+  animation: display-ticker-scroll 30s linear infinite;
+}
+
+.display-ticker-track.ticker-medium {
+  animation-duration: 45s;
+}
+
+.display-ticker-track.ticker-long {
+  animation-duration: 60s;
+}
+
+@keyframes display-ticker-scroll {
+  to {
+    transform: translateX(calc(-50% - 2em - 50vw));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display-ticker {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .display-ticker-track {
+    animation: none;
+    padding-left: 0;
+    display: block;
+  }
+
+  /* 静止表示では複製した2つ目のテキストを隠す */
+  .display-ticker-track > :nth-child(2) {
+    display: none;
+  }
+}
+
+/* 全国グリッドの列数（display.jsが表示都市数に応じて付け替える） */
+.display-national-grid.display-grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.display-national-grid.display-grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+/* 表示の設定パネル（画面全体を覆うモーダル） */
+.display-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(0 0 0 / 55%);
+  padding: 1rem;
+}
+
+.display-settings[hidden] {
+  display: none;
+}
+
+.display-settings-panel {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  max-width: 34rem;
+  width: 100%;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  /* パネル内は文字選択・通常のタッチ操作を許可する（掲示面の抑止設定を打ち消す） */
+  user-select: text;
+}
+
+.display-settings-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+}
+
+.display-settings-group {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.display-settings-group legend {
+  font-weight: 700;
+  padding: 0 0.3rem;
+}
+
+.display-settings-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.2rem 0.9rem 0.2rem 0;
+  font-weight: 400;
+}
+
+.display-settings-group input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.display-settings-subhead {
+  margin: 0.6rem 0 0.3rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.display-settings-cities {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.display-settings-results,
+.display-settings-extras {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.display-settings-results button,
+.display-settings-extras button {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+}
+
+.display-settings-panel input[type='search'],
+.display-settings-panel input[type='text'] {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  width: 100%;
+  max-width: 20rem;
+}
+
+.display-settings-panel input:focus,
+.display-settings-panel a:focus {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 縦画面（スマホ・縦置きモニター）ではグリッドを縦寄りに組み替え、
+   1セルあたりの文字を画面幅いっぱいまで大きくする */
+@media (orientation: portrait) {
+  .display-hours-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .display-days-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .display-national-grid,
+  .display-national-grid.display-grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+  }
+
+  .display-national-grid.display-grid-cols-2 {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 縦画面はvminが幅基準になり文字が小さくなりすぎるため、vwで底上げする */
+  .display-now-card .badge-large {
+    font-size: clamp(1.6rem, 9vw, 3.4rem);
+  }
+
+  .display-now-card .now-minutes {
+    font-size: clamp(1.3rem, 6.5vw, 2.6rem);
+  }
+
+  .display-now-card .now-advice {
+    font-size: clamp(1rem, 4.5vw, 1.7rem);
+  }
+
+  .display-city-cell .badge,
+  .display-hour-cell .badge {
+    font-size: clamp(0.9rem, 3.8vw, 1.4rem);
+  }
+
+  .display-city-name,
+  .display-hour-time {
+    font-size: clamp(1rem, 4.5vw, 1.8rem);
+  }
+
+  .display-cell-weather,
+  .display-cell-temp {
+    font-size: clamp(0.95rem, 4vw, 1.6rem);
+  }
+
+  .display-day-cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+  }
+
+  /* 縦画面の全国セルは1行の高さが低いため、縦積みをやめて
+     「都市名 天気 気温 判定」を横流れで並べる（4要素が2行までに収まる） */
+  .display-city-cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 0.2rem 0.6rem;
+    padding: 0.2rem 0.4rem;
+  }
+}
