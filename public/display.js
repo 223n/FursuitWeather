@@ -37,7 +37,9 @@
   const EXTRA_CITY_LIMIT = 4;
   /** お知らせ文字列の上限（input側のmaxlengthと同じ値） */
   const MESSAGE_LIMIT = 100;
-  /** 表示設定の保存キー（保存するのは表示の設定のみ。地点の座標は保存しない） */
+  /** 表示設定の保存キー。保存するのは表示の設定（スライド選択・全国の都市・
+   * 追加都市・お知らせ）のみ。追加都市の座標は利用者が選んだ公開地点であり、
+   * 表示地点や現在地の座標は保存しない */
   const SETTINGS_STORAGE_KEY = 'fursuitweather:display-settings';
 
   // ---- app.jsと共通の表示部品 ----
@@ -140,6 +142,8 @@
   const tickerSr = document.getElementById('display-ticker-sr');
   const settingsButton = document.getElementById('display-settings-button');
   const settingsOverlay = document.getElementById('display-settings');
+  const settingsPanel = settingsOverlay.querySelector('.display-settings-panel');
+  const settingsTitle = document.getElementById('display-settings-title');
   const settingsCityList = document.getElementById('settings-city-list');
   const settingsSearchInput = document.getElementById('settings-city-search');
   const settingsSearchButton = document.getElementById('settings-city-search-button');
@@ -147,6 +151,7 @@
   const settingsExtraList = document.getElementById('settings-extra-list');
   const settingsMessageInput = document.getElementById('settings-message');
   const settingsCopyButton = document.getElementById('settings-copy-url');
+  const settingsResetButton = document.getElementById('settings-reset');
   const settingsCloseButton = document.getElementById('settings-close');
   const settingsStatus = document.getElementById('settings-status');
 
@@ -173,17 +178,18 @@
       // URL由来の地点名から制御文字・書式文字を除去する（改行による表示崩れ、
       // U+202E等の双方向制御文字による名前偽装への対策。掲示用のため
       // ZWJ絵文字合成が崩れる副作用は許容する）
-      const name =
-        (params.get('name') ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 80) ||
-        '指定地点';
+      const urlName = (params.get('name') ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 80);
       return {
-        name,
+        name: urlName || '指定地点',
+        // URLへ書き戻す名前（サニタイズ済み。空なら書かない）。「指定地点」の
+        // 補完表示をURLへ流さないよう画面用のnameと分ける
+        urlName,
         lat: Math.round(lat * 100) / 100,
         lon: Math.round(lon * 100) / 100,
         specified: true,
       };
     }
-    return { ...DEFAULT_LOCATION, specified: false };
+    return { ...DEFAULT_LOCATION, urlName: '', specified: false };
   }
   const place = parseLocationParams();
 
@@ -230,7 +236,7 @@
       ? SLIDES.map((slide) => slide.key).filter((key) => raw.slides.includes(key))
       : [];
     const cities = Array.isArray(raw.cities)
-      ? raw.cities.map((city) => sanitizeText(city)).filter(Boolean).slice(0, 50)
+      ? raw.cities.map((city) => sanitizeText(city).slice(0, 40)).filter(Boolean).slice(0, 50)
       : null;
     const extras = Array.isArray(raw.extras)
       ? raw.extras.map(normalizeExtra).filter(Boolean).slice(0, EXTRA_CITY_LIMIT)
@@ -297,7 +303,17 @@
   /** 設定をURLへ反映する（地点・デモ・テーマの既存パラメータは維持する） */
   function updateSettingsUrl() {
     const query = new URLSearchParams();
-    for (const key of ['lat', 'lon', 'name', 'demo', 'theme']) {
+    // 座標・名前は受信URLの生値ではなく正規化済みの値を書き戻す
+    // （「URLに現れる座標はすべて小数2桁」の契約。高精度座標入りのURLで
+    //  開かれても、以後のURL・コピーされるURLは丸めた値になる）
+    if (place.specified) {
+      query.set('lat', place.lat.toFixed(2));
+      query.set('lon', place.lon.toFixed(2));
+      if (place.urlName) {
+        query.set('name', place.urlName);
+      }
+    }
+    for (const key of ['demo', 'theme']) {
       const value = params.get(key);
       if (value !== null) {
         query.set(key, value);
@@ -328,6 +344,9 @@
   let national = null;
   /** 設定で追加した都市の当日サマリー（全国スライドの末尾に並べる） */
   let extraSummaries = [];
+  /** 追加都市取得の世代番号（遅れて解決した古い取得が新しい設定を上書きしないため。
+   * app.jsのrequestSeqと同じ「最後の明示操作が勝つ」方式） */
+  let extrasSeq = 0;
   /** 表示中のスライドのkey（設定でスライド構成が変わってもkeyで追跡する） */
   let currentKey = 'now';
   /** 次の自動送り時刻（絶対時刻ms）。tickが期限と比較する */
@@ -341,6 +360,8 @@
   let lastJstDate = nowInJst().date;
   /** 共通表示を最後に描画したJSTの分（時間境界・鮮度警告の毎分再評価用） */
   let lastSharedMinute = nowInJst().minute;
+  /** スライド本体を最後に描画した「いま」の時間行（時間帯境界の検出用） */
+  let lastHourTargetTime = null;
   /** 深夜リロードの分（端末ごとにばらけさせ、全端末同時のアクセス集中を避ける） */
   const reloadMinute = Math.floor(Math.random() * 60);
   const startedAt = Date.now();
@@ -420,6 +441,10 @@
       }
       nextNationalAt = Date.now() + (ok ? NATIONAL_POLL_MS : RETRY_MS);
       await refreshExtras();
+      if (ok && settingsOpen) {
+        // パネルを開いたまま全国データが届いたら、都市の選択肢を差し込む
+        renderSettingsCityList();
+      }
       if (currentSlide().key === 'national') {
         renderCurrentSlide();
       }
@@ -431,6 +456,7 @@
   /** 設定で追加した都市の当日サマリーを取得する（都市単位のベストエフォート。
    * /api/forecastの日別サマリーを全国スライドと同じ形に整える） */
   async function refreshExtras() {
+    const seq = ++extrasSeq;
     const results = await Promise.all(
       settings.extras.map(async (extra) => {
         const url = demo
@@ -450,6 +476,10 @@
         };
       }),
     );
+    if (seq !== extrasSeq) {
+      // この取得より後に設定が変わっている（古い結果は捨てる）
+      return;
+    }
     extraSummaries = results.filter(Boolean);
   }
 
@@ -724,9 +754,11 @@
       );
       return;
     }
-    // 少ない都市数では列を減らして1セルを大きく表示する（縦画面はCSS側で上書き）
+    // 少ない都市数では列を減らして1セルを大きく表示する（縦画面はCSS側で上書き）。
+    // 13セル以上は1行の高さが足りないため、セルを横並びレイアウトへ圧縮する
     const cols = selected.length <= 4 ? 2 : selected.length <= 9 ? 3 : 4;
-    container.className = `display-national-grid display-grid-cols-${cols}`;
+    const compact = selected.length > 12 ? ' display-grid-compact' : '';
+    container.className = `display-national-grid display-grid-cols-${cols}${compact}`;
     const cells = selected.map((city) => {
       const cell = document.createElement('div');
       cell.className = 'display-city-cell';
@@ -924,6 +956,8 @@
       button.setAttribute('aria-label', `追加した都市「${extra.name}」を外す`);
       button.addEventListener('click', () => {
         settings.extras = settings.extras.filter((entry) => entry !== extra);
+        // 表示中のサマリーも同期して絞り込む（取得の解決を待たず画面と設定を一致させる）
+        extraSummaries = extraSummaries.filter((summary) => summary.name !== extra.name);
         renderSettingsExtraList();
         applySettings();
         refreshExtras().then(() => {
@@ -943,6 +977,10 @@
     settingsStatus.textContent = text;
   }
 
+  /** 都市検索の世代番号（連続検索で古い応答が新しい結果を上書きしないため。
+   * app.jsのsearchSeqと同じ「最後の明示操作が勝つ」方式） */
+  let citySearchSeq = 0;
+
   /** 都市検索（/api/geocode）の結果から追加候補ボタンを並べる */
   async function searchCityForExtra() {
     const query = sanitizeText(settingsSearchInput.value).slice(0, 100);
@@ -955,7 +993,12 @@
       return;
     }
     setSettingsStatus('検索しています…');
+    const seq = ++citySearchSeq;
     const result = await fetchJson(`/api/geocode?q=${encodeURIComponent(query)}`);
+    if (seq !== citySearchSeq) {
+      // この検索より後に新しい検索が始まっている（古い応答は捨てる）
+      return;
+    }
     const candidates = Array.isArray(result?.data?.results) ? result.data.results : null;
     if (!candidates) {
       setSettingsStatus('検索できませんでした。通信環境を確認して再度お試しください。');
@@ -972,16 +1015,25 @@
       button.type = 'button';
       button.textContent = candidate.admin1 ? `${candidate.name}（${candidate.admin1}）` : candidate.name;
       button.addEventListener('click', () => {
+        // 同名の別都市（例: 東京都と広島県の府中）を区別できるよう、名前が
+        // 既存の都市と重なるときは都道府県を付けた表示名で保存する
+        const nameTaken =
+          settings.extras.some((entry) => entry.name === candidate.name) ||
+          (national?.cities ?? []).some((city) => city.name === candidate.name);
         const extra = normalizeExtra({
-          name: candidate.name,
+          name: nameTaken && candidate.admin1 ? `${candidate.name}（${candidate.admin1}）` : candidate.name,
           lat: candidate.latitude,
           lon: candidate.longitude,
         });
         if (!extra || settings.extras.length >= EXTRA_CITY_LIMIT) {
           return;
         }
-        if (settings.extras.some((entry) => entry.name === extra.name)) {
-          setSettingsStatus(`「${extra.name}」は追加済みです。`);
+        // 重複は名前ではなく丸め後の座標で判定する（同名異都市を誤って弾かない）
+        const duplicate = settings.extras.find(
+          (entry) => entry.lat === extra.lat && entry.lon === extra.lon,
+        );
+        if (duplicate) {
+          setSettingsStatus(`この地点は「${duplicate.name}」として追加済みです。`);
           return;
         }
         settings.extras = settings.extras.concat(extra);
@@ -1002,19 +1054,38 @@
     settingsSearchResults.replaceChildren(...items);
   }
 
+  /** スライド選択チェックボックスを設定の状態へ揃える */
+  function syncSlideCheckboxes() {
+    for (const checkbox of document.querySelectorAll('#display-settings input[data-slide]')) {
+      checkbox.checked = settings.slides.includes(checkbox.dataset.slide);
+    }
+  }
+
+  /** パネル表示中は背景を操作・読み上げの対象から外す（フォーカスが
+   * 暗幕の裏へ抜けて見えなくなるのを防ぐ。inert未対応の環境では無視されるだけ） */
+  function setBackgroundInert(inert) {
+    for (const element of document.body.children) {
+      if (element !== settingsOverlay) {
+        element.inert = inert;
+      }
+    }
+  }
+
   /** 設定パネルを開く（開いている間は自動送りを止める） */
   function openSettings() {
     settingsOpen = true;
     settingsButton.setAttribute('aria-expanded', 'true');
-    for (const checkbox of document.querySelectorAll('#display-settings input[data-slide]')) {
-      checkbox.checked = settings.slides.includes(checkbox.dataset.slide);
-    }
+    syncSlideCheckboxes();
     settingsMessageInput.value = settings.message;
     renderSettingsCityList();
     renderSettingsExtraList();
     setSettingsStatus('');
+    setBackgroundInert(true);
     settingsOverlay.hidden = false;
-    settingsCloseButton.focus();
+    // 先頭（見出し）から読み始められるようにする（最下部のボタンへ飛ばすと
+    // 縦長のスマホでパネルが最下部までスクロールした状態で開いてしまう）
+    settingsPanel.scrollTop = 0;
+    settingsTitle.focus();
   }
 
   /** 設定パネルを閉じる */
@@ -1023,6 +1094,8 @@
     settingsButton.setAttribute('aria-expanded', 'false');
     settingsOverlay.hidden = true;
     settingsSearchResults.replaceChildren();
+    // inert解除はフォーカス復帰より先に行う（inertな要素はfocus()が効かない）
+    setBackgroundInert(false);
     settingsButton.focus();
     slideDeadline = Date.now() + currentSlide().seconds * 1000;
   }
@@ -1034,12 +1107,45 @@
       openSettings();
     }
   });
+  // Tabキーをパネル内で循環させる（背景のinert化はフォーカスの抜け先を
+  // 消すだけでループはしないため、末尾からのTabがパネル外へ出るのを防ぐ）
+  settingsOverlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') {
+      return;
+    }
+    const focusables = [...settingsOverlay.querySelectorAll('button, input, a')].filter(
+      (element) => !element.disabled && element.offsetParent !== null,
+    );
+    if (focusables.length === 0) {
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const current = document.activeElement;
+    if (!focusables.includes(current)) {
+      // 見出し（tabindex=-1）などからのTabは先頭・末尾へ寄せる
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && current === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && current === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
   settingsCloseButton.addEventListener('click', closeSettings);
-  // 背景（パネルの外）をタップしても閉じられる
+  // 背景（パネルの外）をタップしても閉じられる。パネル内で文字選択を始めて
+  // 背景の上で指を離した場合に閉じないよう、押下と解放の両方が背景のときだけ閉じる
+  let overlayPressedOnBackground = false;
+  settingsOverlay.addEventListener('pointerdown', (event) => {
+    overlayPressedOnBackground = event.target === settingsOverlay;
+  });
   settingsOverlay.addEventListener('pointerup', (event) => {
-    if (event.target === settingsOverlay) {
+    if (overlayPressedOnBackground && event.target === settingsOverlay) {
       closeSettings();
     }
+    overlayPressedOnBackground = false;
   });
   for (const checkbox of document.querySelectorAll('#display-settings input[data-slide]')) {
     checkbox.addEventListener('change', () => {
@@ -1048,9 +1154,12 @@
           (input) => input.dataset.slide === key,
         ),
       );
-      // すべて外したときは全スライド表示に戻す（normalizeSettingsと同じ扱い）
+      // すべて外したときは全スライド表示に戻す（normalizeSettingsと同じ扱い）。
+      // チェックボックスも内部状態へ揃え、告知して唐突さを避ける
       if (settings.slides.length === 0) {
         settings.slides = SLIDES.map((slide) => slide.key);
+        syncSlideCheckboxes();
+        setSettingsStatus('スライドは最低1枚必要なため、すべて表示に戻しました。');
       }
       applySettings();
     });
@@ -1066,6 +1175,25 @@
     settings.message = sanitizeText(settingsMessageInput.value).slice(0, MESSAGE_LIMIT);
     applySettings();
   });
+  settingsResetButton.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    } catch {
+      // 保存を消せない環境でも、以降の既定値適用とURL反映で表示は初期化される
+    }
+    settings.slides = SLIDES.map((slide) => slide.key);
+    settings.cities = null;
+    settings.extras = [];
+    settings.message = '';
+    extraSummaries = [];
+    syncSlideCheckboxes();
+    settingsMessageInput.value = '';
+    renderSettingsCityList();
+    renderSettingsExtraList();
+    settingsSearchResults.replaceChildren();
+    applySettings();
+    setSettingsStatus('表示の設定を初期状態に戻しました。');
+  });
   settingsCopyButton.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -1080,6 +1208,9 @@
     paused = !paused;
     // 一時停止⇄再開はラベル交換の2状態ボタン（ラベル変更とaria-pressedは併用しない）
     pauseButton.textContent = paused ? '再開' : '一時停止';
+    // お知らせの流れも一緒に止める（WCAG 2.2.2。クラスは速度クラスを
+    // 書き換えるtrackではなく親要素へ付ける）
+    tickerElement.classList.toggle('ticker-paused', paused);
     if (!paused) {
       slideDeadline = Date.now() + currentSlide().seconds * 1000;
     }
@@ -1204,6 +1335,14 @@
     if (minute !== lastSharedMinute) {
       lastSharedMinute = minute;
       renderShared();
+      // 毎時00分の境界で「いま」の時間行が入れ替わったら、スライド本体も描き直す。
+      // スライドが1枚だけの構成では自動送りによる再描画が走らないため、
+      // ここで描かないと常時帯と本体の判定が食い違ったまま残る
+      const target = currentHourTarget();
+      if ((target?.time ?? null) !== lastHourTargetTime) {
+        lastHourTargetTime = target?.time ?? null;
+        renderCurrentSlide();
+      }
     }
     checkDateRollover();
     checkNightlyReload();

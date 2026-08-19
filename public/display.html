@@ -112,7 +112,7 @@
   <!-- 表示の設定パネル（設定ボタンで開閉）。スマホで設定を作り、URLで会場の端末へ渡せる -->
   <div id="display-settings" class="display-settings" role="dialog" aria-modal="true" aria-labelledby="display-settings-title" hidden>
     <div class="display-settings-panel">
-      <h2 id="display-settings-title">表示の設定</h2>
+      <h2 id="display-settings-title" tabindex="-1">表示の設定</h2>
       <fieldset class="display-settings-group">
         <legend>表示するスライド</legend>
         <!-- ラベルはdisplay.jsのSLIDES定義と同期（test/htmlSync.test.tsが検証する） -->
@@ -141,6 +141,7 @@
       </fieldset>
       <div class="control-row">
         <button type="button" id="settings-copy-url">この設定のURLをコピー</button>
+        <button type="button" id="settings-reset">初期設定に戻す</button>
         <button type="button" id="settings-close">閉じる</button>
       </div>
       <p id="settings-status" class="hint" role="status"></p>

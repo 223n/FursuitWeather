@@ -147,6 +147,49 @@ test('会場表示: 都市の絞り込みと追加都市が全国スライドへ
   await expect(page.locator('#display-national-grid')).not.toContainText('仙台');
 });
 
+test('会場表示: 追加4都市を含む16セルでも判定バッジが収まる', async ({ page }) => {
+  await page.goto(
+    '/display?demo=1&add=34.39,132.46,呉&add=33.24,131.61,別府&add=36.65,138.18,長野&add=43.77,142.36,旭川',
+  );
+  await waitForStrip(page);
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#slide-national')).toBeVisible();
+  await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(16);
+  const fits = await page
+    .locator('.display-city-cell .badge')
+    .evaluateAll((badges) =>
+      badges.map((badge) => {
+        const rect = badge.getBoundingClientRect();
+        const cell = badge.closest('.display-city-cell').getBoundingClientRect();
+        return rect.height > 0 && rect.bottom <= cell.bottom + 1;
+      }),
+    );
+  expect(fits).toHaveLength(16);
+  expect(fits.every(Boolean)).toBe(true);
+});
+
+test('会場表示: 設定パネル表示中はフォーカスが背景へ抜けず、リセットで設定が消える', async ({ page }) => {
+  await page.goto('/display?demo=1&slides=now,hours&msg=テスト');
+  await waitForStrip(page);
+  await page.click('#display-settings-button');
+  await expect(page.locator('#display-settings')).toBeVisible();
+
+  // Tabを繰り返してもフォーカスはパネルの中に留まる（背景はinert）
+  for (let i = 0; i < 25; i += 1) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(
+      () => document.getElementById('display-settings').contains(document.activeElement),
+    );
+    expect(inside).toBe(true);
+  }
+
+  // 「初期設定に戻す」でURLから設定パラメータが消え、全スライド表示へ戻る
+  await page.click('#settings-reset');
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(4);
+  await expect(page).not.toHaveURL(/slides=|msg=/);
+  await expect(page.locator('#display-ticker')).toBeHidden();
+});
+
 test.describe('縦画面（スマホ）', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

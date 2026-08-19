@@ -1417,9 +1417,10 @@ section h3 {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  /* 3行が親の高さへ均等に収まるようminmax(0,1fr)で圧縮を許す
-     （既定のautoだとセル内容の高さが勝ち、下の行が画面外へはみ出す） */
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* 行はテンプレートで固定せず、暗黙行ごとminmax(0,1fr)で均等に圧縮する
+     （既定のautoだとセル内容の高さが勝ち、下の行が画面外へはみ出す。
+      都市の選択・追加でセル数が変わっても行数が追従する） */
+  grid-auto-rows: minmax(0, 1fr);
   gap: clamp(0.3rem, 0.8vw, 0.8rem);
   min-height: 0;
 }
@@ -1590,11 +1591,18 @@ section h3 {
   white-space: nowrap;
 }
 
+/* 複製2つをgap=100vw（画面1枚分）で並べ、トラック幅の半分だけ動かすと
+   終端フレームが先頭フレームと完全に一致し、テキスト長に依らずシームレスに繰り返す */
 .display-ticker-track {
   display: inline-flex;
-  gap: 4em;
+  gap: 100vw;
   padding-left: 100vw;
   animation: display-ticker-scroll 30s linear infinite;
+}
+
+/* 「一時停止」ボタンでお知らせの流れも止める（WCAG 2.2.2。display.jsが付け外しする） */
+.display-ticker.ticker-paused .display-ticker-track {
+  animation-play-state: paused;
 }
 
 .display-ticker-track.ticker-medium {
@@ -1607,7 +1615,7 @@ section h3 {
 
 @keyframes display-ticker-scroll {
   to {
-    transform: translateX(calc(-50% - 2em - 50vw));
+    transform: translateX(-50%);
   }
 }
 
@@ -1632,12 +1640,10 @@ section h3 {
 /* 全国グリッドの列数（display.jsが表示都市数に応じて付け替える） */
 .display-national-grid.display-grid-cols-2 {
   grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .display-national-grid.display-grid-cols-3 {
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 
 /* 表示の設定パネル（画面全体を覆うモーダル） */
@@ -1763,11 +1769,6 @@ section h3 {
   .display-national-grid,
   .display-national-grid.display-grid-cols-3 {
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(6, minmax(0, 1fr));
-  }
-
-  .display-national-grid.display-grid-cols-2 {
-    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 
   /* 縦画面はvminが幅基準になり文字が小さくなりすぎるため、vwで底上げする */
@@ -1814,4 +1815,15 @@ section h3 {
     gap: 0.2rem 0.6rem;
     padding: 0.2rem 0.4rem;
   }
+}
+
+/* 13セル以上の全国グリッド: 縦積みでは1行の高さが足りないため、
+   セル内を横並びへ圧縮する（縦画面の全国セルと同じレイアウト） */
+.display-grid-compact .display-city-cell {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.2rem 0.4rem;
 }
