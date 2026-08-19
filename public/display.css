@@ -434,26 +434,22 @@
   white-space: nowrap;
 }
 
-/* 複製2つをgap=100vw（画面1枚分）で並べ、トラック幅の半分だけ動かすと
-   終端フレームが先頭フレームと完全に一致し、テキスト長に依らずシームレスに繰り返す */
+/* テキスト複製を隙間なく並べ、トラック幅の半分（1グループ分）だけ動かして
+   シームレスに繰り返す（複製数と所要秒数はdisplay.jsが画面幅・文字幅から計算し、
+   文字数に関係なく一定速度で途切れず流れ続ける） */
 .display-ticker-track {
   display: inline-flex;
-  gap: 100vw;
-  padding-left: 100vw;
   animation: display-ticker-scroll 30s linear infinite;
+}
+
+/* 複製1つぶん。padding-rightが複製間の間隔になる（幅の実測に含めるためgapは使わない） */
+.display-ticker-item {
+  padding-right: 3em;
 }
 
 /* 「一時停止」ボタンでお知らせの流れも止める（WCAG 2.2.2。display.jsが付け外しする） */
 .display-ticker.ticker-paused .display-ticker-track {
   animation-play-state: paused;
-}
-
-.display-ticker-track.ticker-medium {
-  animation-duration: 45s;
-}
-
-.display-ticker-track.ticker-long {
-  animation-duration: 60s;
 }
 
 @keyframes display-ticker-scroll {
@@ -468,15 +464,10 @@
     text-align: center;
   }
 
+  /* 静止表示（display.jsは複製せず1つだけ描画する） */
   .display-ticker-track {
     animation: none;
-    padding-left: 0;
     display: block;
-  }
-
-  /* 静止表示では複製した2つ目のテキストを隠す */
-  .display-ticker-track > :nth-child(2) {
-    display: none;
   }
 }
 

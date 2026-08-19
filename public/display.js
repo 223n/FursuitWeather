@@ -884,7 +884,19 @@
 
   // ---- お知らせ帯（ループスクロール） ----
 
-  /** お知らせ帯を設定に合わせて表示・更新する */
+  /** お知らせの流れる速さ（px/秒）。文字数に依らず一定の読みやすい速度にする */
+  const TICKER_SPEED_PX_PER_SECOND = 90;
+
+  /**
+   * お知らせ帯を設定に合わせて表示・更新する
+   *
+   * 文字数に関係なく途切れず流れ続けるよう、テキストを「画面幅を埋めるのに
+   * 必要な数×2グループ」複製し、トラック半分の移動でループさせる
+   * （半分動いた時点の並びが先頭と一致するためシームレスに繰り返す）。
+   * 速度はトラック幅から所要秒数を計算して一定に保つ。
+   * 動きを抑える設定の端末では複製せず1つだけ静止表示する。
+   * トラック全体は装飾扱いで、読み上げは隣の静的テキストが1回だけ担う
+   */
   function applyTicker() {
     if (!settings.message) {
       tickerElement.hidden = true;
@@ -892,18 +904,44 @@
       tickerSr.textContent = '';
       return;
     }
-    // 速度はテキスト長で3段階（長文ほどゆっくり流して読み切れるようにする）
-    const speed = settings.message.length <= 20 ? '' : settings.message.length <= 50 ? ' ticker-medium' : ' ticker-long';
-    tickerTrack.className = `display-ticker-track${speed}`;
-    // シームレスにループするよう同じテキストを2つ並べる（トラック全体は装飾扱いで、
-    // 読み上げは隣の静的テキストが1回だけ担う）
-    const first = document.createElement('span');
-    first.textContent = settings.message;
-    const second = first.cloneNode(true);
-    tickerTrack.replaceChildren(first, second);
     tickerSr.textContent = `お知らせ: ${settings.message}`;
     tickerElement.hidden = false;
+
+    const item = document.createElement('span');
+    item.className = 'display-ticker-item';
+    item.textContent = settings.message;
+    if (reducedMotion) {
+      tickerTrack.replaceChildren(item);
+      return;
+    }
+
+    // 1複製の幅（複製間の間隔padding-right込み）を実測して必要な複製数を決める
+    tickerTrack.replaceChildren(item);
+    const itemWidth = item.getBoundingClientRect().width;
+    const perGroup =
+      itemWidth > 0 ? Math.max(1, Math.ceil(window.innerWidth / itemWidth)) : 1;
+    const items = [item];
+    for (let i = 1; i < perGroup * 2; i += 1) {
+      items.push(item.cloneNode(true));
+    }
+    tickerTrack.replaceChildren(...items);
+    // アニメーション時間はトラック半分（1グループ分）の距離÷一定速度。
+    // element.styleへの代入はCSSOM操作のためCSPのstyle属性制限には触れない
+    tickerTrack.style.animationDuration = `${Math.max(6, (itemWidth * perGroup) / TICKER_SPEED_PX_PER_SECOND)}s`;
   }
+
+  // 画面の幅が変わると必要な複製数も変わるため、落ち着いたタイミングで作り直す
+  // （サイネージでは稀だが、スマホの縦横回転で起こる）
+  let tickerResizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (tickerResizeTimer !== null) {
+      clearTimeout(tickerResizeTimer);
+    }
+    tickerResizeTimer = setTimeout(() => {
+      tickerResizeTimer = null;
+      applyTicker();
+    }, 300);
+  });
 
   // ---- 表示の設定パネル ----
   let settingsOpen = false;

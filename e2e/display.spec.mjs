@@ -190,6 +190,28 @@ test('会場表示: 設定パネル表示中はフォーカスが背景へ抜け
   await expect(page.locator('#display-ticker')).toBeHidden();
 });
 
+test('会場表示: 短いお知らせでも複製が画面幅を埋め、途切れず流れ続ける', async ({ page }) => {
+  await page.goto('/display?demo=1&msg=テスト');
+  await waitForStrip(page);
+  await expect(page.locator('#display-ticker')).toBeVisible();
+
+  // 複製が画面幅ぶん敷き詰められている（2グループなのでトラック幅は画面幅以上×2相当）
+  const counts = await page.evaluate(() => {
+    const track = document.getElementById('display-ticker-track');
+    return { items: track.children.length, width: track.scrollWidth, viewport: window.innerWidth };
+  });
+  expect(counts.items).toBeGreaterThanOrEqual(2);
+  expect(counts.width).toBeGreaterThanOrEqual(counts.viewport);
+
+  // アニメーションが実際に進んでいる（transformが時間経過で変わる）
+  const transformOf = () =>
+    page.evaluate(() => getComputedStyle(document.getElementById('display-ticker-track')).transform);
+  const before = await transformOf();
+  await page.waitForTimeout(600);
+  const after = await transformOf();
+  expect(after).not.toBe(before);
+});
+
 test.describe('縦画面（スマホ）', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
