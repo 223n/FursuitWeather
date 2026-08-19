@@ -150,7 +150,12 @@
       lon >= -180 &&
       lon <= 180
     ) {
-      const name = (params.get('name') ?? '').trim().slice(0, 80) || '指定地点';
+      // URL由来の地点名から制御文字・書式文字を除去する（改行による表示崩れ、
+      // U+202E等の双方向制御文字による名前偽装への対策。掲示用のため
+      // ZWJ絵文字合成が崩れる副作用は許容する）
+      const name =
+        (params.get('name') ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 80) ||
+        '指定地点';
       return {
         name,
         lat: Math.round(lat * 100) / 100,
@@ -188,6 +193,8 @@
   let nextForecastAt = 0;
   let nextNationalAt = 0;
   let lastJstDate = nowInJst().date;
+  /** 共通表示を最後に描画したJSTの分（時間境界・鮮度警告の毎分再評価用） */
+  let lastSharedMinute = nowInJst().minute;
   /** 深夜リロードの分（端末ごとにばらけさせ、全端末同時のアクセス集中を避ける） */
   const reloadMinute = Math.floor(Math.random() * 60);
   const startedAt = Date.now();
@@ -201,11 +208,11 @@
    * 会場Wi-Fiのキャプティブポータルがログイン画面のHTMLを200で返す
    * 「成功に見える失敗」もここでJSON解析に失敗してnullに落ちる
    */
-  async function fetchJson(url) {
+  async function fetchJson(url, init) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, { signal: controller.signal, ...init });
       if (!response.ok) {
         return null;
       }
@@ -221,8 +228,10 @@
     }
   }
 
-  /** 地点予報を再取得する。失敗時は前回データを保持して表示を続ける */
-  async function refreshForecast() {
+  /** 地点予報を再取得する。失敗時は前回データを保持して表示を続ける
+   * @param bypassCache 日付跨ぎ直後など、ブラウザキャッシュ（10分）の
+   *   前日データを避けたいときにtrue（URLは変えないためSWキャッシュのキーは安定する） */
+  async function refreshForecast(bypassCache) {
     if (refreshingForecast) {
       return;
     }
@@ -231,14 +240,17 @@
       const url = demo
         ? '/api/forecast?demo=1'
         : `/api/forecast?lat=${place.lat}&lon=${place.lon}&days=${FORECAST_DAYS}`;
-      const result = await fetchJson(url);
-      if (result && Array.isArray(result.data.hours) && Array.isArray(result.data.days)) {
+      const result = await fetchJson(url, bypassCache ? { cache: 'no-cache' } : undefined);
+      const ok = Boolean(
+        result && Array.isArray(result.data.hours) && Array.isArray(result.data.days),
+      );
+      if (ok) {
         forecast = result.data;
         forecastTime = Date.parse(forecast.generatedAt) || Date.now();
         forecastFromCache = result.fromCache;
       }
-      // 成功するまでは短い間隔で再試行する（成功後は通常間隔）
-      nextForecastAt = Date.now() + (forecast ? FORECAST_POLL_MS : RETRY_MS);
+      // 失敗している間は短い間隔で再試行する（成功したら通常間隔へ戻る）
+      nextForecastAt = Date.now() + (ok ? FORECAST_POLL_MS : RETRY_MS);
       renderShared();
       renderCurrentSlide();
     } finally {
@@ -254,10 +266,13 @@
     refreshingNational = true;
     try {
       const result = await fetchJson(demo ? '/api/national?demo=1' : '/api/national');
-      if (result && Array.isArray(result.data.cities) && result.data.cities.length > 0) {
+      const ok = Boolean(
+        result && Array.isArray(result.data.cities) && result.data.cities.length > 0,
+      );
+      if (ok) {
         national = result.data;
       }
-      nextNationalAt = Date.now() + (national ? NATIONAL_POLL_MS : RETRY_MS);
+      nextNationalAt = Date.now() + (ok ? NATIONAL_POLL_MS : RETRY_MS);
       if (SLIDES[currentIndex].id === 'slide-national') {
         renderCurrentSlide();
       }
@@ -318,11 +333,18 @@
     return row;
   }
 
-  /** 時刻（ms）を日本時間のHH:MM表記にする */
+  /** 時刻（ms）を日本時間のHH:MM表記にする（前日以前は「M/D HH:MM」で日付も示す） */
   function jstClockText(ms) {
     const jst = new Date(ms + 9 * 60 * 60 * 1000);
-    return `${String(jst.getUTCHours()).padStart(2, '0')}:${String(jst.getUTCMinutes()).padStart(2, '0')}`;
+    const time = `${String(jst.getUTCHours()).padStart(2, '0')}:${String(jst.getUTCMinutes()).padStart(2, '0')}`;
+    if (jst.toISOString().slice(0, 10) === nowInJst().date) {
+      return time;
+    }
+    return `${jst.getUTCMonth() + 1}/${jst.getUTCDate()} ${time}`;
   }
+
+  /** 最後に描画した警告帯の内容（同一内容の再描画を避けるためのキー） */
+  let lastAlertsKey = '';
 
   /** 警告帯（地点未指定・鮮度・時計ずれ・警戒アラート・オフライン表示）を更新する */
   function updateAlerts() {
@@ -357,6 +379,14 @@
     if (forecastFromCache) {
       rows.push(alertRow('通信できないため、保存済みの予報を表示しています。'));
     }
+    // 内容が変わらない限り警告帯のDOMを差し替えない（スクリーンリーダーの読み上げ
+    // 位置の喪失と、毎分の無駄な再構築を防ぐ。鮮度警告は文中の時刻が変われば
+    // キーも変わり再描画される）
+    const key = rows.map((row) => `${row.className}|${row.textContent}`).join('\n');
+    if (key === lastAlertsKey) {
+      return;
+    }
+    lastAlertsKey = key;
     alertsElement.replaceChildren(...rows);
   }
 
@@ -458,15 +488,20 @@
     container.replaceChildren(...cells);
   }
 
-  /** 日付（YYYY-MM-DD）を「今日 8/19（水）」の形にする */
-  function formatDayLabel(dateText, index) {
-    const relative = ['今日', '明日', '明後日'][index] ?? '';
+  /** 日付（YYYY-MM-DD）を「今日 8/19（水）」の形にする。相対ラベルは配列位置では
+   * なくJST今日との日付差で決める（キャッシュや取得障害でデータが古いまま日付を
+   * 跨いだとき、昨日の行を「今日」と誤表示しないため） */
+  function formatDayLabel(dateText) {
+    const dayDiff = Math.round(
+      (Date.parse(`${dateText}T00:00:00Z`) - Date.parse(`${nowInJst().date}T00:00:00Z`)) / 86400000,
+    );
+    const relative = ['今日', '明日', '明後日'][dayDiff] ?? '';
     const weekday = ['日', '月', '火', '水', '木', '金', '土'][
       new Date(`${dateText}T00:00:00Z`).getUTCDay()
     ];
     const month = Number.parseInt(dateText.slice(5, 7), 10);
     const day = Number.parseInt(dateText.slice(8, 10), 10);
-    return `${relative} ${month}/${day}（${weekday}）`;
+    return `${relative ? `${relative} ` : ''}${month}/${day}（${weekday}）`;
   }
 
   /** ③3日間の天気 */
@@ -475,13 +510,13 @@
       container.replaceChildren(slideNote('予報を読み込んでいます…'));
       return;
     }
-    const cells = forecast.days.slice(0, FORECAST_DAYS).map((day, index) => {
+    const cells = forecast.days.slice(0, FORECAST_DAYS).map((day) => {
       const cell = document.createElement('div');
       cell.className = 'display-day-cell';
 
       const date = document.createElement('p');
       date.className = 'display-day-date';
-      date.textContent = formatDayLabel(day.date, index);
+      date.textContent = formatDayLabel(day.date);
 
       const weather = document.createElement('span');
       weather.className = 'display-cell-weather';
@@ -623,7 +658,7 @@
   // ---- 一時停止・手動送り ----
   pauseButton.addEventListener('click', () => {
     paused = !paused;
-    pauseButton.setAttribute('aria-pressed', String(paused));
+    // 一時停止⇄再開はラベル交換の2状態ボタン（ラベル変更とaria-pressedは併用しない）
     pauseButton.textContent = paused ? '再開' : '一時停止';
     if (!paused) {
       slideDeadline = Date.now() + SLIDES[currentIndex].seconds * 1000;
@@ -681,7 +716,8 @@
     const today = nowInJst().date;
     if (today !== lastJstDate) {
       lastJstDate = today;
-      refreshForecast();
+      // ブラウザキャッシュ（10分）に残る前日データを避けて取り直す
+      refreshForecast(true);
       refreshNational();
       renderShared();
       renderCurrentSlide();
@@ -689,7 +725,9 @@
   }
 
   /** 深夜4時台の自動リロード。デプロイの反映・メモリ回収・SW更新・
-   * ピンチズーム事故からの復帰を毎日1回の安価な仕組みでまとめて行う */
+   * ピンチズーム事故からの復帰を毎日1回の安価な仕組みでまとめて行う。
+   * 上流障害・キャプティブポータル失効中にリロードすると、保持している
+   * 前回データの表示まで失うため、予報が新鮮（鮮度警告前）な夜だけ行う */
   function checkNightlyReload() {
     const now = nowInJst();
     if (
@@ -697,7 +735,8 @@
       now.minute === reloadMinute &&
       Date.now() - startedAt > 2 * 60 * 60 * 1000 &&
       navigator.onLine !== false &&
-      forecast !== null
+      forecast !== null &&
+      Date.now() - forecastTime < STALE_WARNING_MS
     ) {
       window.location.reload();
     }
@@ -725,9 +764,13 @@
     if (now >= nextNationalAt) {
       refreshNational();
     }
-    // 鮮度警告は取得が止まっていても進行するため、毎分再評価する
-    if (now % 60000 < 1000) {
-      updateAlerts();
+    // 鮮度警告と常時帯は取得が止まっていても時間経過で変わる（毎時00分の境界で
+    // 現在時間帯の判定が入れ替わる）ため、分が変わるたびに共通表示を描き直す。
+    // 剰余の窓判定はtickの遅延で取り逃すことがあるため、分の変化で検出する
+    const minute = nowInJst().minute;
+    if (minute !== lastSharedMinute) {
+      lastSharedMinute = minute;
+      renderShared();
     }
     checkDateRollover();
     checkNightlyReload();

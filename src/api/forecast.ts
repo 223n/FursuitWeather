@@ -1,7 +1,7 @@
 // /api/forecast エンドポイント
 // クエリパラメータを検証し、気象データの取得と予報の組み立てを行う
 
-import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS } from '../constants';
+import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS, WEATHER_MODEL_LABEL } from '../constants';
 import { buildForecast } from '../logic/forecast';
 import { todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
@@ -55,7 +55,7 @@ export async function handleForecast(request: Request): Promise<Response> {
 
     // 上流障害（UpstreamError）の502変換はルーター（src/index.ts）が担う
     weather = await fetchWeather(latitude, longitude, days);
-    model = 'jma_seamless（気象庁MSM/GSM）';
+    model = WEATHER_MODEL_LABEL;
   }
 
   const forecast = buildForecast(

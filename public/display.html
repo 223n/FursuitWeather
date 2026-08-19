@@ -23,7 +23,10 @@
 </head>
 <body class="display-body">
   <!-- バージョン: v1.4.0（package.jsonと同期。test/htmlSync.test.tsが検証する） -->
-  <p class="sr-only">このページはイベント会場のモニターに掲示するための自動表示モードです。予報のスライドが自動で切り替わります。画面下部の「一時停止」ボタンで切り替えを止められます。お手元で予報を見るには<a href="/">トップページ</a>をご利用ください。</p>
+  <!-- キーボード利用者向け: フォーカス時のみ可視のリンクで通常ページへ戻れる
+       （sr-only内の常時不可視リンクはフォーカス位置が見えなくなるため置かない） -->
+  <a class="skip-link" href="/">トップページへ戻る</a>
+  <p class="sr-only">このページはイベント会場のモニターに掲示するための自動表示モードです。予報のスライドが自動で切り替わります。画面下部の「一時停止」ボタンで切り替えを止められます。お手元で予報を見るには、この直前のリンクまたは画面右下のQRコードからトップページをご利用ください。</p>
 
   <!-- Font Awesome Free 7.3.1 のアイコン定義（SVGスプライト・自前配信でどの環境でも同一表示） -->
   <!-- Icons: Font Awesome Free https://fontawesome.com/ - License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ -->
@@ -83,11 +86,13 @@
     <span class="display-progress" id="display-progress" aria-hidden="true"></span>
     <span class="display-slide-name" id="display-slide-name">いまの判定</span>
     <span class="display-controls">
-      <button type="button" id="display-pause" aria-pressed="false">一時停止</button>
+      <button type="button" id="display-pause">一時停止</button>
       <button type="button" id="display-next">次へ</button>
     </span>
     <span class="display-updated" id="display-updated">--:--時点</span>
-    <span class="display-attribution">Weather data by <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a></span>
+    <!-- 掲示専用のためリンクにしない（タッチモニターでの誤タップ遷移で掲示が止まる事故の防止。
+         CC BY 4.0の帰属はドメイン名入りテキストで満たす） -->
+    <span class="display-attribution">Weather data by Open-Meteo.com</span>
     <span class="display-qr">
       <svg viewBox="0 0 37 37" role="img" aria-label="トップページ（fursuit-weather.223n.tech）のQRコード">
         <path d="M4 4h7v1h-7zM12 4h2v1h-2zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h1v1h-1zM16 5h1v1h-1zM20 5h4v1h-4zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM13 6h5v1h-5zM19 6h3v1h-3zM24 6h1v1h-1zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM16 7h1v1h-1zM18 7h3v1h-3zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h3v1h-3zM20 8h3v1h-3zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h2v1h-2zM15 9h5v1h-5zM21 9h1v1h-1zM23 9h2v1h-2zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM12 11h1v1h-1zM15 11h1v1h-1zM18 11h1v1h-1zM21 11h1v1h-1zM4 12h1v1h-1zM8 12h1v1h-1zM10 12h4v1h-4zM15 12h5v1h-5zM21 12h2v1h-2zM24 12h6v1h-6zM32 12h1v1h-1zM4 13h5v1h-5zM11 13h4v1h-4zM25 13h8v1h-8zM5 14h4v1h-4zM10 14h2v1h-2zM14 14h6v1h-6zM26 14h1v1h-1zM28 14h1v1h-1zM32 14h1v1h-1zM4 15h1v1h-1zM9 15h1v1h-1zM11 15h2v1h-2zM15 15h1v1h-1zM17 15h1v1h-1zM21 15h1v1h-1zM24 15h1v1h-1zM26 15h2v1h-2zM29 15h1v1h-1zM31 15h2v1h-2zM5 16h1v1h-1zM10 16h1v1h-1zM12 16h2v1h-2zM15 16h3v1h-3zM19 16h1v1h-1zM21 16h3v1h-3zM25 16h1v1h-1zM27 16h1v1h-1zM31 16h1v1h-1zM4 17h1v1h-1zM6 17h2v1h-2zM9 17h1v1h-1zM14 17h1v1h-1zM17 17h3v1h-3zM26 17h7v1h-7zM4 18h5v1h-5zM10 18h2v1h-2zM14 18h3v1h-3zM19 18h2v1h-2zM24 18h2v1h-2zM27 18h4v1h-4zM32 18h1v1h-1zM7 19h1v1h-1zM9 19h1v1h-1zM12 19h1v1h-1zM14 19h2v1h-2zM18 19h4v1h-4zM26 19h2v1h-2zM31 19h2v1h-2zM4 20h1v1h-1zM6 20h2v1h-2zM10 20h3v1h-3zM14 20h1v1h-1zM16 20h4v1h-4zM21 20h5v1h-5zM27 20h1v1h-1zM31 20h1v1h-1zM4 21h2v1h-2zM7 21h1v1h-1zM9 21h1v1h-1zM12 21h2v1h-2zM15 21h1v1h-1zM19 21h2v1h-2zM25 21h5v1h-5zM31 21h2v1h-2zM8 22h8v1h-8zM17 22h3v1h-3zM24 22h1v1h-1zM26 22h1v1h-1zM30 22h1v1h-1zM32 22h1v1h-1zM6 23h1v1h-1zM9 23h1v1h-1zM11 23h1v1h-1zM13 23h2v1h-2zM17 23h1v1h-1zM20 23h3v1h-3zM24 23h3v1h-3zM31 23h2v1h-2zM4 24h5v1h-5zM10 24h5v1h-5zM17 24h1v1h-1zM21 24h1v1h-1zM23 24h7v1h-7zM32 24h1v1h-1zM12 25h1v1h-1zM14 25h1v1h-1zM17 25h8v1h-8zM28 25h1v1h-1zM32 25h1v1h-1zM4 26h7v1h-7zM12 26h1v1h-1zM14 26h3v1h-3zM19 26h1v1h-1zM22 26h3v1h-3zM26 26h1v1h-1zM28 26h3v1h-3zM32 26h1v1h-1zM4 27h1v1h-1zM10 27h1v1h-1zM13 27h3v1h-3zM18 27h2v1h-2zM21 27h1v1h-1zM23 27h2v1h-2zM28 27h1v1h-1zM31 27h1v1h-1zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM12 28h2v1h-2zM15 28h4v1h-4zM21 28h9v1h-9zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM13 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM19 29h4v1h-4zM27 29h1v1h-1zM32 29h1v1h-1zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM13 30h1v1h-1zM15 30h3v1h-3zM19 30h2v1h-2zM22 30h2v1h-2zM25 30h1v1h-1zM29 30h4v1h-4zM4 31h1v1h-1zM10 31h1v1h-1zM13 31h2v1h-2zM17 31h1v1h-1zM19 31h1v1h-1zM21 31h1v1h-1zM23 31h2v1h-2zM27 31h3v1h-3zM31 31h2v1h-2zM4 32h7v1h-7zM12 32h7v1h-7zM20 32h2v1h-2zM24 32h2v1h-2zM27 32h3v1h-3zM31 32h1v1h-1z"/>

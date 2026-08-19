@@ -45,8 +45,19 @@ interface OpenMeteoResponse {
   hourly: { time: string[] } & Record<(typeof HOURLY_FIELDS)[number], (number | null)[]>;
 }
 
-/** 取得URLを組み立てる */
-export function buildForecastUrl(latitude: number, longitude: number, days: number): string {
+/**
+ * 取得URLを組み立てる
+ *
+ * @param date 指定時はforecast_daysの代わりにその1日（start_date/end_date）へ固定する。
+ *   上流URLはエッジキャッシュのキーになるため、日付入りURLはJST 0時に自然と
+ *   キャッシュが切り替わる（/api/nationalの「日本時間の当日」契約用。daysは無視される）
+ */
+export function buildForecastUrl(
+  latitude: number,
+  longitude: number,
+  days: number,
+  date?: string,
+): string {
   const params = new URLSearchParams({
     latitude: latitude.toFixed(4),
     longitude: longitude.toFixed(4),
@@ -54,8 +65,13 @@ export function buildForecastUrl(latitude: number, longitude: number, days: numb
     timezone: 'Asia/Tokyo',
     // 風速はWBGT式に合わせてm/sで取得する（デフォルトはkm/h）
     wind_speed_unit: 'ms',
-    forecast_days: String(days),
   });
+  if (date === undefined) {
+    params.set('forecast_days', String(days));
+  } else {
+    params.set('start_date', date);
+    params.set('end_date', date);
+  }
   return `${OPEN_METEO_BASE_URL}?${params.toString()}`;
 }
 
@@ -277,14 +293,16 @@ async function requestUpstream(
  * 標準予報APIへの補完リクエストを省ける
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ * @param date 指定時はその1日へ固定して取得する（buildForecastUrlを参照）
  */
 export async function fetchWeatherBase(
   latitude: number,
   longitude: number,
   days: number,
   fetchImpl: typeof fetch = fetch,
+  date?: string,
 ): Promise<WeatherResult> {
-  const url = buildForecastUrl(latitude, longitude, days);
+  const url = buildForecastUrl(latitude, longitude, days, date);
   const response = await requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES);
 
   if (!response.ok) {

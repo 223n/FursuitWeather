@@ -258,6 +258,9 @@ export const DAYTIME_END_HOUR = 18;
 /** 活動推奨時間帯とみなすgradeの上限（これ以下を推奨） */
 export const RECOMMENDED_MAX_GRADE = 1;
 
+/** APIレスポンスのmodelフィールドに使う気象モデル表記（/api/forecast・/api/national共通） */
+export const WEATHER_MODEL_LABEL = 'jma_seamless（気象庁MSM/GSM）';
+
 /** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
 export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
 

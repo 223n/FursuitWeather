@@ -39,7 +39,13 @@ npm run lint    # ESLint + tsc（typecheck）
 - 地点セレクト（index.html）と`app.js`のCITIES配列
 - 実測WBGTツール（`public/wbgt-tool.js`）の判定表・しきい値
 - ドキュメント（`docs/api.md`・`docs/logic.md`）と`llms.txt`の数値記述
-- フッターのバージョン表記と`package.json`の`version`
+- フッターのバージョン表記・`display.html`のバージョンコメントと
+  `package.json`の`version`
+- `src/constants.ts`のNATIONAL_CITIESと`app.js`のCITIES配列（名前・座標・順序）
+- 会場表示モード（`public/display.js`）の複製部品（GRADE_SYMBOLS・
+  天気コード→アイコンの対応・警戒しきい値・既定地点）と`app.js`・
+  `src/constants.ts`、および`docs/display.md`の数値記述（表示秒数・
+  更新間隔・鮮度しきい値・深夜リロード時刻）
 - API先読み（preload）のURLと初回リクエスト
 
 カバレッジは次のコマンドで計測できます（対象は`src/`）。
@@ -52,9 +58,10 @@ npm run test:coverage
 `vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
 分岐（branches）はしきい値の対象外です（既定引数などツール上の
 部分分岐が含まれるため）。
-`public/app.js`・`public/wbgt-tool.js`はブラウザ実行のためカバレッジ
-対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、実挙動は
-E2Eテスト（`e2e/`配下）が実ブラウザで検証します。
+`public/app.js`・`public/wbgt-tool.js`・`public/display.js`はブラウザ
+実行のためカバレッジ対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、
+実挙動はE2Eテスト（`e2e/`配下。会場表示モードは`e2e/display.spec.mjs`）が
+実ブラウザで検証します。
 
 ```bash
 npm run test:e2e   # Playwright（APIはモック。wrangler devを自動起動）
@@ -69,7 +76,7 @@ axe-core監査とCLS測定はリリース時の手動確認です（手順は
 デプロイ時に次の最適化を行います（CI・デプロイの両ワークフローで自動実行）。
 
 ```bash
-npm run build   # minify（app.js・wbgt-tool.js・sw.js・style.cssの圧縮）+ 各HTMLへのCSSインライン化
+npm run build   # minify（app.js・wbgt-tool.js・display.js・sw.js・style.cssの圧縮）+ 各HTMLへのCSSインライン化
 ```
 
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した

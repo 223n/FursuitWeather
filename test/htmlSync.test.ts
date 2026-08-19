@@ -21,6 +21,7 @@ import html from '../public/index.html?raw';
 import llmsTxt from '../public/llms.txt?raw';
 import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
+import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
 import {
   COLD_BANDS,
@@ -471,6 +472,40 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     const match = displayJs.match(/const HEAT_STROKE_ALERT_WBGT = (\d+);/);
     expect(match).not.toBeNull();
     expect(Number(match![1])).toBe(HEAT_STROKE_ALERT_WBGT);
+    // 利用者向け警告文の数値も定数と同期する（表示文だけ取り残されるのを防ぐ）
+    expect(displayJs).toContain(`（暑さ指数${HEAT_STROKE_ALERT_WBGT}以上）`);
+    expect(displayMd).toContain(`暑さ指数${HEAT_STROKE_ALERT_WBGT}以上`);
+  });
+
+  it('docs/display.mdの更新間隔・鮮度・深夜リロードの数値はdisplay.jsと一致する', () => {
+    const forecastPoll = displayJs.match(/const FORECAST_POLL_MS = (\d+) \* 60 \* 1000;/);
+    const nationalPoll = displayJs.match(/const NATIONAL_POLL_MS = (\d+) \* 60 \* 1000;/);
+    const stale = displayJs.match(/const STALE_WARNING_MS = (\d+) \* 60 \* 1000;/);
+    const reloadHour = displayJs.match(/const NIGHTLY_RELOAD_HOUR = (\d+);/);
+    expect(forecastPoll).not.toBeNull();
+    expect(nationalPoll).not.toBeNull();
+    expect(stale).not.toBeNull();
+    expect(reloadHour).not.toBeNull();
+    expect(displayMd).toContain(`約${forecastPoll![1]}分ごと`);
+    expect(displayMd).toContain(`約${nationalPoll![1]}分ごと`);
+    expect(displayMd).toContain(`${Number(stale![1]) / 60}時間以上`);
+    expect(displayMd).toContain(`深夜${reloadHour![1]}時台`);
+  });
+
+  it('docs/display.mdのスライド表はSLIDES定義（名前・秒数・順序）と一致する', () => {
+    const slides = [
+      ...displayJs.matchAll(/\{ id: 'slide-[^']+', name: '([^']+)', seconds: (\d+),/g),
+    ].map((m) => ({ name: m[1]!, seconds: Number(m[2]) }));
+    expect(slides).toHaveLength(4);
+    for (const slide of slides) {
+      expect(displayMd).toMatch(new RegExp(`\\| ${slide.name} \\|[^|]*\\| ${slide.seconds}秒 \\|`));
+    }
+  });
+
+  it('公開仕様の「主要12都市」はNATIONAL_CITIESの件数と一致する', () => {
+    for (const doc of [apiMd, openapiYaml, llmsTxt, displayMd]) {
+      expect(doc).toContain(`主要${NATIONAL_CITIES.length}都市`);
+    }
   });
 
   it('既定地点（東京）はNATIONAL_CITIESの座標と一致する', () => {
@@ -492,7 +527,8 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     for (const name of names) {
       expect(displayHtml).toContain(`aria-label="${name}"`);
     }
-    // about.htmlの紹介文はスライド名を「・」区切りで列挙する
+    // about.html・llms.txtの紹介文はスライド名を「・」区切りで列挙する
     expect(aboutHtml).toContain(names.join('・'));
+    expect(llmsTxt).toContain(names.join('・'));
   });
 });

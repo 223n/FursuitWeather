@@ -68,7 +68,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 - mainへは直接pushできない（ブランチ保護）。PR必須で、CI+CodeQL（デフォルトセットアップ運用のためワークフローファイルはない）がマージを阻む
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
-- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
+- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページとdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
 ## アクセシビリティ
 

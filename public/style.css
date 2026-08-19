@@ -1176,7 +1176,10 @@ section h3 {
   font-variant-numeric: tabular-nums;
 }
 
-/* 現在判定の常時表示帯: どのスライドが出ていても安全情報が一瞥で伝わるようにする */
+/* 現在判定の常時表示帯: どのスライドが出ていても安全情報が一瞥で伝わるようにする。
+   読み込み文言→大型バッジの置き換え（データ切れ時はその逆）で帯の高さが変わり
+   下のスライドがシフトしないよう、バッジ表示時の高さ
+   （記号1.6em+バッジ上下余白0.7rem+バッジ枠4px+帯の上下余白+帯の下枠2px）を事前確保する */
 .display-now-strip {
   display: flex;
   align-items: center;
@@ -1184,6 +1187,7 @@ section h3 {
   flex-wrap: wrap;
   gap: 0.3rem clamp(0.6rem, 2vw, 1.6rem);
   padding: clamp(0.35rem, 1vh, 0.8rem) 1rem;
+  min-height: calc(clamp(1.1rem, 3.2vmin, 2rem) * 1.6 + 0.7rem + 6px + 2 * clamp(0.35rem, 1vh, 0.8rem));
   background-color: var(--color-background);
   border-bottom: 2px solid var(--color-border-subtle);
 }

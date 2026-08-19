@@ -39,7 +39,7 @@ export function isHtmlPath(pathname: string): boolean {
  * 3. `'unsafe-inline'`（nonceも解釈しない古い環境）: nonceによる無効化が
  *    効かないため、2のスキーム指定と同時に効く。最後の後方互換
  *
- * Trusted Typesのポリシー名はpublic/app.jsのcreatePolicyと一致させること
+ * Trusted Typesのポリシー名はpublic/app.js・public/display.jsのcreatePolicyと一致させること
  */
 export function buildHtmlCsp(nonce: string): string {
   return [

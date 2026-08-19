@@ -332,6 +332,7 @@ Workerは世界中に分散したCloudflareのデータセンター網（エッ�
 | 対象 | 上流へのエッジキャッシュ | 自レスポンスのブラウザキャッシュ |
 |------|--------------------------|----------------------------------|
 | 予報（/api/forecast） | 30分（`cf.cacheTtlByStatus`の200番台） | 10分（`Cache-Control: max-age=600`） |
+| 全国天気（/api/national） | 30分（予報と同じ。都市ごとにURLが異なるため12都市それぞれ独立） | 10分（`Cache-Control: max-age=600`） |
 | 地点検索（/api/geocode） | 7日（地名・郵便番号はほぼ不変） | なし（`no-store`） |
 
 予報データは2段階でキャッシュされます。
@@ -374,9 +375,14 @@ PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担�
 - オフライン時は、シェル（`SHELL_URLS`のHTML・JS・favicon・`events.json`。
   CSSはビルドでHTMLへインライン化済みのためHTML側に含まれる）と直近の予報
   （`DATA_CACHE`、上限10件）から応答します
+- 全国天気（`/api/national`）は専用キャッシュ（`NATIONAL_CACHE`）へ
+  1件だけ保存します。地点予報（`DATA_CACHE`、上限10件）の追い出しに
+  巻き込まれると、会場表示モードの再起動時に全国スライドだけ空になるためです
 - 保存済みの予報で応答するときは`X-Served-From-Cache`と`X-Cached-At`
-  ヘッダーを付けます。これは`sw.js`と`public/app.js`
-  （`cachedStatusText`・`displayedFromCache`）の間の契約で、フロントは
+  ヘッダーを付けます。これは`sw.js`と、`public/app.js`
+  （`cachedStatusText`・`displayedFromCache`）・`public/display.js`
+  （`forecastFromCache`。会場表示モードの「通信できないため、保存済みの
+  予報を表示しています。」の注意表示）の間の契約で、フロントは
   これを使って「オフライン表示である旨と取得時刻」を利用者へ明示します
 
 ## 配信ドメイン

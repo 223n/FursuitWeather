@@ -133,8 +133,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.pathname === '/api/national') {
-    // 全国天気（会場表示モード）はクエリ違いがないため1件だけ保存する
-    event.respondWith(dataNetworkFirst(request, NATIONAL_CACHE, 1));
+    // 全国天気（会場表示モード）: クエリなしの本番取得だけを専用キャッシュに1件保存する。
+    // ?demo=1（リハーサル用）は別エントリになり、専用キャッシュへ入れると
+    // trimCacheが本番分を追い出してしまうため、クエリ付きは地点予報側の
+    // キャッシュ（上限10件）へ回す
+    const isPlain = url.search === '';
+    event.respondWith(
+      dataNetworkFirst(request, isPlain ? NATIONAL_CACHE : DATA_CACHE, isPlain ? 1 : MAX_DATA_ENTRIES),
+    );
     return;
   }
   if (url.pathname.startsWith('/api/')) {

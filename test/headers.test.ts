@@ -82,6 +82,7 @@ describe('Content-Security-Policy', () => {
     // （ずれるとService Workerの登録が失敗する）
     const policy = cspDirective('trusted-types');
     expect(appJs).toContain(`createPolicy('${policy}'`);
+    expect(displayJs).toContain(`createPolicy('${policy}'`);
   });
 
   it('埋め込み・プラグイン・base書き換えを禁止する', () => {

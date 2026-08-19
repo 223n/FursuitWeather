@@ -39,6 +39,9 @@
 - **実測WBGTツール**: WBGT計（暑さ指数計）の実測値から着ぐるみ判定を
   確認できる簡易ツール（トップページの「実測WBGT」タブ。判定の根拠と
   対応表は[説明ページ](https://fursuit-weather.223n.tech/about)に記載）
+- **会場表示モード**: イベント会場のモニターに予報を常時掲示する自動表示
+  ページ。4枚のスライドを自動で切り替えながら予報を定期更新
+  （[使い方](docs/display.md)）
 
 ## クイックスタート
 
@@ -65,11 +68,12 @@ npm run lint    # ESLint + tsc
 | ドキュメント | 内容 |
 |--------------|------|
 | [判定ロジック](docs/logic.md) | WBGT・着衣補正・低温判定・冷房要否・洗濯乾燥指数の仕組みと根拠 |
-| [API仕様](docs/api.md) | `GET /api/forecast`・`GET /api/geocode` のパラメータ・レスポンス・エラーの仕様 |
+| [API仕様](docs/api.md) | `GET /api/forecast`・`GET /api/geocode`・`GET /api/national` のパラメータ・レスポンス・エラーの仕様 |
 | [アーキテクチャ](docs/architecture.md) | システム構成、ソースコード構成、キャッシュ設計、エラー処理、プライバシー設計 |
 | [開発ガイド](docs/development.md) | セットアップ、テスト、ビルド、CI/CD、カスタムドメイン |
 | [アクセシビリティ設計](docs/accessibility.md) | 色覚多様性対応、スクリーンリーダー対応、キーボード操作、CLS対策 |
 | [イベント予報の定義](docs/events.md) | `public/events.json`の書き方と画面での動き |
+| [会場表示モード](docs/display.md) | イベント会場のモニターへ掲示する自動表示ページの使い方・設置手順 |
 | [リリース手順](docs/release.md) | バージョニング方針、タグ作成、GitHubリリースの自動作成 |
 | [参考資料・出典](docs/references.md) | 判定式・しきい値・データの出典と参考資料の一覧 |
 

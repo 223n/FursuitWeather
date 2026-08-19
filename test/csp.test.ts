@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import headers from '../public/_headers?raw';
 import wranglerConfig from '../wrangler.jsonc?raw';
 import appJs from '../public/app.js?raw';
+import displayJs from '../public/display.js?raw';
 import { HTML_PATHS, buildHtmlCsp, isHtmlPath } from '../src/csp';
 
 describe('isHtmlPath', () => {
@@ -71,9 +72,11 @@ describe('buildHtmlCsp', () => {
     expect(csp).toContain("base-uri 'none'");
   });
 
-  it('Trusted Typesのポリシー名がapp.jsのcreatePolicyと一致する', () => {
+  it('Trusted Typesのポリシー名がapp.js・display.jsのcreatePolicyと一致する', () => {
+    // ずれるとService Workerの登録が黙って失敗し、オフライン表示が失われる
     const policy = csp.match(/trusted-types ([^;]+)/)![1]!.trim();
     expect(appJs).toContain(`createPolicy('${policy}'`);
+    expect(displayJs).toContain(`createPolicy('${policy}'`);
   });
 
   it('nonceが変われば別のCSPになる', () => {

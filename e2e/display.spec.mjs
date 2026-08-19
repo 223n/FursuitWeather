@@ -81,10 +81,9 @@ test('会場表示: 手動送り・一時停止・全国スライドが操作で
   await page.locator('#display-main').click({ position: { x: 600, y: 400 } });
   await expect(page.locator('#slide-now')).toBeVisible();
 
-  // 一時停止はトグルで、押している状態が読み上げにも伝わる
+  // 一時停止⇄再開はラベル交換の2状態ボタン（ラベル変更とaria-pressedは併用しない）
   await page.click('#display-pause');
   await expect(page.locator('#display-pause')).toHaveText('再開');
-  await expect(page.locator('#display-pause')).toHaveAttribute('aria-pressed', 'true');
   await page.click('#display-pause');
   await expect(page.locator('#display-pause')).toHaveText('一時停止');
 });
