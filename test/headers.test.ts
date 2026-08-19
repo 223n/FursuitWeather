@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import appJs from '../public/app.js?raw';
+import displayJs from '../public/display.js?raw';
 import headers from '../public/_headers?raw';
 import html from '../public/index.html?raw';
 import aboutHtml from '../public/about.html?raw';
@@ -81,6 +82,7 @@ describe('Content-Security-Policy', () => {
     // （ずれるとService Workerの登録が失敗する）
     const policy = cspDirective('trusted-types');
     expect(appJs).toContain(`createPolicy('${policy}'`);
+    expect(displayJs).toContain(`createPolicy('${policy}'`);
   });
 
   it('埋め込み・プラグイン・base書き換えを禁止する', () => {
@@ -119,6 +121,11 @@ describe('その他のセキュリティヘッダー', () => {
     expect(policy).toContain('camera=()');
     expect(policy).toContain('microphone=()');
   });
+
+  it('画面スリープ防止（Wake Lock）は自サイトのみ許可する', () => {
+    // 会場表示モード（display.js）がモニターのスリープを防ぐために使う
+    expect(headerValue('Permissions-Policy')).toContain('screen-wake-lock=(self)');
+  });
 });
 
 describe('Trusted Typesと衝突するDOMシンクを使っていない', () => {
@@ -127,6 +134,7 @@ describe('Trusted Typesと衝突するDOMシンクを使っていない', () => 
     '%s を使っていない',
     (sink) => {
       expect(appJs).not.toContain(sink);
+      expect(displayJs).not.toContain(sink);
     },
   );
 });

@@ -19,8 +19,10 @@ flowchart LR
     W -->|"郵便番号→市区町村名"| Z[zipcloud]
 ```
 
-- 静的アセットは無料・無制限で配信され、Workerは `/api/*` のみ起動します
-  （`wrangler.jsonc` の `assets.run_worker_first` 設定による）
+- 画像・CSS・JSなどのアセットは無料・無制限で配信され、Workerは `/api/*` と
+  HTMLページで起動します（HTMLはリクエストごとのCSP nonce差し込みのため。
+  `wrangler.jsonc` の `assets.run_worker_first` 設定による。対象パスは
+  `src/csp.ts` の `HTML_PATHS` と同期し、`test/csp.test.ts` が一致を検証）
 - 存在しないパスへのアクセスには`public/404.html`を404ステータスで
   返します（`assets.not_found_handling`設定による）
 - セキュリティヘッダーは`public/_headers`で設定します
@@ -69,6 +71,7 @@ src/
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
 │   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   ├── national.ts     /api/national ハンドラ（全国主要都市の当日サマリー）
 │   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
@@ -85,6 +88,9 @@ src/
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
+├── display.html        会場表示モード（モニター掲示用の自動表示ページ。使い方はdisplay.md）
+├── display.js          会場表示モードのフロント（スライドショー・自動更新・長時間稼働対策）
+├── display.css         会場表示モード専用スタイル（通常ページの配信サイズを増やさないよう分離）
 ├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
@@ -128,7 +134,7 @@ e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検
 - 地点の記憶（最後に表示した地点）はブラウザのlocalStorageのみに保存し、
   サーバーへは送信しません
 - 共有URL・記憶地点の座標もすべて小数2桁に統一しています
-- `Permissions-Policy`で位置情報の利用を自サイトに限定しています
+- `Permissions-Policy`で位置情報と画面スリープ防止（Wake Lock）の利用を自サイトに限定しています
 
 ## セキュリティヘッダー
 
@@ -142,7 +148,7 @@ e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検
 | `Cross-Origin-Opener-Policy` | `same-origin`（オリジン分離） |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Permissions-Policy` | 位置情報は自サイトのみ、カメラ・マイク・決済は禁止 |
+| `Permissions-Policy` | 位置情報・画面スリープ防止は自サイトのみ、カメラ・マイク・決済は禁止 |
 
 HTMLページのCSPだけは`_headers`ではなくWorkerが付けます（次節）。
 `_headers`のCSPは、JS・CSS・画像などのアセットと、Workerを通らない経路で
@@ -329,6 +335,7 @@ Workerは世界中に分散したCloudflareのデータセンター網（エッ�
 | 対象 | 上流へのエッジキャッシュ | 自レスポンスのブラウザキャッシュ |
 |------|--------------------------|----------------------------------|
 | 予報（/api/forecast） | 30分（`cf.cacheTtlByStatus`の200番台） | 10分（`Cache-Control: max-age=600`） |
+| 全国天気（/api/national） | 30分（予報と同じ。都市ごとにURLが異なるため12都市それぞれ独立） | 10分（`Cache-Control: max-age=600`） |
 | 地点検索（/api/geocode） | 7日（地名・郵便番号はほぼ不変） | なし（`no-store`） |
 
 予報データは2段階でキャッシュされます。
@@ -371,9 +378,14 @@ PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担�
 - オフライン時は、シェル（`SHELL_URLS`のHTML・JS・favicon・`events.json`。
   CSSはビルドでHTMLへインライン化済みのためHTML側に含まれる）と直近の予報
   （`DATA_CACHE`、上限10件）から応答します
+- 全国天気（`/api/national`）は専用キャッシュ（`NATIONAL_CACHE`）へ
+  1件だけ保存します。地点予報（`DATA_CACHE`、上限10件）の追い出しに
+  巻き込まれると、会場表示モードの再起動時に全国スライドだけ空になるためです
 - 保存済みの予報で応答するときは`X-Served-From-Cache`と`X-Cached-At`
-  ヘッダーを付けます。これは`sw.js`と`public/app.js`
-  （`cachedStatusText`・`displayedFromCache`）の間の契約で、フロントは
+  ヘッダーを付けます。これは`sw.js`と、`public/app.js`
+  （`cachedStatusText`・`displayedFromCache`）・`public/display.js`
+  （`forecastFromCache`。会場表示モードの「通信できないため、保存済みの
+  予報を表示しています。」の注意表示）の間の契約で、フロントは
   これを使って「オフライン表示である旨と取得時刻」を利用者へ明示します
 
 ## 配信ドメイン

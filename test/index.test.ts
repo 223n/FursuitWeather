@@ -34,6 +34,18 @@ describe('Workerルーティング', () => {
     expect(body.model).toBe('demo');
   });
 
+  it('/api/national はhandleNationalに委譲する', async () => {
+    const response = await worker.fetch(
+      new Request('https://example.com/api/national?demo=1'),
+      createEnv(),
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { model: string; cities: unknown[] };
+    expect(body.model).toBe('demo');
+    expect(body.cities.length).toBeGreaterThan(0);
+  });
+
   it('/api/geocode はhandleGeocodeに委譲する', async () => {
     vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
       new Response(JSON.stringify({ results: [] }), { status: 200 }),
@@ -62,7 +74,7 @@ describe('Workerルーティング', () => {
   });
 
   it('APIルートはGET以外のメソッドに405を返す（全エンドポイント共通の契約）', async () => {
-    for (const path of ['/api/forecast?lat=35&lon=139', '/api/geocode?q=松山']) {
+    for (const path of ['/api/forecast?lat=35&lon=139', '/api/geocode?q=松山', '/api/national']) {
       const response = await worker.fetch(
         new Request(`https://example.com${path}`, { method: 'POST' }),
         createEnv(),
@@ -76,7 +88,7 @@ describe('Workerルーティング', () => {
   });
 
   it('APIルートはOPTIONSプリフライトに204とCORSヘッダーを返す', async () => {
-    for (const path of ['/api/forecast', '/api/geocode']) {
+    for (const path of ['/api/forecast', '/api/geocode', '/api/national']) {
       const response = await worker.fetch(
         new Request(`https://example.com${path}`, { method: 'OPTIONS' }),
         createEnv(),

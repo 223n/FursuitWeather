@@ -253,7 +253,9 @@ label {
 
 select,
 button,
-input[type='search'] {
+input[type='search'],
+input[type='number'],
+input[type='text'] {
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
@@ -278,25 +280,16 @@ button:hover {
  * （#E69F00は2.25:1でWCAG 2.1 SC 1.4.11を満たさないため濃い#A66E00にしている） */
 select:focus,
 button:focus,
-input[type='search']:focus {
+input[type='search']:focus,
+input[type='number']:focus,
+input[type='text']:focus {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
-/* 数値入力欄（実測WBGTツールのWBGT入力） */
+/* 数値入力欄（実測WBGTツールのWBGT入力）。基本の見た目は上の共通宣言が担う */
 input[type='number'] {
-  font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  border: 2px solid var(--color-border);
-  background-color: var(--color-background);
-  color: var(--color-text);
   width: 7em;
-}
-
-input[type='number']:focus {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
 }
 
 /* 実測WBGTツール: 対話エリアであることが分かるよう枠線で囲む */
@@ -1027,7 +1020,10 @@ section h3 {
  * 濃色背景+明色の縁・文字に切り替える。本文4.5:1以上・UI境界3:1以上を
  * 確保した値を使う（検証はdocs/accessibility.mdの手順を参照） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  /* :not([data-theme='light']): 会場表示モード（display.html）の?theme=light指定では
+     ダーク変数を無効化し、会場PCのOS設定に関わらず明色で掲示できるようにする
+     （data-theme属性はdisplay.jsだけが設定する。他ページは常に該当しない） */
+  :root:not([data-theme='light']) {
     --color-blue: #56B4E9; /* CUD空色。暗背景でのアクセント・リンク色 */
     --color-red: #F07C6C;
 
@@ -1072,7 +1068,7 @@ section h3 {
   }
 
   /* 明色前提のSVG図は白地のカードに載せて可読性を保つ */
-  .diagram {
+  :root:not([data-theme='light']) .diagram {
     background-color: #FFFFFF;
     border-radius: 8px;
     padding: 0.5rem;
@@ -1113,6 +1109,18 @@ section h3 {
     display: inline-block;
     padding: 0.6rem 0.25rem;
   }
+
+  /* フッターのリンク（出典・GitHub・バージョン表記）もタップ対象のため確保する */
+  .site-footer a {
+    display: inline-block;
+    /* 0.85remフォント×line-height1.6で約22px、上下0.7remで合計約44px */
+    padding: 0.7rem 0.25rem;
+  }
+
+  /* バージョン表記は0.75remと小さいため一回り厚くして約44pxを確保する */
+  .version-note a {
+    padding: 0.8rem 0.25rem;
+  }
 }
 
 /* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって
@@ -1123,4 +1131,29 @@ section h3 {
     background-color: transparent;
     color: var(--color-text);
   }
+}
+
+/* 会場表示モードへの導線リンク（表示中の地点の操作列でボタンと同じ見た目にする） */
+.display-mode-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 2px solid var(--color-blue);
+  background-color: var(--color-background);
+  color: var(--color-blue);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.display-mode-link:hover {
+  background-color: var(--color-blue);
+  color: var(--color-on-accent);
+}
+
+.display-mode-link:focus {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }

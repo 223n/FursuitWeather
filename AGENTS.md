@@ -21,7 +21,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ### npm run build の重要な注意
 
-`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS（app.js・wbgt-tool.js・sw.js）・style.cssのminify、HTMLへのCSSインライン化）。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
+`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS（app.js・wbgt-tool.js・display.js・sw.js）とCSS（style.css・display.css）のminify、HTMLへのCSSインライン化（display.htmlは2ファイル分））。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
 
 ## CIが強制する契約
 
@@ -31,7 +31,8 @@ npm run build                        # minify + CSSインライン化（下記�
   - `public/app.js`のCITIES配列 ↔ index.htmlの地点セレクト、preloadのURL
   - `public/wbgt-tool.js`の判定表（HEAT_BANDSの形式まで完全一致で検証される）
   - `docs/api.md`・`docs/logic.md`・`public/llms.txt`の数値記述
-  - フッターのバージョン表記（3ページ） ↔ `package.json`のversion
+  - フッターのバージョン表記（3ページ）・display.htmlのバージョンコメント ↔ `package.json`のversion
+  - `src/constants.ts`のNATIONAL_CITIES ↔ app.jsのCITIES、`public/display.js`の複製部品（GRADE_SYMBOLS・天気アイコン対応など） ↔ app.js
 - HTMLページを追加する場合、`<link rel="stylesheet" href="/style.css">`の完全一致タグがないとビルドが失敗する（`scripts/inline-css.mjs`の安全確認）
 
 ## アーキテクチャの要点
@@ -40,7 +41,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ### バックエンド（src/）
 
-- 2層構成: 静的アセット（`public/`）+ Worker（`/api/*`のみ起動、`wrangler.jsonc`の`run_worker_first`）
+- 2層構成: 静的アセット（`public/`）+ Worker（`/api/*`とHTMLページで起動、`wrangler.jsonc`の`run_worker_first`。HTMLはCSP nonceのため）
 - `src/logic/`は純粋関数のみでIO（fetch）から分離。係数・しきい値は`src/constants.ts`に出典コメント付きで集約（単一情報源。文言やしきい値を変えるときはここを起点にする)
 - 上流は4系統: Open-Meteo JMAモデル（予報本体）、標準予報API（降水確率の補完）、ジオコーディング（地名検索）、zipcloud（郵便番号→市区町村名）
 - **エラー処理方針**: 利用者へは固定の日本語文、原因詳細（英語ランタイム文言・上流ボディ）は`console.error`のみ。上流障害は`UpstreamError`→502、検証エラー→400、予期しない例外は`src/index.ts`の最終防衛線が500+CORSで返す。補助取得（降水確率・zipcloud）はベストエフォートで、失敗しても本体の応答を巻き込まない
@@ -67,7 +68,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 - mainへは直接pushできない（ブランチ保護）。PR必須で、CI+CodeQL（デフォルトセットアップ運用のためワークフローファイルはない）がマージを阻む
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
-- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
+- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページとdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
 ## アクセシビリティ
 

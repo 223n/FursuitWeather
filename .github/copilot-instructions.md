@@ -10,8 +10,9 @@
 - `src/`のコードを変えたらテストを追加する。カバレッジ（statements・
   lines・functions）100%がCIで強制される
 - 係数・しきい値・文言は`src/constants.ts`が単一情報源。HTML・
-  `public/app.js`・`public/wbgt-tool.js`・`docs/api.md`・`docs/logic.md`・
-  `public/llms.txt`・フッターのバージョン表記に複製があり、
+  `public/app.js`・`public/wbgt-tool.js`・`public/display.js`・
+  `docs/api.md`・`docs/logic.md`・`public/llms.txt`・フッターの
+  バージョン表記（`display.html`はバージョンコメント）に複製があり、
   `test/htmlSync.test.ts`が同期を機械検証する。片側だけ変えるとCIが落ちる
 - `npm run build`は`public/`を破壊的に上書きする。コミット後に実行し、
   `git checkout -- public/`で復元する

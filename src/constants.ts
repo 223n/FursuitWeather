@@ -182,6 +182,7 @@ export const COLD_BANDS: readonly ColdBand[] = [
 /**
  * 冷房要否のしきい値（℃、屋内の着ぐるみ補正後WBGTと比較）
  * 補正後WBGTが「警戒」帯に入るなら冷房必須、「注意」帯なら冷房推奨
+ * （HEAT_BANDSの帯境界との対応はtest/fursuit.test.tsで機械検証される）
  */
 export const COOLING_REQUIRED_WBGT = 25;
 export const COOLING_RECOMMENDED_WBGT = 21;
@@ -257,6 +258,9 @@ export const DAYTIME_END_HOUR = 18;
 
 /** 活動推奨時間帯とみなすgradeの上限（これ以下を推奨） */
 export const RECOMMENDED_MAX_GRADE = 1;
+
+/** APIレスポンスのmodelフィールドに使う気象モデル表記（/api/forecast・/api/national共通） */
+export const WEATHER_MODEL_LABEL = 'jma_seamless（気象庁MSM/GSM）';
 
 /** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
 export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
@@ -334,6 +338,33 @@ export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
  */
 export const DEFAULT_FORECAST_DAYS = 4;
 export const MAX_FORECAST_DAYS = 4;
+
+/** 全国天気（/api/national）の対象都市 */
+export interface NationalCity {
+  readonly name: string;
+  readonly lat: number;
+  readonly lon: number;
+}
+
+/**
+ * 全国天気の主要都市リスト（会場表示モードの全国スライド用）
+ * public/app.jsのCITIES（地点セレクトのプリセット）と同一リストにする
+ * （ずれはtest/htmlSync.test.tsが検出する）
+ */
+export const NATIONAL_CITIES: readonly NationalCity[] = [
+  { name: '札幌', lat: 43.0618, lon: 141.3545 },
+  { name: '仙台', lat: 38.2682, lon: 140.8694 },
+  { name: '東京', lat: 35.6785, lon: 139.6823 },
+  { name: '新潟', lat: 37.9026, lon: 139.0236 },
+  { name: '金沢', lat: 36.5613, lon: 136.6562 },
+  { name: '名古屋', lat: 35.1815, lon: 136.9066 },
+  { name: '大阪', lat: 34.6937, lon: 135.5023 },
+  { name: '広島', lat: 34.3853, lon: 132.4553 },
+  { name: '高松', lat: 34.3428, lon: 134.0466 },
+  { name: '福岡', lat: 33.5902, lon: 130.4017 },
+  { name: '鹿児島', lat: 31.5966, lon: 130.5571 },
+  { name: '那覇', lat: 26.2124, lon: 127.6809 },
+];
 
 /**
  * APIレスポンスの帰属表示（Open-Meteoの利用規約により表示時の出典明記が必要。

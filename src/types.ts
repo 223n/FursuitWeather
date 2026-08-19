@@ -153,6 +153,34 @@ export interface Attribution {
   readonly license: string;
 }
 
+/** 全国天気の1都市分の当日サマリー（/api/national） */
+export interface NationalCitySummary {
+  /** 都市名（例: 札幌） */
+  name: string;
+  latitude: number;
+  longitude: number;
+  /** 日中の代表天気コード */
+  weatherCode: number;
+  weatherLabel: string;
+  temperatureMin: number;
+  temperatureMax: number;
+  /** 日中（9〜18時）の最も厳しい屋外判定 */
+  outdoorWorst: LevelSummary;
+}
+
+/** /api/national レスポンス全体 */
+export interface NationalResponse {
+  /** 生成時刻（ISO8601） */
+  generatedAt: string;
+  /** 対象日（YYYY-MM-DD、日本時間の当日） */
+  date: string;
+  /** 使用した気象モデル */
+  model: string;
+  attribution: Attribution;
+  /** 取得できた都市のみ（失敗した都市は含まれない） */
+  cities: readonly NationalCitySummary[];
+}
+
 /** APIレスポンス全体 */
 export interface ForecastResponse {
   location: ForecastLocation;
