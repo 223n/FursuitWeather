@@ -1109,6 +1109,18 @@ section h3 {
     display: inline-block;
     padding: 0.6rem 0.25rem;
   }
+
+  /* フッターのリンク（出典・GitHub・バージョン表記）もタップ対象のため確保する */
+  .site-footer a {
+    display: inline-block;
+    /* 0.85remフォント×line-height1.6で約22px、上下0.7remで合計約44px */
+    padding: 0.7rem 0.25rem;
+  }
+
+  /* バージョン表記は0.75remと小さいため一回り厚くして約44pxを確保する */
+  .version-note a {
+    padding: 0.8rem 0.25rem;
+  }
 }
 
 /* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって

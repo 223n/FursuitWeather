@@ -19,8 +19,10 @@ flowchart LR
     W -->|"郵便番号→市区町村名"| Z[zipcloud]
 ```
 
-- 静的アセットは無料・無制限で配信され、Workerは `/api/*` のみ起動します
-  （`wrangler.jsonc` の `assets.run_worker_first` 設定による）
+- 画像・CSS・JSなどのアセットは無料・無制限で配信され、Workerは `/api/*` と
+  HTMLページで起動します（HTMLはリクエストごとのCSP nonce差し込みのため。
+  `wrangler.jsonc` の `assets.run_worker_first` 設定による。対象パスは
+  `src/csp.ts` の `HTML_PATHS` と同期し、`test/csp.test.ts` が一致を検証）
 - 存在しないパスへのアクセスには`public/404.html`を404ステータスで
   返します（`assets.not_found_handling`設定による）
 - セキュリティヘッダーは`public/_headers`で設定します

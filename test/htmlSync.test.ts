@@ -455,6 +455,8 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
       source.match(/const GRADE_SYMBOLS = (\[.*\]);/)?.[1];
     expect(symbolsOf(displayJs)).toBeDefined();
     expect(symbolsOf(displayJs)).toBe(symbolsOf(appJs));
+    // wbgt-tool.jsも同じ判定記号を複製しているため併せて検証する
+    expect(symbolsOf(wbgtTool)).toBe(symbolsOf(appJs));
   });
 
   it('天気コード→アイコンの対応規則はapp.jsと一致する', () => {

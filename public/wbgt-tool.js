@@ -22,7 +22,7 @@
   const COOLING_RECOMMENDED_WBGT = 21;
 
   /** 深刻度に対応する記号（grade 4はテキストではなく禁止マークSVGで表示）。
-   * app.jsのGRADE_SYMBOLSと同形式（記号パーツ配列の配列） */
+   * app.jsのGRADE_SYMBOLSと完全一致（test/htmlSync.test.tsが検証する） */
   const GRADE_SYMBOLS = [['◎'], ['○'], ['△'], ['✕'], [{ icon: 'ban' }]];
 
   /**
