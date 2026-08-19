@@ -1,8 +1,11 @@
 // 着ぐるみ活動判定
 // WBGTに着衣補正値（+11℃）を加えたうえで環境省5段階のしきい値で判定する
-// 低温域（気温15℃未満）はWBGT式の適用範囲外のため、体感温度による低温判定に切り替える
+// 低温域（気温15℃未満）ではWBGT式（小野式）の精度が落ちるため、暑熱判定に加えて
+// 体感温度による低温判定を併用し、深刻な方を採用する
+// （根拠はconstants.tsのCOLD_SWITCH_TEMPERATUREのコメントを参照）
 
 import {
+  type ActivityBand,
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   COOLING_LABELS,
@@ -21,16 +24,14 @@ import { estimateIndoorWbgt, estimateOutdoorWbgt, roundWbgt } from './wbgt';
 
 /** 着ぐるみ補正後のWBGTを暑熱5段階で判定する */
 function classifyHeat(suitWbgt: number): (typeof HEAT_BANDS)[number] {
-  const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound);
   // upperBoundにInfinityの帯があるため必ず見つかる
-  return band ?? HEAT_BANDS[HEAT_BANDS.length - 1]!;
+  return HEAT_BANDS.find((b) => suitWbgt < b.upperBound)!;
 }
 
 /** 体感温度を低温側の段階で判定する */
 function classifyCold(apparentTemperature: number): (typeof COLD_BANDS)[number] {
-  const band = COLD_BANDS.find((b) => apparentTemperature > b.lowerBound);
   // lowerBoundに-Infinityの帯があるため必ず見つかる
-  return band ?? COLD_BANDS[COLD_BANDS.length - 1]!;
+  return COLD_BANDS.find((b) => apparentTemperature > b.lowerBound)!;
 }
 
 /**
@@ -52,10 +53,7 @@ export function assessOutdoor(weather: HourlyWeather): ActivityAssessment {
   const suitWbgt = roundWbgt(wbgt + SUIT_WBGT_ADJUSTMENT);
   const heatBand = classifyHeat(suitWbgt);
 
-  let band: Pick<
-    (typeof HEAT_BANDS)[number],
-    'label' | 'grade' | 'activityMinutes' | 'advice'
-  > & { id: ActivityAssessment['level'] } = heatBand;
+  let band: ActivityBand = heatBand;
 
   if (weather.temperature < COLD_SWITCH_TEMPERATURE) {
     const coldBand = classifyCold(weather.apparentTemperature);

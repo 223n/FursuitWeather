@@ -61,6 +61,61 @@ describe('Workerルーティング', () => {
     expect(consoleError).toHaveBeenCalled();
   });
 
+  it('APIルートはGET以外のメソッドに405を返す（全エンドポイント共通の契約）', async () => {
+    for (const path of ['/api/forecast?lat=35&lon=139', '/api/geocode?q=松山']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`, { method: 'POST' }),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(405);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      // RFC 9110 §15.5.6: 405には対応メソッドを示すAllowヘッダーが必須
+      expect(response.headers.get('Allow')).toBe('GET');
+    }
+  });
+
+  it('APIルートはOPTIONSプリフライトに204とCORSヘッダーを返す', async () => {
+    for (const path of ['/api/forecast', '/api/geocode']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`, { method: 'OPTIONS' }),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(204);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+    }
+  });
+
+  it('ハンドラが投げたUpstreamErrorは502へ変換し、運用検知のためログに残す', async () => {
+    // 上流500→UpstreamErrorはハンドラを素通りし、ルーターの最終防衛線が502にする
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    for (const path of ['/api/forecast?lat=35.68&lon=139.68', '/api/geocode?q=松山']) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${path}`),
+        createEnv(),
+        ctx,
+      );
+      expect(response.status).toBe(502);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+    }
+    expect(consoleError).toHaveBeenCalledWith(
+      '上流エラー:',
+      expect.stringContaining('lat=35.68'),
+      expect.any(String),
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      '上流エラー:',
+      expect.stringContaining('q='),
+      expect.any(String),
+    );
+    vi.unstubAllGlobals();
+  });
+
   it('存在しない/api/*パスはCORSヘッダー付きのJSON 404を返す', async () => {
     const response = await worker.fetch(
       new Request('https://example.com/api/unknown'),

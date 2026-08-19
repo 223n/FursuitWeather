@@ -15,7 +15,14 @@ import {
   ZIPCLOUD_BASE_URL,
 } from '../constants';
 import type { GeocodeResult } from '../types';
-import { UpstreamError, upstreamErrorMessage } from './openMeteo';
+import {
+  fetchUpstream,
+  isFiniteNumber,
+  logUpstreamStatus,
+  readUpstreamJson,
+  throwUpstreamStatus,
+  UpstreamError,
+} from './upstream';
 
 /** Open-Meteoジオコーディングのレスポンスのうち本サービスが使用する部分 */
 interface GeocodingResponse {
@@ -66,10 +73,8 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
       entry.country_code !== 'JP' ||
       typeof entry.name !== 'string' ||
       entry.name === '' ||
-      typeof entry.latitude !== 'number' ||
-      !Number.isFinite(entry.latitude) ||
-      typeof entry.longitude !== 'number' ||
-      !Number.isFinite(entry.longitude)
+      !isFiniteNumber(entry.latitude) ||
+      !isFiniteNumber(entry.longitude)
     ) {
       continue;
     }
@@ -87,8 +92,11 @@ export function parseGeocodingResponse(data: unknown): GeocodeResult[] {
 }
 
 /**
- * 都市名・郵便番号から地点候補を検索する
  * 1回分の地名検索を実行する
+ *
+ * 気象データ側（openMeteo.tsのrequestUpstream）と異なり5xxの取り直しはしない。
+ * 地点検索は接尾辞補完・郵便番号フォールバックで最大数回の直列呼び出しが起きるため、
+ * リトライを重ねると待ち時間と上流無料枠の消費が増幅する。検索は利用者の再操作も容易
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
@@ -98,42 +106,45 @@ async function searchByName(
 ): Promise<GeocodeResult[]> {
   const url = buildGeocodingUrl(query);
 
-  let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-      // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
-      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
-      cf: {
-        cacheTtlByStatus: {
-          '200-299': GEOCODING_CACHE_TTL_SECONDS,
-          '400-499': 0,
-          '500-599': 0,
-        },
-        cacheEverything: true,
-      },
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
-  } catch (error) {
-    console.error('地点検索の取得に失敗:', url, error);
-    throw new UpstreamError('地点検索に失敗しました。時間をおいて再度お試しください');
-  }
+  // 地名データはほぼ変化しないため長めにエッジキャッシュし、上流の無料枠を守る
+  const response = await fetchUpstream(url, GEOCODING_CACHE_TTL_SECONDS, fetchImpl, {
+    logLabel: '地点検索の取得に失敗:',
+    failure: '地点検索に失敗しました。時間をおいて再度お試しください',
+  });
 
   if (!response.ok) {
-    const detail = (await response.text().catch(() => '')).slice(0, 200);
-    console.error('地点検索APIエラー:', url, response.status, detail);
-    throw new UpstreamError(upstreamErrorMessage('地点検索', response.status));
+    throw await throwUpstreamStatus('地点検索', url, response);
   }
 
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch {
-    console.error('地点検索APIレスポンスの解析に失敗:', url);
-    throw new UpstreamError('地点検索APIのレスポンスを解析できませんでした');
-  }
-
+  const { data } = await readUpstreamJson(response, url, '地点検索');
   return parseGeocodingResponse(data);
+}
+
+/**
+ * 候補クエリを順に検索し、最初に見つかった結果を返す
+ *
+ * 再検索の連鎖には全体の時間予算（UPSTREAM_TIMEOUT_MS）を設け、上流が遅いときに
+ * 利用者を数十秒待たせない（各呼び出しの個別タイムアウトとは別枠）。
+ * 時間切れ・全滅時は空配列を返す
+ */
+async function searchFirstMatch(
+  queries: readonly string[],
+  timeoutLogLabel: string,
+  timeoutLogValue: string,
+  fetchImpl: typeof fetch,
+): Promise<GeocodeResult[]> {
+  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
+  for (const query of queries) {
+    if (Date.now() >= deadline) {
+      console.error(timeoutLogLabel, timeoutLogValue);
+      break;
+    }
+    const results = await searchByName(query, fetchImpl);
+    if (results.length > 0) {
+      return results;
+    }
+  }
+  return [];
 }
 
 /**
@@ -153,24 +164,11 @@ async function searchByNameWithCitySuffixes(
   if (results.length > 0 || [...query].length > 2) {
     return results;
   }
-  // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに
-  // 利用者を数十秒待たせない（各呼び出しの個別タイムアウトとは別枠）
-  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
-  for (const suffix of GEOCODING_CITY_SUFFIXES) {
-    if (Date.now() >= deadline) {
-      console.error('地点検索の接尾辞補完を時間切れで打ち切り:', query);
-      break;
-    }
-    // 「大村」→「大村村」のように同じ接尾辞を重ねない
-    if (query.endsWith(suffix)) {
-      continue;
-    }
-    const retried = await searchByName(query + suffix, fetchImpl);
-    if (retried.length > 0) {
-      return retried;
-    }
-  }
-  return [];
+  // 「大村」→「大村村」のように同じ接尾辞は重ねない
+  const retryQueries = GEOCODING_CITY_SUFFIXES.filter(
+    (suffix) => !query.endsWith(suffix),
+  ).map((suffix) => query + suffix);
+  return searchFirstMatch(retryQueries, '地点検索の接尾辞補完を時間切れで打ち切り:', query, fetchImpl);
 }
 
 /** 全角の数字・ハイフン類を半角へ正規化する */
@@ -254,27 +252,20 @@ async function resolvePostalCode(
 ): Promise<PostalAddress | null> {
   const url = `${ZIPCLOUD_BASE_URL}?zipcode=${digits}`;
   try {
-    const response = await fetchImpl(url, {
-      headers: { 'User-Agent': 'FursuitWeather (https://github.com/223n/FursuitWeather)' },
-      // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
-      // （エラー応答はキャッシュしない。上流の復旧後も古い失敗が返り続けるのを防ぐ）
-      cf: {
-        cacheTtlByStatus: {
-          '200-299': GEOCODING_CACHE_TTL_SECONDS,
-          '400-499': 0,
-          '500-599': 0,
-        },
-        cacheEverything: true,
-      },
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    // 郵便番号データはほぼ変化しないため長めにエッジキャッシュする
+    // （失敗文言は外側のcatchが握り潰すため利用者へは届かないが、方針どおり固定の日本語文にする）
+    const response = await fetchUpstream(url, GEOCODING_CACHE_TTL_SECONDS, fetchImpl, {
+      logLabel: '郵便番号の変換に失敗:',
+      failure: '郵便番号を住所へ変換できませんでした',
     });
     if (!response.ok) {
-      console.error('郵便番号APIエラー:', url, response.status);
+      await logUpstreamStatus('郵便番号APIエラー:', url, response);
       return null;
     }
-    const data = (await response.json()) as {
+    const { data: parsed } = await readUpstreamJson(response, url, '郵便番号');
+    const data = parsed as {
       results?: { address1?: unknown; address2?: unknown }[] | null;
-    };
+    } | null;
     const first = data?.results?.[0];
     const city = first?.address2;
     if (typeof city !== 'string' || city === '') {
@@ -313,26 +304,24 @@ export async function fetchGeocoding(
   //   市名・町村名・接尾辞なしの順にフォールバックする）
   const address = await resolvePostalCode(digits, fetchImpl);
   if (address !== null) {
-    // 再検索の連鎖には全体の時間予算を設け、上流が遅いときに利用者を待たせすぎない
-    const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
-    for (const candidate of buildCityCandidates(address.city)) {
-      if (Date.now() >= deadline) {
-        console.error('郵便番号からの地名検索を時間切れで打ち切り:', address.city);
-        break;
-      }
-      const results = await searchByName(candidate, fetchImpl);
-      if (results.length > 0) {
-        // 同名地名で別の土地を返さないよう、郵便番号の都道府県と一致する候補を優先する
-        return preferSamePrefecture(results, address.prefecture);
-      }
+    const results = await searchFirstMatch(
+      buildCityCandidates(address.city),
+      '郵便番号からの地名検索を時間切れで打ち切り:',
+      address.city,
+      fetchImpl,
+    );
+    if (results.length > 0) {
+      // 同名地名で別の土地を返さないよう、郵便番号の都道府県と一致する候補を優先する
+      return preferSamePrefecture(results, address.prefecture);
     }
   }
 
   // 変換できない・市区町村名で見つからない場合は、郵便番号のまま両形式で試す
   const hyphenated = `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  const direct = await searchByName(hyphenated, fetchImpl);
-  if (direct.length > 0) {
-    return direct;
-  }
-  return searchByName(digits, fetchImpl);
+  return searchFirstMatch(
+    [hyphenated, digits],
+    '郵便番号の直接検索を時間切れで打ち切り:',
+    digits,
+    fetchImpl,
+  );
 }

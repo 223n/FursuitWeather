@@ -50,8 +50,8 @@ npm run test:coverage
 
 ステートメント・行・関数は100%を維持しています。このしきい値は
 `vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
-未カバーの分岐は、番兵値（Infinity帯・スコア上限）により到達しない
-防御フォールバックのみです。
+分岐（branches）はしきい値の対象外です（既定引数などツール上の
+部分分岐が含まれるため）。
 `public/app.js`・`public/wbgt-tool.js`はブラウザ実行のためカバレッジ
 対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、実挙動は
 E2Eテスト（`e2e/`配下）が実ブラウザで検証します。
@@ -69,7 +69,7 @@ axe-core監査とCLS測定はリリース時の手動確認です（手順は
 デプロイ時に次の最適化を行います（CI・デプロイの両ワークフローで自動実行）。
 
 ```bash
-npm run build   # minify（app.js・style.cssの圧縮）+ 各HTMLへのCSSインライン化
+npm run build   # minify（app.js・wbgt-tool.js・sw.js・style.cssの圧縮）+ 各HTMLへのCSSインライン化
 ```
 
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した
@@ -151,7 +151,7 @@ npm run deploy
 （CSP・X-Content-Type-Options・Referrer-Policy・Permissions-Policy・
 HSTS）。HTMLページのCSPだけは`src/csp.ts`が組み立て、Workerが
 リクエストごとのnonce付きで付与します（`docs/architecture.md`を参照）。
-APIレスポンスのヘッダーは`src/api/forecast.ts`の`json()`で設定します。
+APIレスポンスのヘッダーは`src/api/http.ts`の`json()`で設定します（CORS・キャッシュ・nosniffを含む全`/api/*`共通の単一情報源）。
 
 CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構成のため、
 外部CDN・Webフォント・外部画像などを追加する場合は`_headers`と`src/csp.ts`の

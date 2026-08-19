@@ -1,7 +1,15 @@
 // FursuitWeather 定数定義
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
-import type { ColdLevelId, CoolingNeed, Grade, HeatLevelId, LaundryLevelId } from './types';
+import type {
+  Attribution,
+  ColdLevelId,
+  CoolingNeed,
+  Grade,
+  HeatLevelId,
+  LaundryLevelId,
+  OutdoorLevelId,
+} from './types';
 
 /**
  * 小野ら（2014）によるWBGT推定式の係数
@@ -52,16 +60,24 @@ export const COLD_SWITCH_TEMPERATURE = 15;
  */
 export const HEAT_STROKE_ALERT_WBGT = 33;
 
-/** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
-export interface HeatBand {
-  /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */
-  upperBound: number;
-  id: HeatLevelId;
+/**
+ * 活動レベル定義の共通形（暑熱側・低温側で共有するフィールド）
+ * 判定結果の組み立て（fursuit.tsのassessOutdoor・assessIndoor）はこの形だけに依存する
+ */
+export interface ActivityBand {
+  id: OutdoorLevelId;
   label: string;
   grade: Grade;
   /** 1回あたりの連続活動時間の目安（分） */
   activityMinutes: number;
   advice: string;
+}
+
+/** 暑熱側レベル定義（環境省・日本スポーツ協会共通の5段階） */
+interface HeatBand extends ActivityBand {
+  /** この値未満なら該当（℃、着ぐるみ補正後のWBGTと比較） */
+  upperBound: number;
+  id: HeatLevelId;
 }
 
 /**
@@ -115,17 +131,13 @@ export const HEAT_BANDS: readonly HeatBand[] = [
     activityMinutes: 0,
     advice: '着ぐるみの着用は中止してください。熱中症の危険が非常に高い状態です。',
   },
-] as const;
+];
 
 /** 低温側レベル定義 */
-export interface ColdBand {
+interface ColdBand extends ActivityBand {
   /** この値より大きければ該当（℃、体感温度と比較） */
   lowerBound: number;
   id: ColdLevelId;
-  label: string;
-  grade: Grade;
-  activityMinutes: number;
-  advice: string;
 }
 
 /**
@@ -165,7 +177,7 @@ export const COLD_BANDS: readonly ColdBand[] = [
     activityMinutes: 0,
     advice: '屋外での着ぐるみ活動は推奨できません。凍傷やスーツ素材の低温劣化の恐れがあります。',
   },
-] as const;
+];
 
 /**
  * 冷房要否のしきい値（℃、屋内の着ぐるみ補正後WBGTと比較）
@@ -175,7 +187,7 @@ export const COOLING_REQUIRED_WBGT = 25;
 export const COOLING_RECOMMENDED_WBGT = 21;
 
 /** 冷房要否の表示ラベル（LAUNDRY_LEVEL_LABELSと同様、表示文言は本ファイルに集約する） */
-export const COOLING_LABELS: Record<CoolingNeed, string> = {
+export const COOLING_LABELS: Readonly<Record<CoolingNeed, string>> = {
   required: '冷房必須',
   recommended: '冷房推奨',
   none: '冷房なしでも可',
@@ -209,7 +221,7 @@ export const LAUNDRY = {
 } as const;
 
 /** 洗濯乾燥レベル定義（スコアしきい値はtenki.jp互換） */
-export interface LaundryBand {
+interface LaundryBand {
   /** この値以下なら該当 */
   upperBound: number;
   id: LaundryLevelId;
@@ -220,14 +232,16 @@ export const LAUNDRY_BANDS: readonly LaundryBand[] = [
   { upperBound: 50, id: 'fair' },
   { upperBound: 70, id: 'good' },
   { upperBound: 85, id: 'veryGood' },
-  { upperBound: 100, id: 'excellent' },
-] as const;
+  // 番兵（HEAT_BANDS・COLD_BANDSと同方式）。スコアは0〜100に正規化済みだが、
+  // 帯の追加・変更時にフォールバックのid直書きが要らないようにする
+  { upperBound: Number.POSITIVE_INFINITY, id: 'excellent' },
+];
 
 /**
  * 洗濯乾燥レベルの表示ラベル
  * スコア由来の5段階に加え、例外レベル（降雨・低温）を含む全レベル分を一元管理する
  */
-export const LAUNDRY_LEVEL_LABELS: Record<LaundryLevelId, string> = {
+export const LAUNDRY_LEVEL_LABELS: Readonly<Record<LaundryLevelId, string>> = {
   noDryRain: '外干しNG（雨）',
   noDryCold: '乾きにくい（低温）',
   indoorDry: '部屋干し推奨',
@@ -276,7 +290,7 @@ export const GEOCODING_MAX_RESULTS = 5;
  * 2文字以下で0件のときに限り、これらを順に補って再検索する
  * （3文字以上は部分一致が働くため対象外。上流呼び出しの増幅も防ぐ）
  */
-export const GEOCODING_CITY_SUFFIXES = ['市', '町', '村', '区'];
+export const GEOCODING_CITY_SUFFIXES: readonly string[] = ['市', '町', '村', '区'];
 
 /**
  * 郵便番号から得た市区町村名を段階的に短くして再検索する回数の上限
@@ -321,13 +335,24 @@ export const RESPONSE_CACHE_MAX_AGE_SECONDS = 600;
 export const DEFAULT_FORECAST_DAYS = 4;
 export const MAX_FORECAST_DAYS = 4;
 
+/**
+ * APIレスポンスの帰属表示（Open-Meteoの利用規約により表示時の出典明記が必要。
+ * CC BY 4.0。https://open-meteo.com/en/license）
+ */
+export const ATTRIBUTION = {
+  weatherData: 'Weather data by Open-Meteo.com（気象庁MSM/GSMモデル）',
+  weatherDataUrl: 'https://open-meteo.com/',
+  license: 'CC BY 4.0',
+  // satisfiesでレスポンス型（types.tsのAttribution）との形の一致をコンパイル時に強制する
+} as const satisfies Attribution;
+
 /** 通年で表示する注意事項 */
 export const YEAR_ROUND_NOTICES: readonly string[] = [
   '着ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。',
   '必ず2人以上で行動し、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。',
   '表示の連続活動時間は気象条件から見た上限の目安です。「30分着たら30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。',
   '本予報は目安です。体調や装備により安全な活動時間は変わります。最終判断はご自身で行ってください。',
-] as const;
+];
 
 /** WMO天気コードの日本語ラベル */
 export function weatherCodeLabel(code: number): string {

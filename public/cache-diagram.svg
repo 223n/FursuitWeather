@@ -58,6 +58,6 @@
   <line class="link" x1="467" y1="142" x2="467" y2="200"/>
   <rect class="cache" x="330" y="200" width="300" height="100" rx="10"/>
   <text class="cache-title" x="480" y="230">(2) エッジキャッシュ（30分）</text>
-  <text class="cache-note" x="480" y="256">fetchのcf.cacheTtl: 1800</text>
+  <text class="cache-note" x="480" y="256">cf.cacheTtlByStatus: 1800（成功応答のみ）</text>
   <text class="cache-note" x="480" y="280">同じ地点・日数のリクエストはここから応答</text>
 </svg>

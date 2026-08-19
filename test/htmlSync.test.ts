@@ -87,6 +87,19 @@ describe('静的HTMLとconstantsの同期', () => {
     expect(html).toContain(`cold grade-${coldCaution!.grade}`);
   });
 
+  it('日別サマリーのスケルトン枚数はFORECAST_DAYSと一致する', () => {
+    // スケルトンは実カード枚数と一致して初めてCLS防止として機能する。
+    // 日数変更時の取り残し（3bca691で4枚追加→7a0fc49で3日化の実例）を機械検出する
+    const days = appJs.match(/const FORECAST_DAYS = (\d+);/);
+    expect(days).not.toBeNull();
+    const skeletons = html.match(/class="day-card skeleton-card"/g) ?? [];
+    expect(skeletons.length).toBe(Number(days![1]));
+    // 消し残しの検出: 行スケルトンはカードの内側にのみ現れる。単独行の閉じタグ
+    // （カードの閉じ）の直後に行スケルトンが続く形は、カード削除時の取り残し。
+    // カード内の連続する行スケルトン（…></div>で行が終わる形）は誤検出しない
+    expect(html).not.toMatch(/\n\s*<\/div>\s*\n\s*<div class="skeleton-line/);
+  });
+
   it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {
     // as="fetch"のプリロードはcrossoriginがないとmodeが一致せず照合されない
     expect(html).toMatch(/<link rel="preload" href="\/api\/forecast\?[^"]+" as="fetch" crossorigin>/);
@@ -151,6 +164,8 @@ describe('aboutページとconstantsの同期', () => {
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryRain);
     expect(aboutHtml).toContain(LAUNDRY_LEVEL_LABELS.noDryCold);
     expect(aboutHtml).toContain(`平均気温${LAUNDRY.coldLimit}℃未満`);
+    // docs/api.mdのレスポンス例のラベル（excellent）も実ラベルと同期させる
+    expect(apiMd).toContain(LAUNDRY_LEVEL_LABELS.excellent);
   });
 
   it('干し時間帯と乾燥目安の数値がLAUNDRY定数と一致する', () => {
@@ -185,7 +200,7 @@ describe('aboutページとconstantsの同期', () => {
 });
 
 describe('実測WBGTツール（wbgt-tool.js）とconstantsの同期', () => {
-  // aboutページの簡易ツールは素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
+  // トップページの簡易ツール（実測WBGTタブ）は素のJSのため、しきい値・ラベル・補正値の複製を機械検証する
   it('着衣補正値と冷房しきい値が一致する', () => {
     expect(wbgtTool).toContain(`const SUIT_WBGT_ADJUSTMENT = ${SUIT_WBGT_ADJUSTMENT};`);
     expect(wbgtTool).toContain(`const COOLING_REQUIRED_WBGT = ${COOLING_REQUIRED_WBGT};`);
@@ -355,7 +370,7 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     // 日別サマリーAPI（coolingRequired: boolean）にはラベルが無くapp.jsが文言を
     // 複製しているため、constants側の変更時に時間別テーブル（API由来のcoolingLabel）と
     // 食い違わないよう検証する。「冷房なしでも可の時間帯あり」は日別固有の要約文のため対象外
-    expect(appJs).toContain(`label: '${COOLING_LABELS.required}'`);
+    expect(appJs).toContain(`coolingBadge('required', '${COOLING_LABELS.required}')`);
   });
 
   it('OpenAPI仕様（docs/openapi.yaml）の列挙・上限はconstantsと一致する', () => {

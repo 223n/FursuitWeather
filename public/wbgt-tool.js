@@ -1,5 +1,5 @@
-// 実測WBGTから着ぐるみ判定を行う簡易ツール（aboutページ専用）
-// イベント会場などでWBGT計により実測した値に着衣補正を加えて判定する。
+// 実測WBGTから着ぐるみ判定を行う簡易ツール（トップページの「実測WBGT」タブ専用）
+// イベント会場などでWBGT計（暑さ指数計）で測った値に着衣補正を加えて判定する。
 // しきい値・補正値はsrc/constants.tsと手動同期し、test/htmlSync.test.tsが機械検証する
 
 (() => {
@@ -21,19 +21,15 @@
   const COOLING_REQUIRED_WBGT = 25;
   const COOLING_RECOMMENDED_WBGT = 21;
 
-  /** Font Awesome Freeのアイコンパス（本ページの対応表と同じもの） */
-  const ICON_PATHS = {
-    ban: 'M367.2 412.5L99.5 144.8c-22.4 31.4-35.5 69.8-35.5 111.2 0 106 86 192 192 192 41.5 0 79.9-13.1 111.2-35.5zm45.3-45.3c22.4-31.4 35.5-69.8 35.5-111.2 0-106-86-192-192-192-41.5 0-79.9 13.1-111.2 35.5L412.5 367.2zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z',
-    snowflake:
-      'M288.2 0c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 62.1-15-15c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l49 49 0 70.6-61.2-35.3-17.9-66.9c-3.4-12.8-16.6-20.4-29.4-17S95.3 98 98.7 110.8l5.5 20.5-53.7-31C35.2 91.5 15.6 96.7 6.8 112s-3.6 34.9 11.7 43.7l53.7 31-20.5 5.5c-12.8 3.4-20.4 16.6-17 29.4s16.6 20.4 29.4 17l66.9-17.9 61.2 35.3-61.2 35.3-66.9-17.9c-12.8-3.4-26 4.2-29.4 17s4.2 26 17 29.4l20.5 5.5-53.7 31C3.2 365.1-2 384.7 6.8 400s28.4 20.6 43.7 11.7l53.7-31-5.5 20.5c-3.4 12.8 4.2 26 17 29.4s26-4.2 29.4-17l17.9-66.9 61.2-35.3 0 70.6-49 49c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l15-15 0 62.1c0 17.7 14.3 32 32 32s32-14.3 32-32l0-62.1 15 15c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-49-49 0-70.6 61.2 35.3 17.9 66.9c3.4 12.8 16.6 20.4 29.4 17s20.4-16.6 17-29.4l-5.5-20.5 53.7 31c15.3 8.8 34.9 3.6 43.7-11.7s3.6-34.9-11.7-43.7l-53.7-31 20.5-5.5c12.8-3.4 20.4-16.6 17-29.4s-16.6-20.4-29.4-17l-66.9 17.9-61.2-35.3 61.2-35.3 66.9 17.9c12.8 3.4 26-4.2 29.4-17s-4.2-26-17-29.4l-20.5-5.5 53.7-31c15.3-8.8 20.6-28.4 11.7-43.7s-28.4-20.5-43.7-11.7l-53.7 31 5.5-20.5c3.4-12.8-4.2-26-17-29.4s-26 4.2-29.4 17l-17.9 66.9-61.2 35.3 0-70.6 49-49c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-15 15 0-62.1z',
-  };
-
-  /** 深刻度に対応する記号（grade 4はテキストではなく禁止マークSVGで表示） */
-  const GRADE_SYMBOLS = ['◎', '○', '△', '✕', { icon: 'ban' }];
+  /** 深刻度に対応する記号（grade 4はテキストではなく禁止マークSVGで表示）。
+   * app.jsのGRADE_SYMBOLSと同形式（記号パーツ配列の配列） */
+  const GRADE_SYMBOLS = [['◎'], ['○'], ['△'], ['✕'], [{ icon: 'ban' }]];
 
   /**
    * 冷房要否の表示設定（Indexページの時間別テーブルと同じ配色・記号）
-   * app.jsのCOOLING_BADGESと同期
+   * app.jsのCOOLING_BADGESと配色（grade）・記号（symbol）を揃える。
+   * app.js側のラベルはAPIのcoolingLabel由来のため本ツールでは固定文言を持ち、
+   * htmlSyncテストの機械検証対象はapp.js側のみ
    */
   const COOLING_BADGES = {
     required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'], label: '冷房必須' },
@@ -45,15 +41,17 @@
   const judgeButton = document.getElementById('wbgt-judge-button');
   const resultArea = document.getElementById('wbgt-result');
 
-  /** SVGアイコン要素を作る */
-  function createIcon(name) {
+  /** SVGスプライト（index.html内で定義）からアイコン要素を作る（app.jsのfaIconと同形式）
+   * 本ツールはindex.htmlのタブでのみ動くため、同一文書内のスプライトに依存してよい。
+   * スプライトを持たないページへ移設する場合はパス埋め込みへ戻すこと */
+  function faIcon(name) {
     const svgNs = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNs, 'svg');
     svg.setAttribute('class', 'fa-icon');
-    svg.setAttribute('viewBox', '0 0 512 512');
-    const path = document.createElementNS(svgNs, 'path');
-    path.setAttribute('d', ICON_PATHS[name]);
-    svg.appendChild(path);
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(svgNs, 'use');
+    use.setAttribute('href', `#fa-${name}`);
+    svg.appendChild(use);
     return svg;
   }
 
@@ -69,7 +67,7 @@
       if (typeof part === 'string') {
         symbol.appendChild(document.createTextNode(part));
       } else {
-        symbol.appendChild(createIcon(part.icon));
+        symbol.appendChild(faIcon(part.icon));
       }
     }
     badge.appendChild(symbol);
@@ -89,14 +87,21 @@
 
   /** 入力値から判定して結果を描画する */
   function judge() {
+    // 空欄（type=numberでは不正文字もvalueが空になる）はまず入力を促す文にする。
+    // 範囲の話から始めると「まず値を入れる」ことが伝わりにくいため分ける
+    if (input.value.trim() === '') {
+      resultArea.textContent = '実測したWBGTの値を入力してください。';
+      return;
+    }
     const measured = Number.parseFloat(input.value);
     if (!Number.isFinite(measured) || measured < -20 || measured > 50) {
-      resultArea.textContent = 'WBGTは-20〜50の範囲の数値で入力してください。';
+      resultArea.textContent = '実測WBGTは−20℃から50℃までの数値で入力してください。';
       return;
     }
 
     const suitWbgt = Math.round((measured + SUIT_WBGT_ADJUSTMENT) * 10) / 10;
-    const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound) ?? HEAT_BANDS[4];
+    // upperBoundにInfinityの帯があるため必ず見つかる
+    const band = HEAT_BANDS.find((b) => suitWbgt < b.upperBound);
     const cooling =
       suitWbgt >= COOLING_REQUIRED_WBGT
         ? COOLING_BADGES.required
@@ -122,7 +127,7 @@
         '判定',
         createBadge(
           band.grade,
-          GRADE_SYMBOLS[band.grade] !== undefined ? [GRADE_SYMBOLS[band.grade]] : ['?'],
+          GRADE_SYMBOLS[band.grade],
           band.activityMinutes > 0
             ? `${band.label}（連続${band.activityMinutes}分まで）`
             : `${band.label}（着用中止）`,

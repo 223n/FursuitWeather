@@ -65,24 +65,30 @@ sequenceDiagram
 ```text
 src/
 ├── index.ts            Workerエントリポイント（ルーティング・最終防衛線）
+├── csp.ts              HTMLページのCSP組み立てとnonce差し込み
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
-│   └── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
 │   ├── geocoding.ts    ジオコーディングAPIクライアント（都市名・郵便番号検索）
+│   ├── upstream.ts     上流fetchの共通基盤（UA・エッジキャッシュ・タイムアウト・UpstreamError）
 │   └── demoData.ts     デモデータ生成
 ├── logic/
 │   ├── wbgt.ts         WBGT推定（小野2014式）
 │   ├── fursuit.ts      着ぐるみ活動判定（暑熱・低温・冷房）
 │   ├── laundry.ts      洗濯乾燥指数
+│   ├── time.ts         時刻文字列の切り出しと時間帯フィルタ
 │   └── forecast.ts     予報レスポンスの組み立て（純粋ロジック）
 ├── constants.ts        係数・しきい値の集約（出典コメント付き）
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
+├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
+e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検証）
 ```
 
 - 判定ロジック（`src/logic/`）は純粋関数で構成し、IO（fetch）から
@@ -100,7 +106,7 @@ test/                   vitestテスト
   HTTPステータスも文面には出しません（利用者にとって意味がなく、対処の
   判断にも使えないため）。上流が5xxのときは「提供元で障害が発生しています」と
   待てば直ることが伝わる文面にし、それ以外とは区別します
-  （`src/weather/openMeteo.ts`の`upstreamErrorMessage`）
+  （`src/weather/upstream.ts`の`upstreamErrorMessage`）
 - 上流への問い合わせには10秒のタイムアウトを設定し、上流の応答停滞に
   利用者のリクエストを道連れにしません
 - 上流が5xxを返したときは一度だけ取り直します。Open-Meteo自身もCDNの
@@ -173,7 +179,7 @@ style-src  'self' 'nonce-<同じ値>'
 ```
 
 - Workerが`HTMLRewriter`で`script`・`style`タグへnonceを付け、同じ値を
-  CSPヘッダーにも入れます（`src/index.ts`の`withNonce`）
+  CSPヘッダーにも入れます（`src/csp.ts`の`withNonce`）
 - `'strict-dynamic'`があるとホスト許可リストは無視されるため、外部
   スクリプト（アクセス解析）もHTML内のタグにnonceが付くことで読み込まれます
 - JSON-LDは実行されないデータブロックのためnonceを付けません
@@ -355,6 +361,20 @@ flowchart LR
 ありません。キャッシュ時間は`src/constants.ts`の
 `UPSTREAM_CACHE_TTL_SECONDS`・`RESPONSE_CACHE_MAX_AGE_SECONDS`・
 `GEOCODING_CACHE_TTL_SECONDS`で調整できます。
+
+## オフライン表示（Service Worker）
+
+PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担います。
+
+- **オンライン時は常にネットワーク優先**で、キャッシュは裏で更新する
+  だけです（デプロイ後に古い画面を配らないための方針）
+- オフライン時は、シェル（`SHELL_URLS`のHTML・JS・favicon・`events.json`。
+  CSSはビルドでHTMLへインライン化済みのためHTML側に含まれる）と直近の予報
+  （`DATA_CACHE`、上限10件）から応答します
+- 保存済みの予報で応答するときは`X-Served-From-Cache`と`X-Cached-At`
+  ヘッダーを付けます。これは`sw.js`と`public/app.js`
+  （`cachedStatusText`・`displayedFromCache`）の間の契約で、フロントは
+  これを使って「オフライン表示である旨と取得時刻」を利用者へ明示します
 
 ## 配信ドメイン
 

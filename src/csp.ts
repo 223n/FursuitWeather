@@ -1,4 +1,4 @@
-// HTMLページへ配信するContent-Security-Policyの組み立て
+// HTMLページへ配信するContent-Security-Policyの組み立てと、HTMLへのnonce差し込み
 //
 // 静的アセット（JS・CSS・画像）のCSPはpublic/_headersが担う。
 // HTMLだけはWorkerが処理し、リクエストごとに異なるnonceをscript・styleタグと
@@ -56,4 +56,39 @@ export function buildHtmlCsp(nonce: string): string {
     'trusted-types fursuitweather-sw',
     'upgrade-insecure-requests',
   ].join('; ');
+}
+
+/**
+ * HTMLへリクエストごとのnonceを差し込んで返す
+ *
+ * script・styleタグとCSPへ同じnonceを入れることで、ホスト許可リストに頼らず
+ * 「このページが載せたスクリプトだけ」を実行できる。JSON-LDは実行されない
+ * データブロックのためnonceを付けない（付けても無害だが、実行対象と
+ * 紛らわしいので明示的に除外する）。
+ * nonceは毎回変わるため、共有キャッシュに載らないようno-storeを付ける
+ */
+export async function withNonce(asset: Response, nonce: string): Promise<Response> {
+  const rewritten = new HTMLRewriter()
+    .on('script', {
+      element(element): void {
+        if (element.getAttribute('type') !== 'application/ld+json') {
+          element.setAttribute('nonce', nonce);
+        }
+      },
+    })
+    .on('style', {
+      element(element): void {
+        element.setAttribute('nonce', nonce);
+      },
+    })
+    .transform(asset);
+
+  const headers = new Headers(rewritten.headers);
+  headers.set('Content-Security-Policy', buildHtmlCsp(nonce));
+  headers.set('Cache-Control', 'no-store');
+  return new Response(rewritten.body, {
+    status: rewritten.status,
+    statusText: rewritten.statusText,
+    headers,
+  });
 }

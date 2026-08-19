@@ -58,9 +58,9 @@
     if (code === 2) return 'cloud-sun';
     if (code === 3) return 'cloud';
     if (code === 45 || code === 48) return 'smog';
-    if (code >= 51 && code <= 67) return 'cloud-rain';
+    // 霧雨・雨（51〜67）とにわか雨（80〜82）は非連続だが同じ雨アイコン
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'cloud-rain';
     if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snowflake';
-    if (code >= 80 && code <= 82) return 'cloud-rain';
     if (code >= 95) return 'cloud-bolt';
     return 'circle-question';
   }
@@ -85,7 +85,7 @@
   const hoursTitle = document.getElementById('hours-title');
   const noticesList = document.getElementById('notices-list');
 
-  // 可変状態はこのブロックの変数のみ（描画関数はここを参照する）
+  // 描画が参照する可変状態はこのブロックに集約する（イベント一覧の可変状態はイベント予報セクションのeventListを参照）
   let currentForecast = null;
   let selectedDate = null;
   /** 最後に予報を要求したクエリ（「予報を更新」で同じ条件を再取得するために保持） */
@@ -106,10 +106,125 @@
   let displayedCityIndex = null;
   /** 進行中リクエストの識別番号（古い応答で表示が上書きされるのを防ぐ） */
   let requestSeq = 0;
-  /** 進行中の地点検索の識別番号（古い検索応答で候補が汚染されるのを防ぐ） */
+  /** 進行中の地点検索・イベント開催地解決の識別番号。古い応答が候補やステータスを
+   * 上書きするのを防ぎ、確定ロード時（loadForecast）は加算して保留中の検索応答を無効化する */
   let searchSeq = 0;
   /** 地点セレクトのデバウンス用タイマー */
   let cityChangeTimer = null;
+  /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
+   * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
+   * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
+  let manualTabSeq = 0;
+
+  /**
+   * 保留中のセレクトデバウンスを解除する
+   * nullへの再代入までがワンセット（現在地コールバックのcityChangeTimer !== null
+   * ガードが「保留操作の有無」を正しく判定できるようにする）
+   */
+  function cancelPendingCitySelect() {
+    clearTimeout(cityChangeTimer);
+    cityChangeTimer = null;
+  }
+
+  /** 文字列ならtextContentで置き、ノードなら子として追加する（セル・値欄の中身設定で共通） */
+  function appendContent(parent, content) {
+    if (typeof content === 'string') {
+      parent.textContent = content;
+    } else {
+      parent.appendChild(content);
+    }
+  }
+
+  /** スクリーンリーダー専用テキストのspanを組み立てる */
+  function srOnlySpan(text) {
+    const span = document.createElement('span');
+    span.className = 'sr-only';
+    span.textContent = text;
+    return span;
+  }
+
+  /** class=hintの案内文（p要素）を組み立てる（データ無し時の表示で共通） */
+  function hintParagraph(text) {
+    const paragraph = document.createElement('p');
+    paragraph.className = 'hint';
+    paragraph.textContent = text;
+    return paragraph;
+  }
+
+  /**
+   * APIへ問い合わせ、レスポンスと解析済みボディを返す
+   * 通信失敗（ネットワーク断）はブラウザ固有の英語メッセージになるため、
+   * 呼び出し側から渡された日本語の定型文へ差し替える。
+   * 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを
+   * 出さないよう、パース失敗はbody=nullに落とす。エラー判定は呼び出し側が行う
+   */
+  async function fetchJsonBody(url, networkErrorMessage) {
+    const response = await fetch(url).catch(() => {
+      throw new Error(networkErrorMessage);
+    });
+    const body = await response.json().catch(() => null);
+    return { response, body };
+  }
+
+  /** HTTPエラー応答を利用者向けメッセージの例外にする（APIのerrorフィールドを優先） */
+  function throwIfHttpError(response, body, label) {
+    if (!response.ok) {
+      // ステータス番号は利用者の対処に役立たないため画面に出さず、切り分け用にconsoleへ残す
+      console.error(`${label}失敗: HTTP ${response.status}`);
+      throw new Error(
+        (body && body.error) || `${label}に失敗しました。しばらくたってからもう一度お試しください。`,
+      );
+    }
+  }
+
+  /**
+   * セレクトを「理由が分かる選択肢1件だけ」の無効状態にする
+   * （イベント選択とプランナーの日付で共通。空のセレクトのままだと
+   *   上流障害中などに「画面が壊れている」と見えてしまうため）
+   */
+  function disablePicker(select, button, message) {
+    select.replaceChildren(new Option(message, ''));
+    select.disabled = true;
+    button.disabled = true;
+  }
+
+  /**
+   * 地点リストの項目（li > button、location-dotアイコン+ラベル）を組み立てる
+   * お気に入りチップと検索候補で共通。クリック時の処理はクロージャで受け取る
+   */
+  function createLocationItem(label, onClick) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.appendChild(faIcon('location-dot', 'btn-icon'));
+    button.appendChild(document.createTextNode(label));
+    button.addEventListener('click', onClick);
+    item.appendChild(button);
+    return item;
+  }
+
+  /** 「地名（都道府県）」形式のラベルを作る（検索候補と郵便番号解決で共通の表示形式） */
+  function placeLabel(name, admin1) {
+    return typeof admin1 === 'string' && admin1 !== '' ? `${name}（${admin1}）` : name;
+  }
+
+  /**
+   * 座標を予報クエリ文字列にする（プライバシー契約の単一実装）
+   * URLに現れる座標はすべて小数2桁（約1km）に統一する。予報は約5kmメッシュの
+   * ため結果への影響はなく、自宅を特定できる精度の位置がURLへ流れない
+   */
+  function coordQuery(lat, lon) {
+    return `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
+  }
+
+  /** 共有URL用のクエリ文字列を組み立てる（名前があればname=を付ける） */
+  function shareQueryString(query, name) {
+    const params = new URLSearchParams(query);
+    if (name) {
+      params.set('name', name);
+    }
+    return params.toString();
+  }
 
   /** 2地点間の距離（km）をハーバーサイン公式で求める */
   function distanceKm(lat1, lon1, lat2, lon2) {
@@ -153,42 +268,52 @@
   // プライベートモードなどlocalStorageが使えない環境では黙って無効になる
   const LOCATION_STORAGE_KEY = 'fursuitweather:lastLocation';
 
-  /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
-  function readStoredLocation() {
+  // localStorageに保存する地点クエリの受け入れ形式（記憶とお気に入りで共通）
+  const STORED_QUERY_PATTERN = /^lat=-?[\d.]+&lon=-?[\d.]+$/;
+
+  // デモ表示を示す予報クエリ（記憶・お気に入り・共有URLの各分岐が同じ値で判定する）
+  const DEMO_QUERY = 'demo=1';
+
+  /** localStorageからJSONを読み出す。未保存・破損・使えない環境ではnullを返す */
+  function readStorageJson(key) {
     try {
-      const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY);
-      if (!raw) {
-        return null;
-      }
-      const stored = JSON.parse(raw);
-      if (
-        !stored ||
-        typeof stored.query !== 'string' ||
-        !/^lat=-?[\d.]+&lon=-?[\d.]+$/.test(stored.query) ||
-        typeof stored.locationName !== 'string'
-      ) {
-        return null;
-      }
-      return {
-        query: stored.query,
-        locationName: stored.locationName,
-        cityIndex: Number.isInteger(stored.cityIndex) ? stored.cityIndex : null,
-      };
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   }
 
-  /** 表示に成功した地点を記憶する */
-  function writeStoredLocation(query, locationName, cityIndex) {
+  /** localStorageへJSONを書き込む */
+  function writeStorageJson(key, value) {
     try {
-      window.localStorage.setItem(
-        LOCATION_STORAGE_KEY,
-        JSON.stringify({ query, locationName, cityIndex }),
-      );
+      window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
       // 保存できなくても予報表示自体には影響しないため無視する
     }
+  }
+
+  /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
+  function readStoredLocation() {
+    const stored = readStorageJson(LOCATION_STORAGE_KEY);
+    if (
+      !stored ||
+      typeof stored.query !== 'string' ||
+      !STORED_QUERY_PATTERN.test(stored.query) ||
+      typeof stored.locationName !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      query: stored.query,
+      locationName: stored.locationName,
+      cityIndex: Number.isInteger(stored.cityIndex) ? stored.cityIndex : null,
+    };
+  }
+
+  /** 表示に成功した地点を記憶する */
+  function writeStoredLocation(query, locationName, cityIndex) {
+    writeStorageJson(LOCATION_STORAGE_KEY, { query, locationName, cityIndex });
   }
 
   // お気に入り地点（このブラウザ内にのみ保存する）。
@@ -198,42 +323,30 @@
 
   /** お気に入り一覧を読み出す。形式が不正・破損している場合は空配列を返す */
   function readFavorites() {
-    try {
-      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (!raw) {
-        return [];
-      }
-      const list = JSON.parse(raw);
-      if (!Array.isArray(list)) {
-        return [];
-      }
-      return list
-        .filter(
-          (item) =>
-            item &&
-            typeof item.query === 'string' &&
-            /^lat=-?[\d.]+&lon=-?[\d.]+$/.test(item.query) &&
-            typeof item.name === 'string' &&
-            item.name !== '',
-        )
-        .slice(0, MAX_FAVORITES)
-        .map((item) => ({
-          query: item.query,
-          name: item.name,
-          cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
-        }));
-    } catch {
+    const list = readStorageJson(FAVORITES_STORAGE_KEY);
+    if (!Array.isArray(list)) {
       return [];
     }
+    return list
+      .filter(
+        (item) =>
+          item &&
+          typeof item.query === 'string' &&
+          STORED_QUERY_PATTERN.test(item.query) &&
+          typeof item.name === 'string' &&
+          item.name !== '',
+      )
+      .slice(0, MAX_FAVORITES)
+      .map((item) => ({
+        query: item.query,
+        name: item.name,
+        cityIndex: Number.isInteger(item.cityIndex) ? item.cityIndex : null,
+      }));
   }
 
   /** お気に入り一覧を保存する */
   function writeFavorites(list) {
-    try {
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(list));
-    } catch {
-      // 保存できなくても表示自体には影響しないため無視する
-    }
+    writeStorageJson(FAVORITES_STORAGE_KEY, list);
   }
 
   /** スクリーンリーダー向けに、その日の予報を文章で組み立てる
@@ -254,7 +367,7 @@
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
       `洗濯指数は「${today.laundry.label}」、着ぐるみの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
-      '詳しくは日別サマリーと時間別予報の表をご確認ください。',
+      '詳しくは「3日間の天気」タブや「今日の天気」などの各タブの表をご確認ください。',
     ];
     return parts.join('');
   }
@@ -283,6 +396,11 @@
     statusElement.classList.toggle('status-warning', warn);
     if (warn) {
       statusElement.prepend(faIcon('triangle-exclamation'));
+    }
+    // エラーも色だけに頼らせない（グレースケール・色覚多様性の環境でも枠の意味が
+    // 伝わるよう△!を付ける）。アイコンは装飾（aria-hidden）で、意味は本文が担う
+    if (Boolean(isError) && Boolean(message)) {
+      statusErrorElement.prepend(faIcon('triangle-exclamation'));
     }
   }
 
@@ -332,10 +450,7 @@
     const note = document.createElement('span');
     note.className = 'warning-note';
     note.appendChild(faIcon('triangle-exclamation'));
-    const srPrefix = document.createElement('span');
-    srPrefix.className = 'sr-only';
-    srPrefix.textContent = '注意: ';
-    note.appendChild(srPrefix);
+    note.appendChild(srOnlySpan('注意: '));
     note.appendChild(document.createTextNode(text));
     return note;
   }
@@ -360,28 +475,34 @@
     none: { grade: 0 },
   };
 
-  /** 着ぐるみ乾燥目安のバッジ設定を組み立てる */
+  /** 冷房要否のバッジを組み立てる（日別カード・いまの判定・時間別テーブルで共通） */
+  function coolingBadge(cooling, label) {
+    return createBadge({ ...(COOLING_BADGES[cooling] ?? COOLING_BADGES.none), label });
+  }
+
+  /** 着ぐるみ乾燥目安のバッジを組み立てる */
   function fursuitDryingBadge(laundry) {
     const hours = laundry.fursuitDryingHours;
     if (laundry.moldWarning) {
-      return { grade: 3, label: `約${hours}時間・カビ注意` };
+      return createBadge({ grade: 3, label: `約${hours}時間・カビ注意` });
     }
-    if (hours <= 30) {
-      return { grade: 0, label: `約${hours}時間` };
-    }
-    if (hours <= 40) {
-      return { grade: 1, label: `約${hours}時間` };
-    }
-    return { grade: 2, label: `約${hours}時間` };
+    const grade = hours <= 30 ? 0 : hours <= 40 ? 1 : 2;
+    return createBadge({ grade, label: `約${hours}時間` });
   }
+
+  /** YYYY-MM-DD文字列を数値成分とUTCミリ秒に解析する（日付計算の共通基準） */
+  function parseDateText(text) {
+    const [year, month, day] = text.split('-').map(Number);
+    return { year, month, day, utc: Date.UTC(year, month - 1, day) };
+  }
+
+  const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
    * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める */
   function formatDate(dateText) {
-    const [year, month, day] = dateText.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-    return `${month}月${day}日（${weekdays[date.getUTCDay()]}）`;
+    const { month, day, utc } = parseDateText(dateText);
+    return `${month}月${day}日（${WEEKDAYS[new Date(utc).getUTCDay()]}）`;
   }
 
   /** 選択状態の見た目とARIA属性を更新する（カードは再生成せずフォーカスを保つ） */
@@ -403,9 +524,7 @@
     const tilde = document.createElement('span');
     tilde.setAttribute('aria-hidden', 'true');
     tilde.textContent = '〜';
-    const tildeReading = document.createElement('span');
-    tildeReading.className = 'sr-only';
-    tildeReading.textContent = 'から';
+    const tildeReading = srOnlySpan('から');
     const range = document.createElement('span');
     range.append(`${Math.round(min)}`, tilde, tildeReading, `${Math.round(max)}℃`);
     return range;
@@ -425,10 +544,7 @@
     titleButton.className = 'day-card-button';
     titleButton.textContent = formatDate(day.date);
     // スクリーンリーダーにはボタンの目的（時間別予報の切り替え）も読み上げる
-    const srPurpose = document.createElement('span');
-    srPurpose.className = 'sr-only';
-    srPurpose.textContent = 'の時間別予報を表示';
-    titleButton.appendChild(srPurpose);
+    titleButton.appendChild(srOnlySpan('の時間別予報を表示'));
     title.appendChild(titleButton);
     card.appendChild(title);
 
@@ -445,11 +561,7 @@
       const dt = document.createElement('dt');
       dt.textContent = label;
       const dd = document.createElement('dd');
-      if (typeof valueNode === 'string') {
-        dd.textContent = valueNode;
-      } else {
-        dd.appendChild(valueNode);
-      }
+      appendContent(dd, valueNode);
       list.appendChild(dt);
       list.appendChild(dd);
     };
@@ -470,11 +582,9 @@
     // 日別サマリーのAPIレスポンス（coolingRequired）にはラベルが無いため、ここの文言はフロントで持つ
     addRow(
       '屋内（空調なしの場合）',
-      createBadge(
-        day.coolingRequired
-          ? { ...COOLING_BADGES.required, label: '冷房必須' }
-          : { ...COOLING_BADGES.none, label: '冷房なしでも可の時間帯あり' },
-      ),
+      day.coolingRequired
+        ? coolingBadge('required', '冷房必須')
+        : coolingBadge('none', '冷房なしでも可の時間帯あり'),
     );
     const laundryValue = badgeWithText(
       { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
@@ -482,7 +592,7 @@
     );
     laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
     addRow('洗濯・乾燥', laundryValue);
-    addRow('着ぐるみ乾燥目安', createBadge(fursuitDryingBadge(day.laundry)));
+    addRow('着ぐるみ乾燥目安', fursuitDryingBadge(day.laundry));
 
     card.appendChild(list);
 
@@ -491,10 +601,9 @@
       manualTabSeq += 1;
       selectedDate = day.date;
       updateSelectedCard();
-      const index = currentForecast.days.findIndex((d) => d.date === day.date);
-      const dayTab = TABS.find((t) => t.dayIndex === index);
+      const dayTab = dayTabForDate(day.date);
       if (dayTab) {
-        activateTab(dayTab.tabId, false);
+        forecastTabs.activate(dayTab.tabId, false);
       }
     };
     titleButton.addEventListener('click', selectDay);
@@ -517,7 +626,6 @@
     updateSelectedCard();
   }
 
-  /** 時間別テーブルを描画する */
   /** 日本時間の現在日付（YYYY-MM-DD）と時（0〜23）を返す
    * 予報データの時刻はAsia/Tokyoのため、端末のタイムゾーンに依存せずJSTで比較する */
   function nowInJst() {
@@ -536,11 +644,12 @@
     { tabId: 'tab-planner', panelId: 'planner-section' },
     { tabId: 'tab-measured', panelId: 'measured-section' },
   ];
-  /** 利用者による明示的なタブ操作の通し番号。イベント予報の完了後の自動切り替えが、
-   * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
-   * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
-  let manualTabSeq = 0;
 
+  /** 日付に対応する日別タブを返す。予報範囲外の日付はundefined（呼び出し側で防御する） */
+  function dayTabForDate(date) {
+    const index = currentForecast.days.findIndex((d) => d.date === date);
+    return TABS.find((t) => t.dayIndex === index);
+  }
   /** WAI-ARIAタブパターンの共通実装（予報の切り替えと地点の選び方で共用する）
    *
    * 選択状態・パネルの表示・キーボード操作（矢印キーで隣へ移動して自動選択、
@@ -643,11 +752,6 @@
     forecastTabs.activate(hashTabId, false);
   }
 
-  /** 予報タブを選択する（他の処理からの自動切り替え用） */
-  function activateTab(tabId, focusTab) {
-    forecastTabs.activate(tabId, focusTab);
-  }
-
   /** 取得済みの日数に合わせて日付タブの表示を切り替える */
   function updateDayTabs() {
     for (const target of TABS) {
@@ -659,7 +763,7 @@
     }
     // 表示中のタブが日数不足で消えた場合は「現在の天気」へ戻す
     if (document.getElementById(forecastTabs.getActiveTabId()).hidden) {
-      activateTab('tab-now', false);
+      forecastTabs.activate('tab-now', false);
     }
   }
 
@@ -684,19 +788,22 @@
     return Number.parseInt(time.slice(11, 13), 10);
   }
 
+  /** 表示中の予報から指定日（YYYY-MM-DD）の時間行だけを返す */
+  function hoursOnDate(date) {
+    return currentForecast.hours.filter((h) => h.time.startsWith(date));
+  }
+
   /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
   function renderNowCard() {
     const now = nowInJst();
-    const todayHours = currentForecast.hours.filter((h) => h.time.startsWith(now.date));
+    const todayHours = hoursOnDate(now.date);
     const target =
       todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
       todayHours.find((h) => hourNumberOf(h.time) > now.hour);
     if (!target) {
-      const message = document.createElement('p');
-      message.className = 'hint';
-      message.textContent =
-        '本日のこれからの時間帯の予報データがありません。日別サマリーをご確認ください。';
-      nowCard.replaceChildren(message);
+      nowCard.replaceChildren(
+        hintParagraph('本日のこれからの時間帯の予報データがありません。「3日間の天気」タブで日別の予報をご確認ください。'),
+      );
       return;
     }
 
@@ -734,46 +841,32 @@
     const indoor = document.createElement('p');
     indoor.className = 'now-time now-indoor';
     indoor.appendChild(faIcon('house', 'th-icon'));
-    indoor.appendChild(document.createTextNode('屋内（空調なし想定）:'));
-    indoor.appendChild(
-      createBadge({
-        ...(COOLING_BADGES[target.indoor.cooling] ?? COOLING_BADGES.none),
-        label: target.indoor.coolingLabel,
-      }),
-    );
+    indoor.appendChild(document.createTextNode('屋内（空調なしの場合）:'));
+    indoor.appendChild(coolingBadge(target.indoor.cooling, target.indoor.coolingLabel));
 
     nowCard.replaceChildren(timeLine, headline, advice, indoor);
   }
 
+  /** 時間別テーブルを描画する */
   function renderHours() {
     const now = nowInJst();
-    const hours = currentForecast.hours.filter((h) => {
-      if (!h.time.startsWith(selectedDate)) {
-        return false;
-      }
-      // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
-      if (selectedDate === now.date) {
-        return Number.parseInt(h.time.slice(11, 13), 10) >= now.hour;
-      }
-      return true;
-    });
+    // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
+    const hours = hoursOnDate(selectedDate).filter(
+      (h) => selectedDate !== now.date || hourNumberOf(h.time) >= now.hour,
+    );
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
     for (const hour of hours) {
       const row = document.createElement('tr');
-      const hourNumber = Number.parseInt(hour.time.slice(11, 13), 10);
+      const hourNumber = hourNumberOf(hour.time);
       if (hourNumber < 6 || hourNumber >= 19) {
         row.classList.add('night');
       }
 
       const addCell = (content) => {
         const cell = document.createElement('td');
-        if (typeof content === 'string') {
-          cell.textContent = content;
-        } else {
-          cell.appendChild(content);
-        }
+        appendContent(cell, content);
         row.appendChild(cell);
       };
 
@@ -808,12 +901,7 @@
       const indoorCell = document.createElement('span');
       indoorCell.className = 'badge-line';
       indoorCell.appendChild(createBadge(hour.indoor));
-      indoorCell.appendChild(
-        createBadge({
-          ...(COOLING_BADGES[hour.indoor.cooling] ?? COOLING_BADGES.none),
-          label: hour.indoor.coolingLabel,
-        }),
-      );
+      indoorCell.appendChild(coolingBadge(hour.indoor.cooling, hour.indoor.coolingLabel));
       addCell(indoorCell);
 
       hoursBody.appendChild(row);
@@ -867,8 +955,7 @@
     const shareName = urlName ?? locationName;
     // 確定ロードは保留中のセレクトデバウンスと検索応答を無効化し、後から
     // 古い地点選択・検索候補が発火して最後の明示操作を上書きするのを防ぐ
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     searchSeq += 1;
     // 「予報を更新」が常に「最後に要求した条件の再試行」になるよう、
     // クエリと地点名は成功を待たずペアで記録する（表示ラベルの更新は成功時のみ）
@@ -878,25 +965,16 @@
     const seq = ++requestSeq;
     setStatus('予報を取得しています…', false);
     try {
-      // ネットワーク断ではブラウザ固有の英語メッセージ（Failed to fetch等）になるため、
-      // 生メッセージを出さず日本語の定型文に差し替える
-      const response = await fetch(`/api/forecast?${query}&days=${FORECAST_DAYS}`).catch(() => {
-        throw new Error(
-          '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
-        );
-      });
-      // 非JSON応答（エッジのエラーページなど）でパースエラーの生メッセージを出さないよう、
-      // パース失敗はnullに落としてからステータスを判定する
-      const body = await response.json().catch(() => null);
+      // 第2引数は通信断時に表示する日本語の定型文（差し替えの仕組みはfetchJsonBodyを参照）
+      const { response, body } = await fetchJsonBody(
+        `/api/forecast?${query}&days=${FORECAST_DAYS}`,
+        '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
+      );
       if (seq !== requestSeq) {
         // より新しいリクエストが始まっているので、この応答は破棄する
         return;
       }
-      if (!response.ok) {
-        throw new Error(
-          (body && body.error) || `予報の取得に失敗しました（HTTP ${response.status}）`,
-        );
-      }
+      throwIfHttpError(response, body, '予報の取得');
       // JSONとして妥当でも予報の形をしていないボディ（中間プロキシの200応答など）は、
       // 後続の描画でTypeErrorの生メッセージが出る前にここで弾く
       // （days・hours・noticesは描画経路が無条件に反復する配列のためすべて検証する）
@@ -906,7 +984,7 @@
         !Array.isArray(body.hours) ||
         !Array.isArray(body.notices)
       ) {
-        throw new Error('予報データの形式が不正です');
+        throw new Error('予報データを正しく受け取れませんでした。しばらくたってから「予報を更新」をお試しください。');
       }
 
       currentForecast = body;
@@ -917,21 +995,8 @@
 
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
-      // オフライン時はService Workerが保存済みの予報で応答するため、
-      // その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
       displayedFromCache = response.headers.get('X-Served-From-Cache') === '1';
-      if (displayedFromCache) {
-        const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
-        const timeText = Number.isNaN(cachedAt.getTime())
-          ? '以前'
-          : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
-        setStatus(
-          `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`,
-          false,
-        );
-      } else {
-        setStatus('予報を取得しました', false);
-      }
+      setStatus(displayedFromCache ? cachedStatusText(response) : '予報を取得しました。', false);
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）。
       // 名前は画面用ラベルではなく注記なしのshareNameを使う（共有のたびに注記が
@@ -940,39 +1005,24 @@
       displayedName = shareName;
       // お気に入り登録には記憶と同じ名前を使う（共有URL由来の名前を鵜呑みにしないため）。
       // 現在地（persist: false）とデモはプライバシー約束のため登録不可にする
-      displayedStorable = persist && query !== 'demo=1';
+      displayedStorable = persist && query !== DEMO_QUERY;
       displayedStoredName = storedName ?? locationName;
       displayedCityIndex = cityIndex;
       updateFavoriteToggle();
-      if (query !== 'demo=1') {
+      if (query !== DEMO_QUERY) {
         if (persist) {
           // 次回アクセス時に同じ地点を表示できるよう記憶し、表示中の地点をURLにも
           // 反映してそのまま共有・ブックマークできるようにする。
           // 記憶する名前はstoredName優先（共有URL由来の名前を鵜呑みにしないため）
           writeStoredLocation(query, storedName ?? locationName, cityIndex);
-          const urlParams = new URLSearchParams(query);
-          if (shareName) {
-            urlParams.set('name', shareName);
-          }
-          window.history.replaceState(null, '', `?${urlParams.toString()}`);
+          window.history.replaceState(null, '', `?${shareQueryString(query, shareName)}`);
         } else {
           // 現在地は「位置情報は保存しません」の約束どおり記憶もURL反映もしない。
           // 以前の地点パラメータが残っているとアドレスバーと表示が食い違うため消す
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
-      renderNowCard();
-      renderDayCards();
-      renderNotices();
-      // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
-      // 地点や取得結果が変わったら古い前提の計画を残さない
-      updateDayTabs();
-      populatePlanDates();
-      clearPlan();
-
-      if (selectedDate) {
-        renderHours();
-      }
+      renderForecast();
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
@@ -993,6 +1043,34 @@
     }
   }
 
+  /**
+   * オフライン表示（Service Workerの保存済み予報）の案内文を作る
+   * その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
+   */
+  function cachedStatusText(response) {
+    const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
+    const timeText = Number.isNaN(cachedAt.getTime())
+      ? '以前'
+      : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
+    return `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`;
+  }
+
+  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す */
+  function renderForecast() {
+    renderNowCard();
+    renderDayCards();
+    renderNotices();
+    // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
+    // 地点や取得結果が変わったら古い前提の計画を残さない
+    updateDayTabs();
+    populatePlanDates();
+    clearPlan();
+
+    if (selectedDate) {
+      renderHours();
+    }
+  }
+
   /** 選択中の都市で予報を読み込む */
   function loadSelectedCity() {
     const cityIndex = Number(citySelect.value);
@@ -1000,8 +1078,7 @@
     if (!city) {
       return;
     }
-    // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
-    loadForecast(`lat=${city.lat.toFixed(2)}&lon=${city.lon.toFixed(2)}`, city.name, { cityIndex });
+    loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -1009,7 +1086,7 @@
   // changeは矢印キーでの選択肢探索でも発火するため、デバウンスして
   // 連続操作中の取得と読み上げ通知の洪水を防ぐ（確定は600ms静止後）
   citySelect.addEventListener('change', () => {
-    clearTimeout(cityChangeTimer);
+    cancelPendingCitySelect();
     cityChangeTimer = setTimeout(() => {
       cityChangeTimer = null;
       loadSelectedCity();
@@ -1032,8 +1109,7 @@
 
   document.getElementById('geolocation-button').addEventListener('click', () => {
     // GPS取得待ちの間に保留中のセレクトデバウンスが発火しないよう先に解除する
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     if (!navigator.geolocation) {
       setStatus('このブラウザは位置情報に対応していません。', true);
       return;
@@ -1042,20 +1118,20 @@
     // GPS取得中に別の地点操作でロードが始まっていたら、遅れて届いた結果は破棄する
     // （requestSeqのfetch応答ガードはコールバック起点の新規ロードには効かないため）
     const startedAt = requestSeq;
+    // 取得中に新しいロードが始まった、または新しいセレクト操作が保留されて
+    // いたら、遅れて届いたGPS結果はそちらに譲る（最後の明示操作が勝つ）。
+    // コールバック到着時に評価するため関数にしておく
+    const superseded = () => requestSeq !== startedAt || cityChangeTimer !== null;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        // 取得中に新しいロードが始まった、または新しいセレクト操作が保留されて
-        // いたら、遅れて届いたGPS結果はそちらに譲る（最後の明示操作が勝つ）
-        if (requestSeq !== startedAt || cityChangeTimer !== null) {
+        if (superseded()) {
           return;
         }
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         loadForecast(
-          // プライバシー保護: GPS座標は小数2桁（約1km）へ丸めてから使う。
-          // 予報は約5kmメッシュのため結果は変わらず、APIリクエストや
-          // 「共有」のURLに自宅を特定できる精度の位置が流れない
-          `lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`,
+          // プライバシー保護: GPS座標はcoordQueryが小数2桁（約1km）へ丸める
+          coordQuery(lat, lon),
           describeCurrentLocation(lat, lon),
           // 現在地の座標はlocalStorageにもURLにも残さない（「保存しません」の約束）。
           // 共有リンクの名前は座標由来の説明だけにする（受け取った人にとっては
@@ -1063,11 +1139,17 @@
           { persist: false, urlName: nearestCityText(lat, lon) },
         );
       },
-      () => {
-        if (requestSeq !== startedAt || cityChangeTimer !== null) {
+      (geoError) => {
+        if (superseded()) {
           return;
         }
-        setStatus('現在地を取得できませんでした。地点を選択してください。', true);
+        // 最頻原因の許可拒否（code=1）だけは、次に何をすればよいかが分かる文面にする
+        setStatus(
+          geoError.code === 1
+            ? '現在地の利用が許可されていません。ブラウザの設定で位置情報を許可するか、都市の選択や地点検索をご利用ください。'
+            : '現在地を取得できませんでした。地点を選択してください。',
+          true,
+        );
       },
       // 位置情報源が応答しない環境でコールバックが来ず「取得しています…」のまま
       // 固まらないよう、待ち時間を有界にする（TIMEOUTは上のエラー表示に合流する）。
@@ -1076,19 +1158,15 @@
     );
   });
 
-  // 「表示地点の予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
+  // 「予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
   // クリップボードで渡す（要求中・失敗中のlastQueryではなくdisplayedQueryを使い、
   // 画面の予報と共有URLが常に一致するようにする）
   document.getElementById('share-button').addEventListener('click', async () => {
     let shareUrl = `${window.location.origin}/`;
-    if (displayedQuery === 'demo=1') {
-      shareUrl = `${window.location.origin}/?demo=1`;
+    if (displayedQuery === DEMO_QUERY) {
+      shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
     } else if (displayedQuery) {
-      const params = new URLSearchParams(displayedQuery);
-      if (displayedName) {
-        params.set('name', displayedName);
-      }
-      shareUrl = `${window.location.origin}/?${params.toString()}`;
+      shareUrl = `${window.location.origin}/?${shareQueryString(displayedQuery, displayedName)}`;
     }
     if (navigator.share) {
       try {
@@ -1104,7 +1182,7 @@
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setStatus('共有用URLをコピーしました', false);
+      setStatus('共有用URLをコピーしました。', false);
     } catch {
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
@@ -1125,21 +1203,14 @@
       favoritesList.replaceChildren(hint);
       return;
     }
-    const items = favorites.map((fav) => {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.appendChild(faIcon('location-dot', 'btn-icon'));
-      button.appendChild(document.createTextNode(fav.name));
-      button.addEventListener('click', () => {
+    const items = favorites.map((fav) =>
+      createLocationItem(fav.name, () => {
         loadForecast(fav.query, fav.name, {
           cityIndex: fav.cityIndex,
           storedName: fav.name,
         });
-      });
-      item.appendChild(button);
-      return item;
-    });
+      }),
+    );
     favoritesList.replaceChildren(...items);
   }
 
@@ -1203,6 +1274,13 @@
     searchResults.replaceChildren();
   }
 
+  async function fetchGeocode(query) {
+    return fetchJsonBody(
+      `/api/geocode?q=${encodeURIComponent(query)}`,
+      '通信に失敗しました。ネットワーク接続を確認してください。',
+    );
+  }
+
   async function searchPlace() {
     const query = searchInput.value.trim();
     if (query === '') {
@@ -1215,36 +1293,26 @@
     clearSearchResults();
     setStatus('地点を検索しています…', false);
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`).catch(() => {
-        throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
-      });
-      const body = await response.json().catch(() => null);
+      const { response, body } = await fetchGeocode(query);
       if (seq !== searchSeq) {
         return;
       }
-      if (!response.ok) {
-        throw new Error(
-          (body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`,
-        );
-      }
+      throwIfHttpError(response, body, '地点検索');
       if (!body || !Array.isArray(body.results)) {
-        throw new Error('地点検索の結果の形式が不正です');
+        throw new Error('検索結果を正しく受け取れませんでした。しばらくたってからもう一度お試しください。');
       }
-      const places = [];
-      for (const place of body.results) {
-        if (
-          typeof place.name !== 'string' ||
-          typeof place.latitude !== 'number' ||
-          typeof place.longitude !== 'number'
-        ) {
-          continue;
-        }
-        const label =
-          typeof place.admin1 === 'string' && place.admin1 !== ''
-            ? `${place.name}（${place.admin1}）`
-            : place.name;
-        places.push({ label, latitude: place.latitude, longitude: place.longitude });
-      }
+      const places = body.results
+        .filter(
+          (place) =>
+            typeof place.name === 'string' &&
+            typeof place.latitude === 'number' &&
+            typeof place.longitude === 'number',
+        )
+        .map((place) => ({
+          label: placeLabel(place.name, place.admin1),
+          latitude: place.latitude,
+          longitude: place.longitude,
+        }));
       if (places.length === 0) {
         setStatus('該当する地点が見つかりませんでした。市区町村名や別の表記でお試しください。', true);
         return;
@@ -1252,12 +1320,7 @@
       const selectPlace = (choice) => {
         clearSearchResults();
         searchInput.value = '';
-        loadForecast(
-          // 座標はURLに現れるためすべて小数2桁（約1km）に統一する。予報は約5km
-          // メッシュのため結果への影響はない
-          `lat=${choice.latitude.toFixed(2)}&lon=${choice.longitude.toFixed(2)}`,
-          choice.label,
-        );
+        loadForecast(coordQuery(choice.latitude, choice.longitude), choice.label);
       };
       // 候補が1件だけなら選ばせる必要がないため、そのまま予報を表示する
       // （郵便番号検索は市区町村1件に決まることが多く、この経路になる）
@@ -1265,16 +1328,9 @@
         selectPlace(places[0]);
         return;
       }
-      const items = places.map((choice) => {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.appendChild(faIcon('location-dot', 'btn-icon'));
-        button.appendChild(document.createTextNode(choice.label));
-        button.addEventListener('click', () => selectPlace(choice));
-        item.appendChild(button);
-        return item;
-      });
+      const items = places.map((choice) =>
+        createLocationItem(choice.label, () => selectPlace(choice)),
+      );
       // 追記ではなく全置換にして、万一の競合でも新旧候補が混在しないようにする
       searchResults.replaceChildren(...items);
       searchResultsBox.hidden = false;
@@ -1312,8 +1368,8 @@
     if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) {
       return false;
     }
-    const [year, month, day] = text.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    const { year, month, day, utc } = parseDateText(text);
+    const date = new Date(utc);
     return (
       date.getUTCFullYear() === year &&
       date.getUTCMonth() === month - 1 &&
@@ -1334,17 +1390,13 @@
 
   /** YYYY-MM-DD同士の日数差（toDate − fromDate、日数） */
   function daysBetween(fromDate, toDate) {
-    const toUtc = (text) => {
-      const [year, month, day] = text.split('-').map(Number);
-      return Date.UTC(year, month - 1, day);
-    };
-    return Math.round((toUtc(toDate) - toUtc(fromDate)) / 86400000);
+    return Math.round((parseDateText(toDate).utc - parseDateText(fromDate).utc) / 86400000);
   }
 
   /** イベントの日付の表示文を作る。翌年以降の開催は年を添えて取り違えを防ぐ */
   function formatEventDate(dateText) {
-    const year = Number(dateText.slice(0, 4));
-    const prefix = year === Number(nowInJst().date.slice(0, 4)) ? '' : `${year}年`;
+    const { year } = parseDateText(dateText);
+    const prefix = year === parseDateText(nowInJst().date).year ? '' : `${year}年`;
     return `${prefix}${formatDate(dateText)}`;
   }
 
@@ -1386,21 +1438,21 @@
               (event.endTime === undefined || isValidTimeText(event.endTime)),
           )
           .map((event) => ({ ...event, endDate: event.endDate ?? event.startDate }))
-          // 終了済みのイベントは表示せず、開催が近い順に並べる（日付はJST基準で比較。
-          // YYYY-MM-DD形式のため文字列比較で日付の前後を正しく判定できる）
+          // 終了日が開始日より前の不正な定義と、終了済みのイベントは表示しない
+          // （前者はtest/events.test.tsと同じ基準の防御）。残りは開催が近い順に並べる
+          // （日付はJST基準で比較。YYYY-MM-DD形式のため文字列比較で前後を正しく判定できる。
+          //   開始日が同じイベントは定義順を保つ）
           .filter((event) => event.endDate >= event.startDate && event.endDate >= today)
-          .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+          .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
       }
     } catch {
       emptyMessage = 'イベント情報を読み込めませんでした';
     }
     eventSelect.replaceChildren();
     if (eventList.length === 0) {
-      eventSelect.appendChild(new Option(emptyMessage, ''));
       // 再実行（開催終了の検知時）で空になった場合に、押しても何も起きない
       // ボタンが残らないよう初期状態へ戻す
-      eventSelect.disabled = true;
-      eventButton.disabled = true;
+      disablePicker(eventSelect, eventButton, emptyMessage);
       return;
     }
     eventList.forEach((event, index) => {
@@ -1415,13 +1467,8 @@
   /** 郵便番号から開催地の座標を1件解決する（候補が無ければnull）。
    * 郵便番号→市区町村名→座標の変換はWorker側（/api/geocode）が担う */
   async function geocodeZip(zip) {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(zip)}`).catch(() => {
-      throw new Error('通信に失敗しました。ネットワーク接続を確認してください。');
-    });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((body && body.error) || `地点検索に失敗しました（HTTP ${response.status}）`);
-    }
+    const { response, body } = await fetchGeocode(zip);
+    throwIfHttpError(response, body, '地点検索');
     const first = body && Array.isArray(body.results) ? body.results[0] : null;
     if (!first || typeof first.latitude !== 'number' || typeof first.longitude !== 'number') {
       return null;
@@ -1433,8 +1480,8 @@
     return {
       latitude: first.latitude,
       longitude: first.longitude,
-      // 地点検索の候補表示と同じ「地名（都道府県）」形式に揃える
-      label: name === '' ? '' : admin1 === '' ? name : `${name}（${admin1}）`,
+      // 空名のときだけ空文字（呼び出し側が郵便番号表記で代替する）
+      label: name === '' ? '' : placeLabel(name, admin1),
     };
   }
 
@@ -1488,8 +1535,7 @@
     const tabSeqAtStart = manualTabSeq;
     // 保留中のセレクト操作が郵便番号の検索中に発火して、この明示操作を
     // 追い越さないよう先に解除する（loadForecast・現在地ボタンと同じ扱い）
-    clearTimeout(cityChangeTimer);
-    cityChangeTimer = null;
+    cancelPendingCitySelect();
     // 直前の地点検索の候補が残っていると、どれが表示中か紛らわしいため消す
     clearSearchResults();
     // 開催地は郵便番号から検索する（地点検索と同じ/api/geocode経由。
@@ -1523,8 +1569,7 @@
         ? `${event.name}（${event.place}）`
         : `${event.name}（${event.place}・${place.label}付近）`;
     const loaded = await loadForecast(
-      // 座標はURLに現れるためすべて小数2桁（約1km）に統一する
-      `lat=${place.latitude.toFixed(2)}&lon=${place.longitude.toFixed(2)}`,
+      coordQuery(place.latitude, place.longitude),
       label,
       // 記憶・お気に入りにはイベント名を残さず地名を使う。イベントは日付を
       // 過ぎれば意味を失うが、記憶した地点は次回以降も表示され続けるため
@@ -1536,15 +1581,14 @@
     // 開催中（今日が期間内）なら今日、これからなら初日の予報を見せる
     const today = nowInJst().date;
     const targetDate = event.startDate <= today && today <= event.endDate ? today : event.startDate;
-    const index = currentForecast.days.findIndex((d) => d.date === targetDate);
-    const dayTab = TABS.find((t) => t.dayIndex === index);
+    const dayTab = dayTabForDate(targetDate);
     // オフライン表示中も案内は出すが、保存済み予報である注記（安全に関わる）は前置きして残す
     const prefix = displayedFromCache ? 'オフライン表示（保存済みの予報）: ' : '';
     if (dayTab) {
       const planText = applyEventPlanTimes(event, targetDate);
       // 利用者が待っている間に別のタブを選んでいたら、その操作を尊重して切り替えない
       if (manualTabSeq === tabSeqAtStart) {
-        activateTab(dayTab.tabId, false);
+        forecastTabs.activate(dayTab.tabId, false);
       }
       const message =
         `${prefix}「${event.name}」開催日（${formatDate(targetDate)}）の予報です。` +
@@ -1593,12 +1637,7 @@
     const previous = planDate.value;
     planDate.replaceChildren();
     if (!currentForecast) {
-      // 予報が無いときは空のセレクトにせず、理由が分かる選択肢を残して操作を止める。
-      // 空のままだと上流障害中に「画面が壊れている」と見えてしまう
-      // （イベント選択が定義0件のときに取る扱いと揃える）
-      planDate.appendChild(new Option('予報を読み込むと選べます', ''));
-      planDate.disabled = true;
-      planButton.disabled = true;
+      disablePicker(planDate, planButton, '予報を読み込むと選べます');
       return;
     }
     planDate.disabled = false;
@@ -1631,19 +1670,14 @@
       setStatus('終了時刻は開始時刻より後にしてください。', true);
       return;
     }
-    const hours = currentForecast.hours.filter((h) => {
-      if (!h.time.startsWith(planDateValue)) {
-        return false;
-      }
+    const hours = hoursOnDate(planDateValue).filter((h) => {
       const hour = hourNumberOf(h.time);
       return hour >= start && hour < end;
     });
     if (hours.length === 0) {
-      const message = document.createElement('p');
-      message.className = 'hint';
-      message.textContent =
-        '選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。';
-      planResult.replaceChildren(message);
+      planResult.replaceChildren(
+        hintParagraph('選択した時間帯の予報データがありません。別の時間帯か日付をお試しください。'),
+      );
       setStatus('選択した時間帯の予報データがありませんでした。', true);
       return;
     }
@@ -1708,7 +1742,7 @@
   const sharedLat = Number.parseFloat(pageParams.get('lat') ?? '');
   const sharedLon = Number.parseFloat(pageParams.get('lon') ?? '');
   if (pageParams.get('demo') === '1') {
-    loadForecast('demo=1', 'デモデータ（架空の気象データ）');
+    loadForecast(DEMO_QUERY, 'デモデータ（架空の気象データ）');
   } else if (
     Number.isFinite(sharedLat) &&
     Number.isFinite(sharedLon) &&
@@ -1727,7 +1761,7 @@
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
       : coordName;
     // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
-    loadForecast(`lat=${sharedLat.toFixed(2)}&lon=${sharedLon.toFixed(2)}`, displayLabel, {
+    loadForecast(coordQuery(sharedLat, sharedLon), displayLabel, {
       storedName: coordName,
       // URL・共有リンクへは注記なしの名前だけを書き戻す。displayLabelをそのまま
       // 載せると、共有が1往復するたびに「（共有・…）」が積み重なって名前が伸び、

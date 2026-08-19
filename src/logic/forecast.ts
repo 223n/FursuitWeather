@@ -2,6 +2,7 @@
 // 時間別の気象データから、時間別予報と日別サマリーを構築する純粋ロジック
 
 import {
+  ATTRIBUTION,
   DAYTIME_END_HOUR,
   DAYTIME_START_HOUR,
   RECOMMENDED_MAX_GRADE,
@@ -18,16 +19,7 @@ import type {
 } from '../types';
 import { assessIndoor, assessOutdoor } from './fursuit';
 import { assessLaundry } from './laundry';
-
-/** 時刻文字列（YYYY-MM-DDTHH:mm）から時（0〜23）を取り出す */
-function hourOf(time: string): number {
-  return Number.parseInt(time.slice(11, 13), 10);
-}
-
-/** 時刻文字列から日付（YYYY-MM-DD）を取り出す */
-function dateOf(time: string): string {
-  return time.slice(0, 10);
-}
+import { dateOf, filterByHourRange, hourOf } from './time';
 
 /** 1時間分の予報を組み立てる */
 export function buildHourForecast(weather: HourlyWeather): HourForecast {
@@ -43,9 +35,7 @@ export function buildHourForecast(weather: HourlyWeather): HourForecast {
 /** 日別サマリーを組み立てる */
 export function buildDayForecast(date: string, hours: readonly HourForecast[]): DayForecast {
   const temperatures = hours.map((h) => h.weather.temperature);
-  const daytime = hours.filter(
-    (h) => hourOf(h.time) >= DAYTIME_START_HOUR && hourOf(h.time) < DAYTIME_END_HOUR,
-  );
+  const daytime = filterByHourRange(hours, DAYTIME_START_HOUR, DAYTIME_END_HOUR);
   // 日中データがない日（取得初日の夜間のみなど）は全時間帯で代替する
   const summaryTarget = daytime.length > 0 ? daytime : hours;
 
@@ -113,12 +103,8 @@ export function buildForecast(
     location,
     generatedAt,
     model,
-    attribution: {
-      weatherData: 'Weather data by Open-Meteo.com（気象庁MSM/GSMモデル）',
-      weatherDataUrl: 'https://open-meteo.com/',
-      license: 'CC BY 4.0',
-    },
-    notices: [...YEAR_ROUND_NOTICES],
+    attribution: ATTRIBUTION,
+    notices: YEAR_ROUND_NOTICES,
     hours,
     days,
   };

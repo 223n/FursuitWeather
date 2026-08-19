@@ -1,6 +1,6 @@
 {
   "name": "fursuit-weather",
-  "version": "1.3.4",
+  "version": "1.4.0",
   "private": true,
   "description": "着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報するサービス",
   "type": "module",
@@ -17,7 +17,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && npm run typecheck",
-    "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css"
+    "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/wbgt-tool.js --minify --charset=utf8 --allow-overwrite --outfile=public/wbgt-tool.js && esbuild public/sw.js --minify --charset=utf8 --allow-overwrite --outfile=public/sw.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
