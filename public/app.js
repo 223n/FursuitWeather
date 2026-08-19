@@ -1158,7 +1158,7 @@
     );
   });
 
-  // 「表示地点の予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
+  // 「予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
   // クリップボードで渡す（要求中・失敗中のlastQueryではなくdisplayedQueryを使い、
   // 画面の予報と共有URLが常に一致するようにする）
   document.getElementById('share-button').addEventListener('click', async () => {
