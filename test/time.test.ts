@@ -2,7 +2,7 @@
 // 上流の時刻形式（YYYY-MM-DDTHH:mm）を位置ベースで切り出す契約を境界値で検証する
 
 import { describe, expect, it } from 'vitest';
-import { dateOf, filterByHourRange, hourOf } from '../src/logic/time';
+import { dateOf, filterByHourRange, hourOf, todayInJst } from '../src/logic/time';
 
 describe('hourOf', () => {
   it('時刻文字列から時を取り出す（0時・23時の境界）', () => {
@@ -16,6 +16,14 @@ describe('dateOf', () => {
   it('時刻文字列から日付を取り出す', () => {
     expect(dateOf('2026-08-15T00:00')).toBe('2026-08-15');
     expect(dateOf('2026-12-31T23:00')).toBe('2026-12-31');
+  });
+});
+
+describe('todayInJst', () => {
+  it('UTCの日付が変わる前でも日本時間の日付を返す', () => {
+    // UTC 15:00 = JST 翌0:00（日本時間では日付が進んでいる境界）
+    expect(todayInJst(new Date('2026-08-15T15:00:00Z'))).toBe('2026-08-16');
+    expect(todayInJst(new Date('2026-08-15T14:59:59Z'))).toBe('2026-08-15');
   });
 });
 

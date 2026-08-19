@@ -20,8 +20,9 @@
 
    - 上のコマンドで`package.json`と`package-lock.json`が同時に
      更新されます（手で編集するとlock側が取り残されるため非推奨）
-   - フッターのバージョン表記（`index.html`・`about.html`・`404.html`）も
-     更新します（`package.json`との不一致はhtmlSyncテストがCIで検出）
+   - フッターのバージョン表記（`index.html`・`about.html`・`404.html`）と
+     `display.html`のバージョンコメントも更新します
+     （`package.json`との不一致はhtmlSyncテストがCIで検出）
 2. PRを作成してmainへマージする（マージで本番デプロイが走る）
 3. リリースを作成する。方法は2つあります
    - **Actionsタブから**: mainを対象に`Release`ワークフローを手動実行

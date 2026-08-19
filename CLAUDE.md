@@ -22,7 +22,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ### npm run build の重要な注意
 
-`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS（app.js・wbgt-tool.js・sw.js）・style.cssのminify、HTMLへのCSSインライン化）。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
+`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS（app.js・wbgt-tool.js・display.js・sw.js）・style.cssのminify、HTMLへのCSSインライン化）。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
 
 ## CIが強制する契約
 
@@ -32,7 +32,8 @@ npm run build                        # minify + CSSインライン化（下記�
   - `public/app.js`のCITIES配列 ↔ index.htmlの地点セレクト、preloadのURL
   - `public/wbgt-tool.js`の判定表（HEAT_BANDSの形式まで完全一致で検証される）
   - `docs/api.md`・`docs/logic.md`・`public/llms.txt`の数値記述
-  - フッターのバージョン表記（3ページ） ↔ `package.json`のversion
+  - フッターのバージョン表記（3ページ）・display.htmlのバージョンコメント ↔ `package.json`のversion
+  - `src/constants.ts`のNATIONAL_CITIES ↔ app.jsのCITIES、`public/display.js`の複製部品（GRADE_SYMBOLS・天気アイコン対応など） ↔ app.js
 - HTMLページを追加する場合、`<link rel="stylesheet" href="/style.css">`の完全一致タグがないとビルドが失敗する（`scripts/inline-css.mjs`の安全確認）
 
 ## アーキテクチャの要点

@@ -3,6 +3,7 @@
 
 import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS } from '../constants';
 import { buildForecast } from '../logic/forecast';
+import { todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
 import { json, jsonError } from './http';
@@ -15,12 +16,6 @@ function parseNumberParam(params: URLSearchParams, name: string): number | null 
   }
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
-}
-
-/** 現在の日本時間の日付（YYYY-MM-DD）を返す */
-function todayInJst(now: Date): string {
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
 }
 
 /**

@@ -69,6 +69,7 @@ src/
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
 │   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
+│   ├── national.ts     /api/national ハンドラ（全国主要都市の当日サマリー）
 │   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
@@ -85,6 +86,8 @@ src/
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
+├── display.html        会場表示モード（モニター掲示用の自動表示ページ。使い方はdisplay.md）
+├── display.js          会場表示モードのフロント（スライドショー・自動更新・長時間稼働対策）
 ├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化
 test/                   vitestテスト
@@ -128,7 +131,7 @@ e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検
 - 地点の記憶（最後に表示した地点）はブラウザのlocalStorageのみに保存し、
   サーバーへは送信しません
 - 共有URL・記憶地点の座標もすべて小数2桁に統一しています
-- `Permissions-Policy`で位置情報の利用を自サイトに限定しています
+- `Permissions-Policy`で位置情報と画面スリープ防止（Wake Lock）の利用を自サイトに限定しています
 
 ## セキュリティヘッダー
 
@@ -142,7 +145,7 @@ e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検
 | `Cross-Origin-Opener-Policy` | `same-origin`（オリジン分離） |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Permissions-Policy` | 位置情報は自サイトのみ、カメラ・マイク・決済は禁止 |
+| `Permissions-Policy` | 位置情報・画面スリープ防止は自サイトのみ、カメラ・マイク・決済は禁止 |
 
 HTMLページのCSPだけは`_headers`ではなくWorkerが付けます（次節）。
 `_headers`のCSPは、JS・CSS・画像などのアセットと、Workerを通らない経路で

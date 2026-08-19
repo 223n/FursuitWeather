@@ -78,6 +78,29 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '502': { $ref: '#/components/responses/UpstreamError' }
+  /api/national:
+    get:
+      summary: 全国主要都市の当日予報サマリーを取得する
+      description: |
+        全国の主要12都市の当日予報サマリーを返します（会場表示モードの
+        全国スライド用）。都市単位のベストエフォートで、取得に失敗した
+        都市は`cities`から除外されます（全都市失敗のときだけ502）。
+        正常レスポンスは`Cache-Control: public, max-age=600`で
+        10分間ブラウザキャッシュされます。
+      parameters:
+        - name: demo
+          in: query
+          required: false
+          description: '`1`でデモデータを返す（全都市が同一の気象データになる）'
+          schema: { type: string, enum: ['1'] }
+      responses:
+        '200':
+          description: 全国の当日予報サマリー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NationalResponse' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
 components:
   responses:
     BadRequest:
@@ -267,3 +290,43 @@ components:
               admin1: { type: string, description: 都道府県名（空のことがある） }
               latitude: { type: number }
               longitude: { type: number }
+    NationalResponse:
+      type: object
+      required: [generatedAt, date, model, attribution, cities]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻（UTC）
+        date:
+          type: string
+          format: date
+          description: 対象日（日本時間の当日）
+        model:
+          type: string
+          description: 使用した気象モデル（デモ時は`demo`）
+        attribution:
+          type: object
+          description: データ出典表記。表示時は出典の明記が必要
+          properties:
+            weatherData: { type: string }
+            weatherDataUrl: { type: string }
+            license: { type: string }
+        cities:
+          type: array
+          description: 取得できた都市のみ（失敗した都市は含まれない）
+          items: { $ref: '#/components/schemas/NationalCitySummary' }
+    NationalCitySummary:
+      type: object
+      required:
+        [name, latitude, longitude, weatherCode, weatherLabel,
+         temperatureMin, temperatureMax, outdoorWorst]
+      properties:
+        name: { type: string, description: '都市名（例: 札幌）' }
+        latitude: { type: number }
+        longitude: { type: number }
+        weatherCode: { type: integer, description: 日中の代表天気コード }
+        weatherLabel: { type: string }
+        temperatureMin: { type: number }
+        temperatureMax: { type: number }
+        outdoorWorst: { $ref: '#/components/schemas/LevelSummary' }

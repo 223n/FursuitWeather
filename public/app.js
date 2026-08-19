@@ -1009,6 +1009,7 @@
       displayedStoredName = storedName ?? locationName;
       displayedCityIndex = cityIndex;
       updateFavoriteToggle();
+      updateDisplayLink();
       if (query !== DEMO_QUERY) {
         if (persist) {
           // 次回アクセス時に同じ地点を表示できるよう記憶し、表示中の地点をURLにも
@@ -1187,6 +1188,25 @@
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
   });
+
+  // 会場表示モード（display.html）への導線: 表示に成功している地点を引き継いだ
+  // URLをリンクに設定する。共有と同じく注記なしの名前（displayedName）を使う
+  const displayLink = document.getElementById('display-link');
+
+  /** 会場表示モードのリンク先を表示中の地点に合わせて更新する */
+  function updateDisplayLink() {
+    if (!displayedQuery) {
+      displayLink.hidden = true;
+      return;
+    }
+    displayLink.setAttribute(
+      'href',
+      displayedQuery === DEMO_QUERY
+        ? '/display?demo=1'
+        : `/display?${shareQueryString(displayedQuery, displayedName)}`,
+    );
+    displayLink.hidden = false;
+  }
 
   // お気に入り地点: チップで即切り替え、トグルボタンで表示中の地点を追加/解除する
   const favoritesList = document.getElementById('favorites-list');

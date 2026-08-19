@@ -13,6 +13,12 @@ export function dateOf(time: string): string {
   return time.slice(0, 10);
 }
 
+/** 現在の日本時間の日付（YYYY-MM-DD）を返す */
+export function todayInJst(now: Date): string {
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
+}
+
 /** 時刻が[startHour, endHour)の半開区間に入る要素だけ残す（開始を含み終了を含まない） */
 export function filterByHourRange<T extends { time: string }>(
   items: readonly T[],

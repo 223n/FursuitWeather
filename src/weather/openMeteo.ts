@@ -271,9 +271,42 @@ async function requestUpstream(
 }
 
 /**
- * 時間別の気象データを取得する
+ * 時間別の気象データを取得する（降水確率の補完なし）
  * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
- * 降水確率は標準予報APIから並行取得して合流させる（ベストエフォート）
+ * 全国天気（/api/national）のように降水確率が不要な用途では、こちらを使うと
+ * 標準予報APIへの補完リクエストを省ける
+ *
+ * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ */
+export async function fetchWeatherBase(
+  latitude: number,
+  longitude: number,
+  days: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<WeatherResult> {
+  const url = buildForecastUrl(latitude, longitude, days);
+  const response = await requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES);
+
+  if (!response.ok) {
+    // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す
+    throw await throwUpstreamStatus('気象データ', url, response);
+  }
+
+  const { raw, data } = await readUpstreamJson(response, url, '気象データ');
+
+  try {
+    return parseWeatherResponse(data);
+  } catch (error) {
+    if (error instanceof UpstreamError) {
+      console.error('気象データAPIレスポンスの形式異常:', url, raw.slice(0, 200));
+    }
+    throw error;
+  }
+}
+
+/**
+ * 時間別の気象データを取得し、降水確率を合流させる
+ * 降水確率は標準予報APIから並行取得する（ベストエフォート。失敗しても本体は成功させる）
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
@@ -283,28 +316,10 @@ export async function fetchWeather(
   days: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<WeatherResult> {
-  const url = buildForecastUrl(latitude, longitude, days);
-  const [response, probabilities] = await Promise.all([
-    requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES),
+  const [result, probabilities] = await Promise.all([
+    fetchWeatherBase(latitude, longitude, days, fetchImpl),
     fetchPrecipitationProbability(latitude, longitude, days, fetchImpl),
   ]);
-
-  if (!response.ok) {
-    // 失敗理由（Open-Meteoのエラー本文）はログにのみ残す
-    throw await throwUpstreamStatus('気象データ', url, response);
-  }
-
-  const { raw, data } = await readUpstreamJson(response, url, '気象データ');
-
-  let result: WeatherResult;
-  try {
-    result = parseWeatherResponse(data);
-  } catch (error) {
-    if (error instanceof UpstreamError) {
-      console.error('気象データAPIレスポンスの形式異常:', url, raw.slice(0, 200));
-    }
-    throw error;
-  }
 
   // 降水確率（標準予報API由来）を時刻で突き合わせて合流させる
   for (const hour of result.hours) {

@@ -7,7 +7,7 @@ import appJs from '../public/app.js?raw';
 import { HTML_PATHS, buildHtmlCsp, isHtmlPath } from '../src/csp';
 
 describe('isHtmlPath', () => {
-  it.each(['/', '/index.html', '/about', '/about.html', '/404.html'])(
+  it.each(['/', '/index.html', '/about', '/about.html', '/display', '/display.html', '/404.html'])(
     '%s はHTMLとして処理する',
     (path) => {
       expect(isHtmlPath(path)).toBe(true);

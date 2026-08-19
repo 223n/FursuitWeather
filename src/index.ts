@@ -4,6 +4,7 @@
 
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
+import { handleNational } from './api/national';
 import { jsonError, methodGuard, upstreamErrorResponse } from './api/http';
 import { isHtmlPath, withNonce } from './csp';
 
@@ -20,6 +21,7 @@ export interface Env {
 const API_ROUTES = new Map<string, (request: Request) => Promise<Response>>([
   ['/api/forecast', handleForecast],
   ['/api/geocode', handleGeocode],
+  ['/api/national', handleNational],
 ]);
 
 export default {

@@ -1027,7 +1027,10 @@ section h3 {
  * 濃色背景+明色の縁・文字に切り替える。本文4.5:1以上・UI境界3:1以上を
  * 確保した値を使う（検証はdocs/accessibility.mdの手順を参照） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  /* :not([data-theme='light']): 会場表示モード（display.html）の?theme=light指定では
+     ダーク変数を無効化し、会場PCのOS設定に関わらず明色で掲示できるようにする
+     （data-theme属性はdisplay.jsだけが設定する。他ページは常に該当しない） */
+  :root:not([data-theme='light']) {
     --color-blue: #56B4E9; /* CUD空色。暗背景でのアクセント・リンク色 */
     --color-red: #F07C6C;
 
@@ -1072,7 +1075,7 @@ section h3 {
   }
 
   /* 明色前提のSVG図は白地のカードに載せて可読性を保つ */
-  .diagram {
+  :root:not([data-theme='light']) .diagram {
     background-color: #FFFFFF;
     border-radius: 8px;
     padding: 0.5rem;
@@ -1123,4 +1126,450 @@ section h3 {
     background-color: transparent;
     color: var(--color-text);
   }
+}
+
+/* ==================== 会場表示モード（display.html） ==================== */
+/* イベント会場のモニターへ常時掲示する専用ページ。遠距離からの視認を優先し、
+   通常ページより大きな文字（clamp+vmin。縦置きモニターでも破綻しない）で構成する。
+   焼き付き対策の微小シフトはdisplay.jsがbodyのtransformで行う */
+
+.display-body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  overflow: hidden;
+  /* タッチモニターでのダブルタップズーム・長押し文字選択の事故を防ぐ
+     （手動送りはタップ1回。ズームされたまま放置される事故が最も復旧しづらい） */
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.display-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem clamp(0.6rem, 2vw, 1.5rem);
+  padding: clamp(0.3rem, 1vh, 0.8rem) clamp(0.8rem, 2vw, 1.6rem);
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
+}
+
+.display-site-name {
+  margin: 0;
+  font-size: clamp(0.9rem, 2.2vmin, 1.5rem);
+  font-weight: 700;
+}
+
+.display-location {
+  font-size: clamp(1.1rem, 3vmin, 2rem);
+  font-weight: 700;
+}
+
+.display-clock {
+  margin-left: auto;
+  font-size: clamp(1.3rem, 3.6vmin, 2.4rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 現在判定の常時表示帯: どのスライドが出ていても安全情報が一瞥で伝わるようにする */
+.display-now-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.3rem clamp(0.6rem, 2vw, 1.6rem);
+  padding: clamp(0.35rem, 1vh, 0.8rem) 1rem;
+  background-color: var(--color-background);
+  border-bottom: 2px solid var(--color-border-subtle);
+}
+
+.display-now-strip .badge-large {
+  font-size: clamp(1.1rem, 3.2vmin, 2rem);
+}
+
+.display-now-minutes {
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  font-weight: 700;
+}
+
+/* 警告帯（鮮度低下・地点未指定・時計ずれ・警戒アラート）。通常の.notice-panelと
+   同じ黄系だが、掲示用に大きく表示する */
+.display-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0 1rem;
+}
+
+.display-alerts:not(:empty) {
+  padding-top: 0.3rem;
+}
+
+.display-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 2px solid var(--level-1-accent);
+  border-radius: 8px;
+  background-color: var(--level-1-surface);
+  color: var(--level-1-text);
+  padding: 0.4rem 1rem;
+  font-size: clamp(0.95rem, 2.4vmin, 1.5rem);
+  font-weight: 700;
+}
+
+.display-alert > .fa-icon {
+  color: var(--level-1-accent);
+  flex-shrink: 0;
+}
+
+/* 警戒レベル（熱中症警戒アラート基準相当）は色に加えて二重枠の形状差で区別する */
+.display-alert-heat {
+  border-color: var(--level-3-accent);
+  background-color: var(--level-3-surface);
+  color: var(--level-3-text);
+  box-shadow: 0 0 0 3px var(--color-background), 0 0 0 5px var(--level-3-accent);
+}
+
+.display-alert-heat > .fa-icon {
+  color: var(--level-3-accent);
+}
+
+.display-main {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  /* 通常ページ用のmain既定（max-width・中央寄せ・余白）を打ち消す。
+     子のスライドはposition:absoluteでコンテンツ幅を持たないため、
+     既定のmargin:autoが働くと幅がpadding分まで潰れる */
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.display-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(0.6rem, 1.5vh, 1.5rem) clamp(1rem, 3vw, 3rem);
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+/* フェードアウト完了後にhiddenを付け替える2段階制御（display.js）。
+   支援技術上は常に1枚だけ存在させ、クロスフェード中の判定の重なりも防ぐ */
+.display-slide.fading {
+  opacity: 0;
+}
+
+.display-slide[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display-slide {
+    transition: none;
+  }
+}
+
+.display-slide h2 {
+  margin: 0 0 clamp(0.4rem, 1vh, 1rem);
+  font-size: clamp(1.2rem, 3vmin, 2rem);
+  color: var(--color-blue);
+}
+
+/* ①いまの判定: 中央に大きく1枚 */
+.display-now-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.5rem, 1.5vh, 1.2rem);
+  text-align: center;
+}
+
+.display-now-card .now-time {
+  font-size: clamp(1.1rem, 3vmin, 2rem);
+  margin: 0;
+}
+
+.display-now-card .badge-large {
+  font-size: clamp(1.6rem, 5.5vmin, 3.4rem);
+}
+
+.display-now-card .now-minutes {
+  font-size: clamp(1.3rem, 4vmin, 2.6rem);
+  font-weight: 700;
+}
+
+.display-now-card .now-advice {
+  font-size: clamp(1rem, 2.6vmin, 1.7rem);
+  max-width: 60ch;
+  margin: 0;
+}
+
+.display-wbgt-note {
+  font-size: clamp(0.85rem, 2vmin, 1.3rem);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ②この後の予報: 6時間分の縦カードを横に並べる */
+.display-hours-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: clamp(0.4rem, 1vw, 1rem);
+  align-content: stretch;
+}
+
+.display-hour-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.3rem, 1vh, 0.8rem);
+  border: 2px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  padding: clamp(0.3rem, 1vh, 1rem) 0.2rem;
+  text-align: center;
+}
+
+.display-hour-time {
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  font-weight: 700;
+}
+
+.display-cell-weather {
+  font-size: clamp(0.9rem, 2.4vmin, 1.5rem);
+}
+
+.display-cell-weather .fa-icon {
+  font-size: clamp(1.2rem, 3.4vmin, 2.2rem);
+}
+
+.display-cell-temp {
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.display-hour-cell .badge,
+.display-city-cell .badge {
+  font-size: clamp(0.8rem, 2.2vmin, 1.4rem);
+  white-space: normal;
+  justify-content: center;
+}
+
+/* ③3日間: 日別カードを3枚並べる */
+.display-days-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.5rem, 1.5vw, 1.5rem);
+}
+
+.display-day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.4rem, 1.2vh, 1rem);
+  border: 2px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  padding: clamp(0.5rem, 1.5vh, 1.5rem);
+  text-align: center;
+}
+
+.display-day-date {
+  font-size: clamp(1.1rem, 3vmin, 2rem);
+  font-weight: 700;
+  margin: 0;
+}
+
+.display-day-cell .badge-large {
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  white-space: normal;
+  justify-content: center;
+}
+
+.display-day-laundry {
+  font-size: clamp(0.85rem, 2.2vmin, 1.4rem);
+  color: var(--color-text-muted);
+}
+
+/* ④全国: 12都市を4列×3行で並べる */
+.display-national-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* 3行が親の高さへ均等に収まるようminmax(0,1fr)で圧縮を許す
+     （既定のautoだとセル内容の高さが勝ち、下の行が画面外へはみ出す） */
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.3rem, 0.8vw, 0.8rem);
+  min-height: 0;
+}
+
+.display-city-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.15rem, 0.6vh, 0.5rem);
+  border: 2px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  padding: clamp(0.2rem, 0.8vh, 0.7rem) 0.2rem;
+  text-align: center;
+  overflow: hidden;
+}
+
+.display-city-name {
+  font-size: clamp(0.95rem, 2.6vmin, 1.6rem);
+  font-weight: 700;
+}
+
+/* スライド内の読み込み中・データなし案内 */
+.display-slide-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  color: var(--color-text-muted);
+}
+
+/* 下部の操作・情報帯 */
+.display-bottom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem clamp(0.6rem, 1.5vw, 1.2rem);
+  padding: 0.4rem clamp(0.8rem, 2vw, 1.6rem);
+  border-top: 2px solid var(--color-border-subtle);
+  background-color: var(--color-background);
+}
+
+.display-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 進行ドットは装飾（aria-hidden）。現在位置は塗り+サイズ差で示し、
+   実質のインジケーターは隣の可視のスライド名文字が担う */
+.display-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background-color: transparent;
+}
+
+.display-dot.current {
+  width: 1rem;
+  height: 1rem;
+  border-color: var(--color-blue);
+  background-color: var(--color-blue);
+}
+
+.display-slide-name {
+  font-weight: 700;
+  min-width: 7em;
+}
+
+.display-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.display-controls button {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.display-controls button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.display-updated {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-attribution {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.display-qr {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+/* QRコードは読み取りに白地+黒モジュールが必要なため、ダークモードでも固定色にする */
+.display-qr svg {
+  width: clamp(3.2rem, 9vmin, 5.5rem);
+  height: auto;
+  background-color: #FFFFFF;
+  padding: 0.25rem;
+  border-radius: 4px;
+  fill: #000000;
+}
+
+/* 焼き付き対策: 表示全体を数分ごとに1pxずらす（display.jsがクラスを巡回適用する。
+   クラス切り替えのみでCSPのstyle属性制限に触れない） */
+.display-shift-1 {
+  transform: translate(1px, 0);
+}
+
+.display-shift-2 {
+  transform: translate(1px, 1px);
+}
+
+.display-shift-3 {
+  transform: translate(0, 1px);
+}
+
+/* 会場表示モードへの導線リンク（表示中の地点の操作列でボタンと同じ見た目にする） */
+.display-mode-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 2px solid var(--color-blue);
+  background-color: var(--color-background);
+  color: var(--color-blue);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.display-mode-link:hover {
+  background-color: var(--color-blue);
+  color: var(--color-on-accent);
+}
+
+.display-mode-link:focus {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
