@@ -7,17 +7,28 @@ import { expect, test } from '@playwright/test';
 // 会場のモニターを想定した横長ビューポートで検証する
 test.use({ viewport: { width: 1280, height: 720 } });
 
-/** 予報系APIを同一オリジンのデモデータへ差し替える（上流不要で決定的） */
+/** 予報系APIを同一オリジンのデモデータへ差し替える（上流不要で決定的）。
+ * 地点予報は全時間帯を14時（危険レベル）の内容へ揃え、テストの実行時刻に
+ * 依存しない判定にする（デモデータは時間帯で判定が変わるため、現在時刻に
+ * 連動する表示（常時帯・もしものときスライドの自動表示）が実行時刻次第で
+ * 変わってしまう。危険レベルに固定すると自動表示は常に働く側で検証できる） */
 async function mockApisWithDemo(page) {
-  for (const path of ['forecast', 'national']) {
-    await page.route(`**/api/${path}*`, (route) => {
-      const url = new URL(route.request().url());
-      if (url.searchParams.get('demo') !== '1') {
-        return route.continue({ url: `${url.origin}/api/${path}?demo=1` });
-      }
-      return route.continue();
-    });
-  }
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    const template = body.hours.find((hour) => hour.time.endsWith('T14:00'));
+    body.hours = body.hours.map((hour) => ({ ...template, time: hour.time }));
+    await route.fulfill({ json: body });
+  });
+  await page.route('**/api/national*', (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('demo') !== '1') {
+      return route.continue({ url: `${url.origin}/api/national?demo=1` });
+    }
+    return route.continue();
+  });
 }
 
 /** 予報の描画完了（常時帯にバッジが出る）まで待つ */
@@ -66,9 +77,12 @@ test('会場表示: 手動送り・一時停止・全国スライドが操作で
   await page.click('#display-next');
   await expect(page.locator('#slide-hours')).toBeVisible();
 
-  // 矢印キーで前後に送れる
+  // 矢印キーで前後に送れる（危険レベル固定のモックのため、巡回の末尾には
+  // もしものときスライドが自動で加わっている: now→…→national→emergency）
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#slide-now')).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#slide-emergency')).toBeVisible();
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#slide-national')).toBeVisible();
 
@@ -78,6 +92,8 @@ test('会場表示: 手動送り・一時停止・全国スライドが操作で
   await expect(page.locator('#display-national-grid')).toContainText('札幌');
 
   // 画面タップでも次へ送れる（ボタン以外の場所）
+  await page.locator('#display-main').click({ position: { x: 600, y: 400 } });
+  await expect(page.locator('#slide-emergency')).toBeVisible();
   await page.locator('#display-main').click({ position: { x: 600, y: 400 } });
   await expect(page.locator('#slide-now')).toBeVisible();
 
@@ -118,9 +134,10 @@ test('会場表示: 設定パネルでスライドとお知らせを変更する
   await page.click('#display-settings-button');
   await expect(page.locator('#display-settings')).toBeVisible();
 
-  // 「3日間の天気」を外すと進行ドットが3個になり、URLへslides=が反映される
+  // 「3日間の天気」を外すと進行ドットが4個（選択3枚+自動のもしものとき）に
+  // なり、URLへslides=が反映される（自動表示分はURLに載らない）
   await page.uncheck('#settings-slide-days');
-  await expect(page.locator('#display-progress .display-dot')).toHaveCount(3);
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(4);
   await expect(page).toHaveURL(/slides=now(%2C|,)hours(%2C|,)national/);
 
   // お知らせを設定するとヘッダー下のループ帯が現れ、URLへmsg=が反映される
@@ -138,6 +155,8 @@ test('会場表示: 都市の絞り込みと追加都市が全国スライドへ
   await page.goto('/display?demo=1&cities=札幌,東京&add=34.69,135.50,ベイエリア');
   await waitForStrip(page);
 
+  // 末尾は自動追加のもしものときスライドのため、2回戻して全国スライドへ
+  await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#slide-national')).toBeVisible();
   // 選んだ2都市+追加1都市の3セル。外した都市は表示されない
@@ -152,6 +171,7 @@ test('会場表示: 追加4都市を含む16セルでも判定バッジが収ま
     '/display?demo=1&add=34.39,132.46,呉&add=33.24,131.61,別府&add=36.65,138.18,長野&add=43.77,142.36,旭川',
   );
   await waitForStrip(page);
+  await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#slide-national')).toBeVisible();
   await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(16);
@@ -184,10 +204,33 @@ test('会場表示: 設定パネル表示中はフォーカスが背景へ抜け
   }
 
   // 「初期設定に戻す」でURLから設定パラメータが消え、全スライド表示へ戻る
+  // （危険レベル固定のモックのため、もしものときの自動追加で5個になる）
   await page.click('#settings-reset');
-  await expect(page.locator('#display-progress .display-dot')).toHaveCount(4);
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(5);
   await expect(page).not.toHaveURL(/slides=|msg=/);
   await expect(page.locator('#display-ticker')).toBeHidden();
+});
+
+test('会場表示: 短いお知らせでも複製が画面幅を埋め、途切れず流れ続ける', async ({ page }) => {
+  await page.goto('/display?demo=1&msg=テスト');
+  await waitForStrip(page);
+  await expect(page.locator('#display-ticker')).toBeVisible();
+
+  // 複製が画面幅ぶん敷き詰められている（2グループなのでトラック幅は画面幅以上×2相当）
+  const counts = await page.evaluate(() => {
+    const track = document.getElementById('display-ticker-track');
+    return { items: track.children.length, width: track.scrollWidth, viewport: window.innerWidth };
+  });
+  expect(counts.items).toBeGreaterThanOrEqual(2);
+  expect(counts.width).toBeGreaterThanOrEqual(counts.viewport);
+
+  // アニメーションが実際に進んでいる（transformが時間経過で変わる）
+  const transformOf = () =>
+    page.evaluate(() => getComputedStyle(document.getElementById('display-ticker-track')).transform);
+  const before = await transformOf();
+  await page.waitForTimeout(600);
+  const after = await transformOf();
+  expect(after).not.toBe(before);
 });
 
 test.describe('縦画面（スマホ）', () => {
@@ -196,6 +239,7 @@ test.describe('縦画面（スマホ）', () => {
   test('会場表示: 縦画面でも全国の都市名と判定がセル内に収まる', async ({ page }) => {
     await page.goto('/display?demo=1');
     await waitForStrip(page);
+    await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('ArrowLeft');
     await expect(page.locator('#slide-national')).toBeVisible();
 
@@ -213,4 +257,29 @@ test.describe('縦画面（スマホ）', () => {
     expect(fits).toHaveLength(12);
     expect(fits.every(Boolean)).toBe(true);
   });
+});
+
+test('会場表示: もしものときスライドは設定ONで巡回に加わり、OFFでURLからも消える', async ({
+  page,
+}) => {
+  await page.goto('/display?demo=1&slides=now,emergency');
+  await waitForStrip(page);
+
+  // 進行ドットは2個（いまの判定+もしものとき）。次へ送ると応急対応の要点が出る
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(2);
+  await page.click('#display-next');
+  await expect(page.locator('#slide-emergency')).toBeVisible();
+  await expect(page.locator('#display-slide-name')).toHaveText('もしものとき');
+  await expect(page.locator('.display-emergency-steps > li')).toHaveCount(5);
+  await expect(page.locator('#slide-emergency')).toContainText('119');
+
+  // 設定パネルではONとして表示され、OFFにするとURLからは消える。
+  // ただし危険レベル固定のモックのため、巡回には自動表示で残り続ける
+  // （設定OFFでも厳重警戒以上は自動表示する仕様）
+  await page.click('#display-settings-button');
+  await expect(page.locator('#settings-slide-emergency')).toBeChecked();
+  await page.uncheck('#settings-slide-emergency');
+  await expect(page.locator('#settings-slide-emergency')).not.toBeChecked();
+  await expect(page.locator('#display-progress .display-dot')).toHaveCount(2);
+  await expect(page).not.toHaveURL(/emergency/);
 });

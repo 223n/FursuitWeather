@@ -15,6 +15,7 @@ const SHELL_URLS = [
   '/',
   '/about',
   '/display',
+  '/emergency',
   '/app.js',
   '/wbgt-tool.js',
   '/display.js',

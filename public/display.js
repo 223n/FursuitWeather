@@ -200,6 +200,17 @@
     { key: 'days', id: 'slide-days', name: '3日間の天気', seconds: 15, render: renderDaysSlide },
     { key: 'national', id: 'slide-national', name: '全国の天気', seconds: 20, render: renderNationalSlide },
   ];
+  // もしものとき（熱中症の応急対応）スライド。通常の巡回（SLIDES）とは別枠で、
+  // 設定でONにしたとき、または現在の屋外判定が厳重警戒以上のときだけ末尾へ加わる
+  const EMERGENCY_SLIDE = {
+    key: 'emergency',
+    id: 'slide-emergency',
+    name: 'もしものとき',
+    seconds: 20,
+    render: renderEmergencySlide,
+  };
+  /** 全スライド定義（hidden切り替えの走査用。表示対象の選別はactiveSlides） */
+  const ALL_SLIDES = SLIDES.concat(EMERGENCY_SLIDE);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 
@@ -244,6 +255,10 @@
     return {
       // すべて外した保存値・URLは「全スライド表示」として扱う（真っ黒な画面を作らない）
       slides: slides.length > 0 ? slides : SLIDES.map((slide) => slide.key),
+      // もしものときスライドは通常巡回と別のON/OFF（URLではslides内のキーとして運ぶ）
+      emergency:
+        raw.emergency === true ||
+        (Array.isArray(raw.slides) && raw.slides.includes(EMERGENCY_SLIDE.key)),
       cities,
       extras,
       message: typeof raw.message === 'string' ? sanitizeText(raw.message).slice(0, MESSAGE_LIMIT) : '',
@@ -289,15 +304,27 @@
   const settings = parseSettingsFromUrl() ??
     readStoredSettings() ?? {
       slides: SLIDES.map((slide) => slide.key),
+      emergency: false,
       cities: null,
       extras: [],
       message: '',
     };
 
+  /** もしものときスライドを表示するか（設定ON、または現在判定が厳重警戒以上） */
+  function emergencySlideActive() {
+    if (settings.emergency) {
+      return true;
+    }
+    const target = currentHourTarget();
+    return Boolean(target) && target.outdoor.grade >= 3;
+  }
+
   /** 表示対象のスライド（設定で絞り込んだもの。空にはならない） */
   function activeSlides() {
     const active = SLIDES.filter((slide) => settings.slides.includes(slide.key));
-    return active.length > 0 ? active : SLIDES;
+    const base = active.length > 0 ? active : SLIDES;
+    // 設定OFFでも厳重警戒以上の間は自動で加える（応急対応の手順を探させない）
+    return emergencySlideActive() ? base.concat(EMERGENCY_SLIDE) : base;
   }
 
   /** 設定をURLへ反映する（地点・デモ・テーマの既存パラメータは維持する） */
@@ -319,8 +346,11 @@
         query.set(key, value);
       }
     }
-    if (settings.slides.length < SLIDES.length) {
-      query.set('slides', settings.slides.join(','));
+    if (settings.slides.length < SLIDES.length || settings.emergency) {
+      query.set(
+        'slides',
+        settings.slides.concat(settings.emergency ? [EMERGENCY_SLIDE.key] : []).join(','),
+      );
     }
     if (settings.cities !== null) {
       query.set('cities', settings.cities.join(','));
@@ -781,6 +811,35 @@
     container.replaceChildren(...cells);
   }
 
+  /** ⑤もしものとき（熱中症の応急対応の要点。設定ON時と厳重警戒以上のときに表示） */
+  function renderEmergencySlide(container) {
+    // 内容は静的（データ不要）。文言は/emergencyページの手順の要約と同期させる
+    const steps = [
+      ['意識を確認', '反応がない・おかしいときは、ためらわず119番通報'],
+      ['着ぐるみから出す', 'ヘッド → ハンド → ジッパーの順で脱がせる'],
+      ['涼しい場所へ', '冷房の効いた室内か、風通しのよい日陰へ'],
+      ['体を冷やす', '首・脇の下・足の付け根を冷却。水をかけてあおぐ'],
+      ['水分・塩分', '意識がはっきりして自力で飲めるときだけ少しずつ'],
+    ];
+    const list = document.createElement('ol');
+    list.className = 'display-emergency-steps';
+    for (const [title, detail] of steps) {
+      const item = document.createElement('li');
+      const heading = document.createElement('span');
+      heading.className = 'display-emergency-title';
+      heading.textContent = title;
+      const note = document.createElement('span');
+      note.className = 'display-emergency-detail';
+      note.textContent = detail;
+      item.replaceChildren(heading, note);
+      list.appendChild(item);
+    }
+    const link = document.createElement('p');
+    link.className = 'display-emergency-link';
+    link.textContent = '詳しい手順: fursuit-weather.223n.tech/emergency';
+    container.replaceChildren(list, link);
+  }
+
   /** スライドの中身のコンテナ（h2の次の要素）を返す */
   function slideContainer(slide) {
     return document.getElementById(slide.id).querySelector('h2 + *');
@@ -835,7 +894,7 @@
       clearTimeout(fadeTimer);
       fadeTimer = null;
     }
-    for (const slide of SLIDES) {
+    for (const slide of ALL_SLIDES) {
       const element = document.getElementById(slide.id);
       if (element !== previousElement && element !== nextElement) {
         element.hidden = true;
@@ -884,7 +943,19 @@
 
   // ---- お知らせ帯（ループスクロール） ----
 
-  /** お知らせ帯を設定に合わせて表示・更新する */
+  /** お知らせの流れる速さ（px/秒）。文字数に依らず一定の読みやすい速度にする */
+  const TICKER_SPEED_PX_PER_SECOND = 90;
+
+  /**
+   * お知らせ帯を設定に合わせて表示・更新する
+   *
+   * 文字数に関係なく途切れず流れ続けるよう、テキストを「画面幅を埋めるのに
+   * 必要な数×2グループ」複製し、トラック半分の移動でループさせる
+   * （半分動いた時点の並びが先頭と一致するためシームレスに繰り返す）。
+   * 速度はトラック幅から所要秒数を計算して一定に保つ。
+   * 動きを抑える設定の端末では複製せず1つだけ静止表示する。
+   * トラック全体は装飾扱いで、読み上げは隣の静的テキストが1回だけ担う
+   */
   function applyTicker() {
     if (!settings.message) {
       tickerElement.hidden = true;
@@ -892,18 +963,44 @@
       tickerSr.textContent = '';
       return;
     }
-    // 速度はテキスト長で3段階（長文ほどゆっくり流して読み切れるようにする）
-    const speed = settings.message.length <= 20 ? '' : settings.message.length <= 50 ? ' ticker-medium' : ' ticker-long';
-    tickerTrack.className = `display-ticker-track${speed}`;
-    // シームレスにループするよう同じテキストを2つ並べる（トラック全体は装飾扱いで、
-    // 読み上げは隣の静的テキストが1回だけ担う）
-    const first = document.createElement('span');
-    first.textContent = settings.message;
-    const second = first.cloneNode(true);
-    tickerTrack.replaceChildren(first, second);
     tickerSr.textContent = `お知らせ: ${settings.message}`;
     tickerElement.hidden = false;
+
+    const item = document.createElement('span');
+    item.className = 'display-ticker-item';
+    item.textContent = settings.message;
+    if (reducedMotion) {
+      tickerTrack.replaceChildren(item);
+      return;
+    }
+
+    // 1複製の幅（複製間の間隔padding-right込み）を実測して必要な複製数を決める
+    tickerTrack.replaceChildren(item);
+    const itemWidth = item.getBoundingClientRect().width;
+    const perGroup =
+      itemWidth > 0 ? Math.max(1, Math.ceil(window.innerWidth / itemWidth)) : 1;
+    const items = [item];
+    for (let i = 1; i < perGroup * 2; i += 1) {
+      items.push(item.cloneNode(true));
+    }
+    tickerTrack.replaceChildren(...items);
+    // アニメーション時間はトラック半分（1グループ分）の距離÷一定速度。
+    // element.styleへの代入はCSSOM操作のためCSPのstyle属性制限には触れない
+    tickerTrack.style.animationDuration = `${Math.max(6, (itemWidth * perGroup) / TICKER_SPEED_PX_PER_SECOND)}s`;
   }
+
+  // 画面の幅が変わると必要な複製数も変わるため、落ち着いたタイミングで作り直す
+  // （サイネージでは稀だが、スマホの縦横回転で起こる）
+  let tickerResizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (tickerResizeTimer !== null) {
+      clearTimeout(tickerResizeTimer);
+    }
+    tickerResizeTimer = setTimeout(() => {
+      tickerResizeTimer = null;
+      applyTicker();
+    }, 300);
+  });
 
   // ---- 表示の設定パネル ----
   let settingsOpen = false;
@@ -1057,7 +1154,10 @@
   /** スライド選択チェックボックスを設定の状態へ揃える */
   function syncSlideCheckboxes() {
     for (const checkbox of document.querySelectorAll('#display-settings input[data-slide]')) {
-      checkbox.checked = settings.slides.includes(checkbox.dataset.slide);
+      checkbox.checked =
+        checkbox.dataset.slide === EMERGENCY_SLIDE.key
+          ? settings.emergency
+          : settings.slides.includes(checkbox.dataset.slide);
     }
   }
 
@@ -1154,6 +1254,9 @@
           (input) => input.dataset.slide === key,
         ),
       );
+      settings.emergency = document.querySelector(
+        `#display-settings input[data-slide="${EMERGENCY_SLIDE.key}"]`,
+      ).checked;
       // すべて外したときは全スライド表示に戻す（normalizeSettingsと同じ扱い）。
       // チェックボックスも内部状態へ揃え、告知して唐突さを避ける
       if (settings.slides.length === 0) {
@@ -1182,6 +1285,7 @@
       // 保存を消せない環境でも、以降の既定値適用とURL反映で表示は初期化される
     }
     settings.slides = SLIDES.map((slide) => slide.key);
+    settings.emergency = false;
     settings.cities = null;
     settings.extras = [];
     settings.message = '';
