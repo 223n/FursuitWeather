@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリをチェックアウト
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # タグpush時: タグの付け間違い（package.jsonとの不一致）を検出する
       # 手動実行時: package.jsonのバージョンでタグを作成してpushする
