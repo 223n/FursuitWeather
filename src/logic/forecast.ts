@@ -40,6 +40,23 @@ export interface DaySunTimes {
   sunset: string | null;
 }
 
+/**
+ * 時間別の気象データから、対象日1日分のサマリーを組み立てる
+ * （/api/national・/api/badge.svg・OGPの「当日サマリー」共通の入口）
+ *
+ * 上流はstart_date/end_dateで対象日を指定していても、キャッシュ済みの古い応答が
+ * 紛れると別の日のデータが混ざり得るため、ここで必ず日付で絞り直す。
+ * JSTの日付またぎ×上流エッジキャッシュの窓では対象日の時間が空になり得るので、
+ * そのときはnullを返す（エラー化・非表示化は呼び出し側の契約に委ねる）
+ */
+export function buildDayForecastFor(
+  hours: readonly HourlyWeather[],
+  date: string,
+): DayForecast | null {
+  const dayHours = hours.map(buildHourForecast).filter((hour) => dateOf(hour.time) === date);
+  return dayHours.length === 0 ? null : buildDayForecast(date, dayHours);
+}
+
 /** 日別サマリーを組み立てる
  * @param sun 日の出・日の入り（補助情報。取得できなかった日はnullのまま）
  * @param air 大気質の生値（補助情報。取得できなかった日はairQualityがnullになる） */

@@ -31,6 +31,35 @@ export function jsonError(status: number, message: string): Response {
   return json({ error: message }, { status });
 }
 
+/** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
+export function parseNumberParam(params: URLSearchParams, name: string): number | null {
+  const raw = params.get(name);
+  if (raw === null || raw.trim() === '') {
+    return null;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * lat・lonクエリパラメータを解析・検証する（座標を受けるエンドポイント共通の契約）
+ * 問題があれば400のエラーレスポンスを返す。しきい値・文言をここへ集約し、
+ * エンドポイントごとに基準がずれる事故を防ぐ
+ */
+export function parseLatLonParams(
+  params: URLSearchParams,
+): { latitude: number; longitude: number } | Response {
+  const latitude = parseNumberParam(params, 'lat');
+  const longitude = parseNumberParam(params, 'lon');
+  if (latitude === null || longitude === null) {
+    return jsonError(400, 'クエリパラメータlat（緯度）とlon（経度）を数値で指定してください');
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return jsonError(400, '緯度は-90〜90、経度は-180〜180の範囲で指定してください');
+  }
+  return { latitude, longitude };
+}
+
 /**
  * 上流障害（UpstreamError）を502レスポンスへ変換する。それ以外のエラーはnullを
  * 返す（ルーターの最終防衛線が500へフォールスルーする）。

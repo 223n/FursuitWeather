@@ -6,9 +6,10 @@
 // 全リクエストで上流を呼ぶとエッジ配信の速さを損なうだけで益がない）。
 // 取得はベストエフォート: 失敗時はnullを返し、静的タグのまま配信する
 
+import { parseLatLonParams } from './api/http';
 import { NATIONAL_CITIES } from './constants';
-import { buildDayForecast, buildHourForecast } from './logic/forecast';
-import { dateOf, todayInJst } from './logic/time';
+import { buildDayForecastFor } from './logic/forecast';
+import { todayInJst } from './logic/time';
 import type { DayForecast } from './types';
 import { demoWeather } from './weather/demoData';
 import { fetchWeatherBase } from './weather/openMeteo';
@@ -87,15 +88,6 @@ export function buildOgSummary(day: DayForecast, locationLabel: string): OgSumma
   };
 }
 
-/** 座標クエリパラメータを解析する。欠落・非数値・範囲外はnull */
-function parseCoordinate(raw: string | null, limit: number): number | null {
-  if (raw === null || raw.trim() === '') {
-    return null;
-  }
-  const value = Number(raw);
-  return Number.isFinite(value) && value >= -limit && value <= limit ? value : null;
-}
-
 /**
  * リクエストに応じた動的OGサマリーを返す
  * 対象パス（トップページ）×クローラーUA×有効な座標が揃ったときだけ上流を呼ぶ。
@@ -114,11 +106,13 @@ export async function ogSummaryFor(
   if (!isPreviewBot(request.headers.get('user-agent'))) {
     return null;
   }
-  const latitude = parseCoordinate(url.searchParams.get('lat'), 90);
-  const longitude = parseCoordinate(url.searchParams.get('lon'), 180);
-  if (latitude === null || longitude === null) {
+  // 座標の解析・検証はAPI群と同じ基準（parseLatLonParams）を使い、
+  // エラーレスポンスは返さずnull（=静的タグのまま）へ読み替える
+  const coords = parseLatLonParams(url.searchParams);
+  if (coords instanceof Response) {
     return null;
   }
+  const { latitude, longitude } = coords;
 
   try {
     // /api/nationalと同じ日付固定の取得にする（当日1日分・エッジキャッシュも共有される）。
@@ -128,15 +122,13 @@ export async function ogSummaryFor(
       url.searchParams.get('demo') === '1'
         ? demoWeather(date)
         : await fetchWeatherBase(latitude, longitude, 1, fetchImpl, date);
-    const hours = weather.hours
-      .map(buildHourForecast)
-      .filter((hour) => dateOf(hour.time) === date);
-    if (hours.length === 0) {
+    const day = buildDayForecastFor(weather.hours, date);
+    if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する
       console.error('OGPサマリー: 対象日の気象データがありません:', date, url.search);
       return null;
     }
-    return buildOgSummary(buildDayForecast(date, hours), ogLocationLabel(latitude, longitude));
+    return buildOgSummary(day, ogLocationLabel(latitude, longitude));
   } catch (error) {
     // カードが静的表示になるだけで実害は小さいが、上流異常の検知のためログには残す
     console.error('OGPサマリーの取得に失敗:', url.search, error);

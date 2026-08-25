@@ -1,7 +1,9 @@
 // /api/events.ics エンドポイント（events.json→iCalendar変換）のテスト
 
 import { describe, expect, it, vi } from 'vitest';
-import { handleEventsCalendar, parseCalendarEvents, type AssetsEnv } from '../src/api/events';
+import { handleEventsCalendar } from '../src/api/events';
+import type { AssetsEnv } from '../src/api/assets';
+import { parseCalendarEvents } from '../src/logic/events';
 
 /** 検証を通る最小のイベント定義 */
 function validEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {

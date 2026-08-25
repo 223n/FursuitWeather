@@ -19,6 +19,8 @@
   const FORECAST_POLL_MS = 11 * 60 * 1000;
   /** 全国天気の再取得間隔（エッジキャッシュ30分に合わせる） */
   const NATIONAL_POLL_MS = 31 * 60 * 1000;
+  /** 環境省の公式発表（/api/alert）の再取得間隔（エッジキャッシュ約30分に合わせる） */
+  const ALERT_POLL_MS = 31 * 60 * 1000;
   /** 取得が失敗している間の再試行間隔 */
   const RETRY_MS = 60 * 1000;
   /** 予報がこれより古くなったら大きく注意を出す（回線断・上流障害の検知） */
@@ -386,8 +388,12 @@
   let fadeTimer = null;
   let refreshingForecast = false;
   let refreshingNational = false;
+  let refreshingAlert = false;
   let nextForecastAt = 0;
   let nextNationalAt = 0;
+  let nextAlertAt = 0;
+  /** 環境省の公式発表（/api/alertの突合結果）。nullは非表示（未取得・発表なし・取得失敗） */
+  let officialAlert = null;
   let lastJstDate = nowInJst().date;
   /** 共通表示を最後に描画したJSTの分（時間境界・鮮度警告の毎分再評価用） */
   let lastSharedMinute = nowInJst().minute;
@@ -484,6 +490,34 @@
     }
   }
 
+  /** 環境省の公式発表（/api/alertの突合結果）を再取得する。
+   * ベストエフォート: 取得失敗・発表なし・提供期間外は非表示のまま、本体の表示を巻き込まない */
+  async function refreshAlert() {
+    if (refreshingAlert) {
+      return;
+    }
+    refreshingAlert = true;
+    try {
+      const url = demo ? '/api/alert?demo=1' : `/api/alert?lat=${place.lat}&lon=${place.lon}`;
+      const result = await fetchJson(url);
+      if (result) {
+        officialAlert =
+          result.data.alert && typeof result.data.alert.prefectureName === 'string'
+            ? result.data.alert
+            : null;
+      }
+      // 取得に失敗した間は前回の発表を保持する（安全側の情報のため消さない）。
+      // ただし対象日を過ぎた発表は表示し続けない（終夜運転の日付またぎ対策）
+      if (officialAlert && officialAlert.targetDate !== nowInJst().date) {
+        officialAlert = null;
+      }
+      nextAlertAt = Date.now() + (result ? ALERT_POLL_MS : RETRY_MS);
+      renderShared();
+    } finally {
+      refreshingAlert = false;
+    }
+  }
+
   /** 設定で追加した都市の当日サマリーを取得する（都市単位のベストエフォート。
    * /api/forecastの日別サマリーを全国スライドと同じ形に整える） */
   async function refreshExtras() {
@@ -512,6 +546,16 @@
       return;
     }
     extraSummaries = results.filter(Boolean);
+  }
+
+  /** 追加都市の変更後の共通後処理: サマリーを取り直し、全国スライド表示中なら
+   * 即時反映する（削除・追加の両ハンドラーが同じ後処理を共有する） */
+  function refreshExtrasAndRerender() {
+    refreshExtras().then(() => {
+      if (currentSlide().key === 'national') {
+        renderCurrentSlide();
+      }
+    });
   }
 
   // ---- 共通表示（常時帯・警告・更新時刻・時計） ----
@@ -582,8 +626,25 @@
   /** 警告帯（地点未指定・鮮度・時計ずれ・警戒アラート・オフライン表示）を更新する */
   function updateAlerts() {
     const rows = [];
+    // 環境省の公式発表（突合結果。表示地点の最寄りの都道府県）は最優先で先頭に出す。
+    // 会場のモニターは遠くから読むため文は短く保つ（詳細はdocs/display.md）
+    if (officialAlert) {
+      const label = officialAlert.special ? '熱中症特別警戒アラート' : '熱中症警戒アラート';
+      const advice = officialAlert.special
+        ? '着ぐるみの着用は中止してください。'
+        : '休憩と水分・塩分補給を最優先してください。';
+      rows.push(
+        alertRow(`環境省発表: ${officialAlert.prefectureName}に${label}。${advice}`, true),
+      );
+    }
     // 警戒アラート相当は安全に直結するため先頭で表示し続ける
-    if (forecast && forecast.days[0] && forecast.days[0].maxWbgt >= HEAT_STROKE_ALERT_WBGT) {
+    // （公式発表の帯が出ている間は推定の重ね掛けをせず、帯の積み上げで本体を潰さない）
+    if (
+      !officialAlert &&
+      forecast &&
+      forecast.days[0] &&
+      forecast.days[0].maxWbgt >= HEAT_STROKE_ALERT_WBGT
+    ) {
       rows.push(
         alertRow(
           '熱中症警戒アラートの基準（暑さ指数33以上）に相当する予測です。環境省の発表そのものではありません。着ぐるみの着用は最小限にしてください。',
@@ -1088,11 +1149,7 @@
         extraSummaries = extraSummaries.filter((summary) => summary.name !== extra.name);
         renderSettingsExtraList();
         applySettings();
-        refreshExtras().then(() => {
-          if (currentSlide().key === 'national') {
-            renderCurrentSlide();
-          }
-        });
+        refreshExtrasAndRerender();
       });
       item.appendChild(button);
       return item;
@@ -1170,11 +1227,7 @@
         setSettingsStatus(`「${extra.name}」を追加しました。`);
         renderSettingsExtraList();
         applySettings();
-        refreshExtras().then(() => {
-          if (currentSlide().key === 'national') {
-            renderCurrentSlide();
-          }
-        });
+        refreshExtrasAndRerender();
       });
       item.appendChild(button);
       return item;
@@ -1477,6 +1530,9 @@
     if (now >= nextNationalAt) {
       refreshNational();
     }
+    if (now >= nextAlertAt) {
+      refreshAlert();
+    }
     // 鮮度警告と常時帯は取得が止まっていても時間経過で変わる（毎時00分の境界で
     // 現在時間帯の判定が入れ替わる）ため、分が変わるたびに共通表示を描き直す。
     // 剰余の窓判定はtickの遅延で取り逃すことがあるため、分の変化で検出する
@@ -1532,8 +1588,10 @@
   showSlide(currentKey, true);
   nextForecastAt = Date.now() + FORECAST_POLL_MS;
   nextNationalAt = Date.now() + NATIONAL_POLL_MS;
+  nextAlertAt = Date.now() + ALERT_POLL_MS;
   refreshForecast();
   refreshNational();
+  refreshAlert();
   requestWakeLock();
   setInterval(tick, 1000);
 })();

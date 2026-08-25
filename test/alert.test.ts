@@ -3,7 +3,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import sampleCsv from './fixtures/alert-sample.csv?raw';
-import { buildAlertUrl, handleAlert } from '../src/api/alert';
+import { handleAlert } from '../src/api/alert';
+import { buildAlertUrl } from '../src/weather/alert';
 import { alertForPrefecture, nearestPrefecture, parseAlertCsv } from '../src/logic/alert';
 import { todayInJst } from '../src/logic/time';
 

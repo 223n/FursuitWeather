@@ -8,15 +8,16 @@
 
 import { NATIONAL_CITIES, RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
 import { buildBadgeSvg } from '../logic/badge';
-import { buildDayForecast, buildHourForecast } from '../logic/forecast';
-import { dateOf, todayInJst } from '../logic/time';
+import { buildDayForecastFor } from '../logic/forecast';
+import { listValidEvents } from '../logic/events';
+import { todayInJst } from '../logic/time';
 import type { LevelSummary } from '../types';
 import { demoWeather } from '../weather/demoData';
 import { fetchGeocoding } from '../weather/geocoding';
 import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
+import { fetchEventsJson, type AssetsEnv } from './assets';
 import { jsonError } from './http';
-import { listValidEvents, type AssetsEnv } from './events';
 
 /** イベント名の指定を受け付ける上限長（イベント名の実長より十分大きい定数） */
 const EVENT_NAME_MAX_LENGTH = 100;
@@ -43,11 +44,9 @@ async function resolveLocation(
   if (eventName === '' || (eventName ?? '').length > EVENT_NAME_MAX_LENGTH) {
     return jsonError(400, 'eventはイベント一覧に登録されている名前で指定してください');
   }
-  const asset = await env.ASSETS.fetch(new Request(new URL('/events.json', url).toString()));
-  if (!asset.ok) {
-    throw new Error(`events.jsonを読み込めませんでした（HTTP ${asset.status}）`);
-  }
-  const event = listValidEvents(await asset.json()).find((entry) => entry.name === eventName);
+  const event = listValidEvents(await fetchEventsJson(url, env)).find(
+    (entry) => entry.name === eventName,
+  );
   if (event === undefined) {
     return jsonError(404, '指定されたイベントは登録されていません');
   }
@@ -62,16 +61,13 @@ async function resolveLocation(
   return { latitude: place.latitude, longitude: place.longitude };
 }
 
-/** 気象データから当日の最も厳しい屋外判定を取り出す */
+/** 気象データから当日の最も厳しい屋外判定を取り出す（日付またぎ防御はbuildDayForecastForを参照） */
 function todayOutdoorWorst(weather: WeatherResult, date: string): LevelSummary {
-  const hours = weather.hours
-    .map(buildHourForecast)
-    .filter((hour) => dateOf(hour.time) === date);
-  if (hours.length === 0) {
-    // 上流キャッシュの日付またぎで当日分が空になり得る（/api/nationalと同じ扱い）
+  const day = buildDayForecastFor(weather.hours, date);
+  if (day === null) {
     throw new UpstreamError(`対象日（${date}）の気象データがありません`);
   }
-  return buildDayForecast(date, hours).outdoorWorst;
+  return day.outdoorWorst;
 }
 
 /**

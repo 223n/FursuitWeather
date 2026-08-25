@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleBadge } from '../src/api/badge';
-import type { AssetsEnv } from '../src/api/events';
+import type { AssetsEnv } from '../src/api/assets';
 import { badgeStatusText, buildBadgeSvg } from '../src/logic/badge';
 import { todayInJst } from '../src/logic/time';
 import type { LevelSummary } from '../src/types';

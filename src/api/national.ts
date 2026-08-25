@@ -3,8 +3,8 @@
 // 都市単位のベストエフォート: 1都市の失敗が全国全体の応答を巻き込まない
 
 import { ATTRIBUTION, NATIONAL_CITIES, WEATHER_MODEL_LABEL, type NationalCity } from '../constants';
-import { buildDayForecast, buildHourForecast } from '../logic/forecast';
-import { dateOf, todayInJst } from '../logic/time';
+import { buildDayForecastFor } from '../logic/forecast';
+import { todayInJst } from '../logic/time';
 import type { NationalCitySummary, NationalResponse } from '../types';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
@@ -17,16 +17,11 @@ function buildCitySummary(
   weather: WeatherResult,
   date: string,
 ): NationalCitySummary {
-  // レスポンス契約の「日本時間の当日」で絞る。上流はstart_date/end_dateで当日を
-  // 指定しているが、キャッシュ済みの古い応答が紛れても前日のデータを
-  // 「当日サマリー」として返さないよう、ここでも日付で検証する
-  const hours = weather.hours
-    .map(buildHourForecast)
-    .filter((hour) => dateOf(hour.time) === date);
-  if (hours.length === 0) {
+  // レスポンス契約の「日本時間の当日」で絞る（日付またぎ防御はbuildDayForecastForを参照）
+  const day = buildDayForecastFor(weather.hours, date);
+  if (day === null) {
     throw new UpstreamError(`対象日（${date}）の気象データがありません`);
   }
-  const day = buildDayForecast(date, hours);
   return {
     name: city.name,
     latitude: city.lat,

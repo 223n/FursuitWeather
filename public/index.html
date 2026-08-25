@@ -178,8 +178,9 @@
             <option value="">イベント情報を読み込んでいます…</option>
           </select>
           <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+          <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
         </div>
-        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。開催の詳細は主催者の告知をご確認ください。</p>
+        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。「固定リンクをコピー」は、開くと選んだイベントの予報が表示されるURLです（告知への掲載用）。開催の詳細は主催者の告知をご確認ください。</p>
       </div>
       <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
         <div class="control-row">
@@ -309,6 +310,7 @@
         <p class="hint">
           画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
           記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
+          終日の運用では、予報の変化を取りこぼさないよう見守りモード（10分ごとに自動更新）をONにしてください。
         </p>
         <div class="control-row">
           <label for="board-name-input">ニックネーム</label>
@@ -435,9 +437,9 @@
     <section id="planner-section" role="tabpanel" aria-labelledby="tab-planner" tabindex="0" hidden>
       <h2 id="planner-heading">活動プランナー</h2>
       <p class="hint">
-        日付と活動する時間帯を選ぶと、その時間帯の判定と、
-        休憩を挟んだ着用計画の目安を表示します。終了に選んだ時刻の行は
-        含みません（例: 終了を16時にすると15時台まで）。
+        日付と活動する時間帯を選んで「計画を立てる」を押すと、
+        その時間帯の判定と、休憩を挟んだ着用計画の目安を表示します。
+        終了に選んだ時刻の行は含みません（例: 終了を16時にすると15時台まで）。
       </p>
       <div class="control-row">
         <label for="plan-date">日付</label>
@@ -654,6 +656,13 @@
         <button type="button" id="timer-rest-button">休憩開始</button>
         <button type="button" id="timer-stop-button">タイマー終了</button>
       </div>
+      <!-- 応急対応への常設導線: 異変が起きる可能性が最も高いのは着用中
+           （このダイアログ表示中）で、背面ページはinert化され触れないため、
+           ダイアログ内から直接たどれるようにする（タイマー状態は保存されて
+           いるので、遷移して戻っても復元される） -->
+      <p class="timer-emergency-link">
+        <a id="timer-emergency-link" href="/emergency">もしものとき（熱中症の応急対応）</a>
+      </p>
       <p class="hint">
         対応端末では表示中に画面が消灯しません。残り5分と超過は表示でお知らせし、
         対応端末では音・バイブも鳴ります（消音設定の端末では鳴りません）。

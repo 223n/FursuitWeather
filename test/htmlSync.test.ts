@@ -26,7 +26,7 @@ import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
 import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
-import eventsApiTs from '../src/api/events.ts?raw';
+import eventsApiTs from '../src/logic/events.ts?raw';
 // style.cssは「?raw」ではなくfsで読む（vitestはCSSを専用パイプラインで処理する
 // ため、?raw指定でも空文字列になる）
 import { readFileSync } from 'node:fs';

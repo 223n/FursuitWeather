@@ -977,6 +977,14 @@ tbody tr.night {
   color: var(--level-3-accent);
 }
 
+/* アラート帯の中のリンク: 既定のリンク色（--color-blue）はライト側の
+   level-3-surface上で4.23:1とWCAG AA（4.5:1）に届かないため、コード表示と
+   同じ濃青系トークンを使う（ライト#094F73で約6.1:1。ダーク側のトークンは
+   明るい水色で暗赤面でも十分なコントラストになる。下線による識別は既定のまま） */
+.alert-notice a {
+  color: var(--color-code-text);
+}
+
 /* 強風・急な暑さなどの注意（警戒レベルの橙系。赤のalert-noticeとは色+文面で区別する） */
 .caution-notice {
   list-style: none;
@@ -1406,12 +1414,28 @@ section h3 {
   button,
   select,
   input[type='search'],
-  input[type='number'] {
+  input[type='number'],
+  input[type='text'] {
     min-height: 2.75rem;
   }
 
-  /* 折りたたみの見出し行（判定の見方・位置情報の扱い）もタップ対象のため確保する */
-  .legend-details summary {
+  /* 折りたたみの見出し行（判定の見方・コンディションチェック・当日ボード・
+     順化の解説など）はすべてタップ対象のため、summary全般で確保する
+     （display は変えない: list-item以外にすると展開マーカーが消える） */
+  summary {
+    min-height: 2.75rem;
+  }
+
+  /* チェックボックス・ラジオの行（コンディションチェック・見守りトグル・
+     共有プラン・ボードの上限モード・持ち物）は手袋でも押し分けられるよう
+     行の高さを確保する */
+  .condition-list label,
+  .watch-toggle-label,
+  .share-plan-option,
+  .board-limit-row label,
+  .packing-list label {
+    display: flex;
+    align-items: center;
     min-height: 2.75rem;
   }
 
@@ -1559,6 +1583,18 @@ section h3 {
 /* display: flexはUAスタイルのhidden（display: none）より優先されるため、非表示を明示する */
 .timer-overlay[hidden] {
   display: none;
+}
+
+/* タイマー内の応急対応への常設導線。警告状態（timer-warning/timer-over）の
+   淡色パネル面でもWCAG AAを満たすよう、alert-notice内リンクと同じ濃青系トークンを使う */
+.timer-emergency-link {
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.timer-emergency-link a {
+  color: var(--color-code-text);
+  font-weight: 700;
 }
 
 .timer-panel {

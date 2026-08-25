@@ -584,7 +584,7 @@
     weatherLine.appendChild(weatherContent);
     // 代表天気が雷でなくても、その日に雷を含む時間帯があれば天気行で知らせる
     // （中止級の情報を注意欄まで読み進めなくても気付けるようにする）
-    if (hoursOnDate(day.date).some((h) => h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN)) {
+    if (hasThunderOn(day.date)) {
       weatherLine.appendChild(createWarningNote('雷予想あり'));
     }
     card.appendChild(weatherLine);
@@ -699,10 +699,20 @@
     updateSelectedCard();
   }
 
+  /** 日本時間の暦で読むためのオフセット（ミリ秒）。予報・記録の日付整合は
+   * 端末のタイムゾーンに依存させずJSTで統一する（アプリの日付処理の根幹） */
+  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+  /** ミリ秒時刻をJSTの暦で読むためにシフトしたDateを返す
+   * （返り値は必ずgetUTC*系・toISOStringで読み出すこと） */
+  function jstDate(ms) {
+    return new Date(ms + JST_OFFSET_MS);
+  }
+
   /** 日本時間の現在日付（YYYY-MM-DD）と時（0〜23）を返す
    * 予報データの時刻はAsia/Tokyoのため、端末のタイムゾーンに依存せずJSTで比較する */
   function nowInJst() {
-    const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const jst = jstDate(Date.now());
     return { date: jst.toISOString().slice(0, 10), hour: jst.getUTCHours() };
   }
 
@@ -866,17 +876,27 @@
     return currentForecast.hours.filter((h) => h.time.startsWith(date));
   }
 
-  /** 表示中の予報から「現在の時間帯」の行を取り出す
+  /** その日に雷を含む天気コードの時間帯があるか
+   * （雷は中止級の安全情報。日別カード・判定カード・注意欄が同じ判定式を共有する） */
+  function hasThunderOn(date) {
+    return hoursOnDate(date).some((h) => h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN);
+  }
+
+  /** 時間別の行から「現在の時間帯」を選ぶ純粋関数
    * （現在時刻のデータがなければ当日の直近未来で代替。該当なしはnull。
-   *   now-cardと見守りモードの変化検知が同じ規則を共有する） */
-  function currentHourEntry() {
-    const now = nowInJst();
-    const todayHours = hoursOnDate(now.date);
+   *   now-card・見守りの変化検知・着用タイマーの判定取り直しが同じ規則を共有する） */
+  function pickCurrentHour(hours, now) {
     return (
-      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
+      hours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      hours.find((h) => hourNumberOf(h.time) > now.hour) ??
       null
     );
+  }
+
+  /** 表示中の予報から「現在の時間帯」の行を取り出す */
+  function currentHourEntry() {
+    const now = nowInJst();
+    return pickCurrentHour(hoursOnDate(now.date), now);
   }
 
   /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
@@ -930,10 +950,7 @@
     const children = [timeLine, headline, advice, indoor];
     // 今日の予報に雷を含む天気があるときは、下部の注意欄より先に判定カードで知らせる
     // （中止級の情報を上部だけ見て見落とさないため）
-    const thunderToday = currentForecast.hours.some(
-      (h) => h.time.slice(0, 10) === now.date && h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN,
-    );
-    if (thunderToday) {
+    if (hasThunderOn(now.date)) {
       const thunder = document.createElement('p');
       thunder.className = 'now-emergency';
       thunder.appendChild(faIcon('cloud-bolt', 'btn-icon'));
@@ -1131,13 +1148,9 @@
 
     // 雷: 予報に雷を含む天気コードがある日は活動中止を求める（赤枠）。
     // 逆（雷表示なし=雷なし）は保証しないため、平常時に「雷なし」とは表示しない
-    const thunderDays = [
-      ...new Set(
-        currentForecast.hours
-          .filter((h) => h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN)
-          .map((h) => h.time.slice(0, 10)),
-      ),
-    ].map(formatDate);
+    const thunderDays = currentForecast.days
+      .filter((d) => hasThunderOn(d.date))
+      .map((d) => formatDate(d.date));
     if (thunderDays.length > 0) {
       addNoticeItem(
         'alert-notice',
@@ -1196,12 +1209,8 @@
 
   /** 保存済みスナップショット一式を読む（壊れた保存値・保存不可の環境は空） */
   function readForecastSnapshots() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(SNAPSHOT_STORAGE_KEY) ?? '');
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
+    const parsed = readStorageJson(SNAPSHOT_STORAGE_KEY);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   }
 
   /** スナップショットを残してよい地点か（記憶中の地点とお気に入りに限定する）。
@@ -1332,6 +1341,21 @@
    *   省略時はlocationNameを使う。locationNameに画面だけの注記（「（共有・…）」など）を
    *   付ける場合は、注記なしの名前をここで渡すこと。注記付きのままURLへ書き戻すと、
    *   その共有リンクを開くたびに注記が積み重なって名前が伸び、80文字で切られて壊れる */
+  /** 予報APIのリクエストURL。明示ロード・見守りの自動再取得・タイマーの
+   * 判定取り直しの3経路で必ず同一にし、ブラウザキャッシュのキーを揃える */
+  function forecastUrl(query) {
+    return `/api/forecast?${query}&days=${FORECAST_DAYS}`;
+  }
+
+  /** 予報レスポンスの形検証。JSONとして妥当でも予報の形をしていないボディ
+   * （中間プロキシの200応答など）を、描画がTypeErrorを出す前に弾く
+   * （days・hours・noticesは描画経路が無条件に反復する配列のためすべて確認する） */
+  function isForecastBody(body) {
+    return Boolean(
+      body && Array.isArray(body.days) && Array.isArray(body.hours) && Array.isArray(body.notices),
+    );
+  }
+
   async function loadForecast(query, locationName, options = {}) {
     const { cityIndex = null, persist = true, storedName = null, urlName = null } = options;
     // URL・共有リンクに載せる名前（注記なし）。空文字ならURLに名前を載せない
@@ -1350,7 +1374,7 @@
     try {
       // 第2引数は通信断時に表示する日本語の定型文（差し替えの仕組みはfetchJsonBodyを参照）
       const { response, body } = await fetchJsonBody(
-        `/api/forecast?${query}&days=${FORECAST_DAYS}`,
+        forecastUrl(query),
         '通信に失敗しました。ネットワーク接続を確認して「予報を更新」をお試しください。',
       );
       if (seq !== requestSeq) {
@@ -1358,15 +1382,7 @@
         return;
       }
       throwIfHttpError(response, body, '予報の取得');
-      // JSONとして妥当でも予報の形をしていないボディ（中間プロキシの200応答など）は、
-      // 後続の描画でTypeErrorの生メッセージが出る前にここで弾く
-      // （days・hours・noticesは描画経路が無条件に反復する配列のためすべて検証する）
-      if (
-        !body ||
-        !Array.isArray(body.days) ||
-        !Array.isArray(body.hours) ||
-        !Array.isArray(body.notices)
-      ) {
+      if (!isForecastBody(body)) {
         throw new Error('予報データを正しく受け取れませんでした。しばらくたってから「予報を更新」をお試しください。');
       }
 
@@ -1420,8 +1436,7 @@
       // 取得時刻を明記する
       const printedAt = new Date();
       document.getElementById('print-meta').textContent =
-        `発行: ${printedAt.getFullYear()}年${printedAt.getMonth() + 1}月${printedAt.getDate()}日` +
-        `${printedAt.getHours()}時${String(printedAt.getMinutes()).padStart(2, '0')}分・` +
+        `発行: ${printedAt.getFullYear()}年${localDateTimeText(printedAt)}・` +
         `${locationName}・` +
         (displayedFromCache
           ? `※${displayedCachedAtText ?? '以前'}に取得したオフライン表示の予報（最新ではない可能性があります）・`
@@ -1455,12 +1470,16 @@
     }
   }
 
+  /** 「M月D日H時MM分」表記（端末ローカル時刻。印刷メタ・オフライン注記・
+   * シェア画像の生成時刻表示で共通に使う） */
+  function localDateTimeText(date) {
+    return `${date.getMonth() + 1}月${date.getDate()}日${date.getHours()}時${String(date.getMinutes()).padStart(2, '0')}分`;
+  }
+
   /** オフライン表示の予報の取得時刻の表示文を作る（X-*ヘッダーはsw.jsが付ける） */
   function cachedAtTimeText(response) {
     const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
-    return Number.isNaN(cachedAt.getTime())
-      ? '以前'
-      : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
+    return Number.isNaN(cachedAt.getTime()) ? '以前' : localDateTimeText(cachedAt);
   }
 
   /**
@@ -1607,15 +1626,12 @@
     const seq = requestSeq;
     const query = displayedQuery;
     try {
-      const { response, body } = await fetchJsonBody(
-        `/api/forecast?${query}&days=${FORECAST_DAYS}`,
-        '通信に失敗しました。',
-      );
+      const { response, body } = await fetchJsonBody(forecastUrl(query), '通信に失敗しました。');
       if (watchTimer === null || seq !== requestSeq || query !== displayedQuery) {
         return;
       }
       throwIfHttpError(response, body, '予報の取得');
-      if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours) || !Array.isArray(body.notices)) {
+      if (!isForecastBody(body)) {
         throw new Error('形式異常');
       }
       // Service Workerのオフライン退避応答は「更新の成功」ではない。
@@ -1740,6 +1756,11 @@
   // 画面の予報と共有URLが常に一致するようにする）
   const shareIncludePlan = document.getElementById('share-include-plan');
   document.getElementById('share-button').addEventListener('click', async () => {
+    // 予報がまだ表示できていない状態でトップURLだけ共有しても意図が伝わらないため案内する
+    if (!displayedQuery) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
     let shareUrl = `${window.location.origin}/`;
     if (displayedQuery === DEMO_QUERY) {
       shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
@@ -1974,6 +1995,7 @@
   // 選択したイベントの開催地の予報を表示する。定義の書き方はdocs/events.md
   const eventSelect = document.getElementById('event-select');
   const eventButton = document.getElementById('event-button');
+  const eventLinkButton = document.getElementById('event-link-button');
   /** 表示可能なイベント一覧（セレクトのvalueはこの配列のインデックス） */
   let eventList = [];
 
@@ -2019,9 +2041,20 @@
    * 「〜」の読み上げは環境依存だが、option要素は装飾を持てないためそのまま使う
    * （開始・終了の日付自体は読み上げられるため意味は伝わる） */
   function formatEventPeriod(event) {
-    return event.startDate === event.endDate
-      ? formatEventDate(event.startDate)
-      : `${formatEventDate(event.startDate)}〜${formatEventDate(event.endDate)}`;
+    if (event.startDate === event.endDate) {
+      return formatEventDate(event.startDate);
+    }
+    const start = parseDateText(event.startDate);
+    const end = parseDateText(event.endDate);
+    // 終了側は開始側と重複する年・月を省く（例: 2027年1月8日（金）〜10日（日））
+    let endText = formatEventDate(event.endDate);
+    if (start.year === end.year) {
+      endText =
+        start.month === end.month
+          ? `${end.day}日（${WEEKDAYS[new Date(end.utc).getUTCDay()]}）`
+          : formatDate(event.endDate);
+    }
+    return `${formatEventDate(event.startDate)}〜${endText}`;
   }
 
   /** /events.jsonを読み込んでセレクトの選択肢を作る。
@@ -2069,6 +2102,7 @@
       // 再実行（開催終了の検知時）で空になった場合に、押しても何も起きない
       // ボタンが残らないよう初期状態へ戻す
       disablePicker(eventSelect, eventButton, emptyMessage);
+      eventLinkButton.disabled = true;
       return;
     }
     eventList.forEach((event, index) => {
@@ -2078,6 +2112,7 @@
     });
     eventSelect.disabled = false;
     eventButton.disabled = false;
+    eventLinkButton.disabled = false;
   }
 
   /** 郵便番号から開催地の座標を1件解決する（候補が無ければnull）。
@@ -2234,6 +2269,23 @@
   }
 
   eventButton.addEventListener('click', showEventForecast);
+
+  // 「固定リンクをコピー」: 開くと選択中のイベントの予報が表示されるURL（?event=イベント名）を
+  // クリップボードへ渡す（主催者が告知ページへ掲載する用途）
+  eventLinkButton.addEventListener('click', async () => {
+    const event = eventList[Number(eventSelect.value)];
+    if (!event) {
+      setStatus('イベントを選択してください。', true);
+      return;
+    }
+    const linkUrl = `${window.location.origin}/?event=${encodeURIComponent(event.name)}`;
+    try {
+      await navigator.clipboard.writeText(linkUrl);
+      setStatus(`「${event.name}」の固定リンクをコピーしました。`, false);
+    } catch {
+      setStatus('URLをコピーできませんでした。', true);
+    }
+  });
   initEvents().then(async () => {
     // イベント固定リンク（?event=イベント名）: 一覧が揃ってから該当イベントを
     // 自動選択して開催地の予報表示まで進める。見つからなければ通常の初期表示へ
@@ -2334,8 +2386,13 @@
       setStatus('終了時刻は開始時刻より後にしてください。', true);
       return;
     }
+    const now = nowInJst();
     const hours = hoursOnDate(planDateValue).filter((h) => {
       const hour = hourNumberOf(h.time);
+      // 当日は過ぎた時間帯を合計に含めない（時間別テーブルの表示と同じ基準）
+      if (planDateValue === now.date && hour < now.hour) {
+        return false;
+      }
       return hour >= start && hour < end;
     });
     if (hours.length === 0) {
@@ -2353,6 +2410,7 @@
     list.className = 'plan-hours';
     let totalMinutes = 0;
     const rainHours = [];
+    const rainChanceHours = [];
     for (const h of hours) {
       const hour = hourNumberOf(h.time);
       const item = document.createElement('li');
@@ -2368,6 +2426,12 @@
       list.appendChild(item);
       if (h.weather.precipitation > 0) {
         rainHours.push(`${hour}時`);
+      } else if (
+        typeof h.weather.precipitationProbability === 'number' &&
+        h.weather.precipitationProbability >= 50
+      ) {
+        // 降水量の予報はないが確率が高い時間帯（持ち物リストの雨具判定と同じ50%基準）
+        rainChanceHours.push(`${hour}時`);
       }
     }
 
@@ -2389,6 +2453,16 @@
         ),
       );
       notes.appendChild(rainNote);
+    }
+    if (rainChanceHours.length > 0) {
+      const chanceNote = document.createElement('li');
+      chanceNote.appendChild(faIcon('cloud-rain', 'btn-icon weather-cloud-rain'));
+      chanceNote.appendChild(
+        document.createTextNode(
+          `降水確率50%以上の時間帯: ${rainChanceHours.join('、')}。雨具の準備をおすすめします。`,
+        ),
+      );
+      notes.appendChild(chanceNote);
     }
     // 終了時刻が日の入りの後なら、暗さ・冷え込みへの備えを促す
     const planDay = currentForecast.days.find((d) => d.date === planDateValue);
@@ -2420,7 +2494,7 @@
     // 「前回できたから今日もいける」の危険側アンカリングを避ける文言を必ず併記する
     const lastWear = readWearLog().slice(-1)[0];
     if (lastWear) {
-      const lastDate = new Date(lastWear.at + 9 * 60 * 60 * 1000);
+      const lastDate = jstDate(lastWear.at);
       const wearNote = document.createElement('li');
       wearNote.textContent =
         `参考: 前回の着用（${lastDate.getUTCMonth() + 1}月${lastDate.getUTCDate()}日）は` +
@@ -2522,29 +2596,10 @@
    * 前回イベントのチェック済み状態が別の日の準備に持ち越されると、
    * 「持った」と誤認して忘れ物につながるため） */
   function readPackingChecked(dateText) {
-    const state = readPackingState(PACKING_CHECKED_KEY, null);
+    const state = readStorageJson(PACKING_CHECKED_KEY);
     return state && state.date === dateText && state.items && typeof state.items === 'object'
       ? state.items
       : {};
-  }
-
-  /** localStorageのJSON値を読む（壊れた保存・保存不可の環境はfallback） */
-  function readPackingState(key, fallback) {
-    try {
-      const value = JSON.parse(localStorage.getItem(key) ?? '');
-      return value ?? fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
-  /** localStorageへJSON値を書く（保存できない環境では黙って諦める） */
-  function writePackingState(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // 保存できなくても表示中のリスト自体は使える
-    }
   }
 
   /** 対象日の予報から持ち物を自動生成する */
@@ -2579,13 +2634,14 @@
     return items;
   }
 
-  /** 持ち物リスト1項目を作って追加する */
-  function appendPackingItem(text, isCustom) {
+  /** 持ち物リスト1項目を作って追加する
+   * @param checkedItems 対象日のチェック済み項目（呼び出し側で一度だけ読んで渡す） */
+  function appendPackingItem(text, isCustom, checkedItems) {
     const item = document.createElement('li');
     const label = document.createElement('label');
     const box = document.createElement('input');
     box.type = 'checkbox';
-    box.checked = readPackingChecked(lastPacking.dateText)[text] === true;
+    box.checked = checkedItems[text] === true;
     box.addEventListener('change', () => {
       const dateText = lastPacking ? lastPacking.dateText : '';
       const items = readPackingChecked(dateText);
@@ -2594,7 +2650,7 @@
       } else {
         delete items[text];
       }
-      writePackingState(PACKING_CHECKED_KEY, { date: dateText, items });
+      writeStorageJson(PACKING_CHECKED_KEY, { date: dateText, items });
     });
     label.append(box, document.createTextNode(` ${text}`));
     item.appendChild(label);
@@ -2605,9 +2661,9 @@
       remove.textContent = '削除';
       remove.setAttribute('aria-label', `「${text}」を持ち物から削除`);
       remove.addEventListener('click', () => {
-        writePackingState(
+        writeStorageJson(
           PACKING_CUSTOM_KEY,
-          readPackingState(PACKING_CUSTOM_KEY, []).filter((entry) => entry !== text),
+          (readStorageJson(PACKING_CUSTOM_KEY) ?? []).filter((entry) => entry !== text),
         );
         item.remove();
       });
@@ -2620,13 +2676,15 @@
   function renderPacking(dateText, hours) {
     lastPacking = { dateText, hours };
     const day = currentForecast.days.find((d) => d.date === dateText);
+    // チェック済み項目は一度だけ読み、全項目の描画で使い回す（項目ごとの再パースを避ける）
+    const checkedItems = readPackingChecked(dateText);
     packingList.replaceChildren();
     for (const text of buildPackingItems(day, hours)) {
-      appendPackingItem(text, false);
+      appendPackingItem(text, false, checkedItems);
     }
-    for (const text of readPackingState(PACKING_CUSTOM_KEY, [])) {
+    for (const text of readStorageJson(PACKING_CUSTOM_KEY) ?? []) {
       if (typeof text === 'string' && text !== '') {
-        appendPackingItem(text, true);
+        appendPackingItem(text, true, checkedItems);
       }
     }
     packingSection.hidden = false;
@@ -2638,7 +2696,7 @@
     if (text === '') {
       return;
     }
-    const custom = readPackingState(PACKING_CUSTOM_KEY, []).filter(
+    const custom = (readStorageJson(PACKING_CUSTOM_KEY) ?? []).filter(
       (entry) => typeof entry === 'string',
     );
     if (custom.includes(text)) {
@@ -2650,7 +2708,7 @@
       return;
     }
     custom.push(text);
-    writePackingState(PACKING_CUSTOM_KEY, custom);
+    writeStorageJson(PACKING_CUSTOM_KEY, custom);
     packingCustomInput.value = '';
     if (lastPacking) {
       renderPacking(lastPacking.dateText, lastPacking.hours);
@@ -2840,8 +2898,7 @@
     ctx.font = '22px sans-serif';
     const generatedAt = new Date();
     ctx.fillText(
-      `fursuit-weather.223n.tech・${generatedAt.getMonth() + 1}月${generatedAt.getDate()}日` +
-        `${generatedAt.getHours()}時${String(generatedAt.getMinutes()).padStart(2, '0')}分生成・` +
+      `fursuit-weather.223n.tech・${localDateTimeText(generatedAt)}生成・` +
         '天気データ: Open-Meteo（気象庁モデル）',
       40,
       596,
@@ -2921,6 +2978,9 @@
   /** 保存済みタイマーの有効期限。これより古い開始時刻は復元しない
    * （前日の消し忘れが翌日に全画面の「上限超過」で開くのを防ぐ） */
   const TIMER_STATE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+  /** 警告の注意文（警告発火時とリロード復帰時の復元で同じ文言を共有する） */
+  const TIMER_WARN5_TEXT = '残り5分です。休憩場所への移動を始めてください。';
+  const TIMER_OVER_TEXT = '上限を超えました。すぐに休憩してください。';
   /** 動作中のタイマー状態（null=停止中）。localStorageと同じ内容を保持する */
   let timerState = null;
   /** 1秒ごとの表示更新タイマー */
@@ -2932,18 +2992,9 @@
   /** タイマーを開いたときのフォーカス元（終了時にフォーカスを返す） */
   let timerReturnFocus = null;
 
-  /** 現在時刻（JST）の時間別予報を返す（renderNowCardと同じ直近未来への代替規則） */
+  /** 現在時刻（JST）の時間別予報を返す（規則はcurrentHourEntry=pickCurrentHourと共通） */
   function currentOutdoorTarget() {
-    if (!currentForecast) {
-      return null;
-    }
-    const now = nowInJst();
-    const todayHours = hoursOnDate(now.date);
-    return (
-      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
-      null
-    );
+    return currentForecast ? currentHourEntry() : null;
   }
 
   /** 予報の描画に合わせて開始ボタンの表示と、表示中のタイマーの判定を更新する */
@@ -3092,11 +3143,7 @@
 
   /** タイマー状態を保存する（保存できない環境ではこのタブの表示中だけ動く） */
   function writeTimerState() {
-    try {
-      localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(timerState));
-    } catch {
-      // 保存できなくても表示中のタイマーは動き続ける
-    }
+    writeStorageJson(TIMER_STATE_KEY, timerState);
   }
 
   /** 保存済みのタイマー状態を読む（壊れた保存・古い形式・期限切れはnull） */
@@ -3127,9 +3174,20 @@
     timerOverlay.classList.toggle('timer-rest', resting);
     timerOverlay.classList.remove('timer-warning', 'timer-over');
     if (resting) {
-      timerLimitElement.textContent =
-        `着用は約${timerState.wearMinutes}分でした。同じ長さ以上の休憩と、水分・塩分補給を。`;
+      timerLimitElement.textContent = restGuideText(0);
     }
+  }
+
+  /** 休憩中の目安文。目安（着用と同じ長さ）に達したら文言を切り替え、
+   * アテンドが経過と目安を暗算で見比べる負担を減らす */
+  function restGuideText(restMinutes) {
+    if (!Number.isFinite(timerState.wearMinutes)) {
+      return '同じ長さ以上の休憩と、水分・塩分補給を。';
+    }
+    if (restMinutes >= timerState.wearMinutes) {
+      return `休憩は目安の${timerState.wearMinutes}分に達しました。体調がよければ再開できます。`;
+    }
+    return `着用は約${timerState.wearMinutes}分でした。同じ長さ以上の休憩と、水分・塩分補給を。`;
   }
 
   /** 経過表示と残り時間の警告を更新する（1秒ごと） */
@@ -3138,6 +3196,7 @@
     timerClock.textContent =
       `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`;
     if (timerState.mode !== 'wear') {
+      timerLimitElement.textContent = restGuideText(Math.floor(elapsedSeconds / 60));
       return;
     }
     const remainingSeconds = timerState.limitMinutes * 60 - elapsedSeconds;
@@ -3150,7 +3209,7 @@
       timerState.warned5 = true;
       writeTimerState();
       timerOverlay.classList.add('timer-warning');
-      timerNote.textContent = '残り5分です。休憩場所への移動を始めてください。';
+      timerNote.textContent = TIMER_WARN5_TEXT;
       timerAlert(2);
     }
     if (!timerState.warnedOver && remainingSeconds <= 0) {
@@ -3158,7 +3217,7 @@
       writeTimerState();
       timerOverlay.classList.remove('timer-warning');
       timerOverlay.classList.add('timer-over');
-      timerNote.textContent = '上限を超えました。すぐに休憩してください。';
+      timerNote.textContent = TIMER_OVER_TEXT;
       timerAlert(3);
     }
   }
@@ -3172,21 +3231,20 @@
       return;
     }
     try {
-      const response = await fetch(`/api/forecast?${query}&days=${FORECAST_DAYS}`);
+      const response = await fetch(forecastUrl(query));
       if (!response.ok) {
         return;
       }
       const body = await response.json();
-      if (!timerState || !body || !Array.isArray(body.hours)) {
+      if (!timerState || !isForecastBody(body)) {
         return;
       }
       const now = nowInJst();
       const todayHours = body.hours.filter(
         (h) => h && typeof h.time === 'string' && h.time.startsWith(now.date),
       );
-      const target =
-        todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-        todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+      // 現在時間帯の選び方はnow-cardと同じ規則（pickCurrentHour）を共有する
+      const target = pickCurrentHour(todayHours, now);
       if (!target || !target.outdoor || !Number.isFinite(target.outdoor.activityMinutes)) {
         return;
       }
@@ -3218,10 +3276,10 @@
     // （音・バイブは鳴らし直さない。復元なしだと超過中でも通常配色に見えてしまう）
     if (state.mode === 'wear' && state.warnedOver) {
       timerOverlay.classList.add('timer-over');
-      timerNote.textContent = '上限を超えました。すぐに休憩してください。';
+      timerNote.textContent = TIMER_OVER_TEXT;
     } else if (state.mode === 'wear' && state.warned5) {
       timerOverlay.classList.add('timer-warning');
-      timerNote.textContent = '残り5分です。休憩場所への移動を始めてください。';
+      timerNote.textContent = TIMER_WARN5_TEXT;
     }
     const target = currentOutdoorTarget();
     renderTimerJudgment(target ? target.outdoor : null);
@@ -3276,7 +3334,7 @@
 
   /** ミリ秒時刻の日本時間の日付（YYYY-MM-DD） */
   function jstDateOfMs(ms) {
-    return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return jstDate(ms).toISOString().slice(0, 10);
   }
 
   /** 記録時刻として妥当な範囲（ミリ秒）。書き込みは常にDate.now()のため、
@@ -3301,7 +3359,8 @@
     );
   }
 
-  /** 着用セッションを1件記録する（着用→休憩・タイマー終了の両方から呼ぶ） */
+  /** 着用セッションを1件記録する（着用→休憩・タイマー終了の両方から呼ぶ）
+   * @returns 記録した着用分数（休憩目安の計算が同じ値を共有できるよう返す） */
   function recordWearSession(state) {
     const minutes = Math.max(1, Math.round((Date.now() - state.startedAt) / 60000));
     const entries = readWearLog();
@@ -3310,12 +3369,10 @@
       minutes,
       maxSuitWbgt: Number.isFinite(state.maxSuitWbgt) ? state.maxSuitWbgt : null,
     });
-    try {
-      localStorage.setItem(WEAR_LOG_KEY, JSON.stringify(entries.slice(-WEAR_LOG_LIMIT)));
-    } catch {
-      // 保存できない環境では表示だけ諦める（タイマー本体には影響しない）
-    }
+    // 保存できない環境では表示だけ諦める（タイマー本体には影響しない）
+    writeStorageJson(WEAR_LOG_KEY, entries.slice(-WEAR_LOG_LIMIT));
     renderWearLog();
+    return minutes;
   }
 
   /** 「今日の記録」として最後に描画した日（日付またぎの再評価用。boardTickが監視する） */
@@ -3342,15 +3399,19 @@
   }
 
   document.getElementById('wear-log-copy-button').addEventListener('click', async () => {
-    const lines = readWearLog().map((entry) => {
-      const date = new Date(entry.at + 9 * 60 * 60 * 1000);
-      return (
-        `${date.getUTCMonth() + 1}/${date.getUTCDate()} 着用${entry.minutes}分` +
-        (Number.isFinite(entry.maxSuitWbgt) ? `（最高 補正後WBGT ${entry.maxSuitWbgt}℃）` : '')
-      );
-    });
+    // 見出し「今日の着用記録」と一致するよう、コピーも今日の分だけに絞る
+    const today = nowInJst().date;
+    const lines = readWearLog()
+      .filter((entry) => jstDateOfMs(entry.at) === today)
+      .map((entry) => {
+        const date = jstDate(entry.at);
+        return (
+          `${date.getUTCMonth() + 1}/${date.getUTCDate()} 着用${entry.minutes}分` +
+          (Number.isFinite(entry.maxSuitWbgt) ? `（最高 補正後WBGT ${entry.maxSuitWbgt}℃）` : '')
+        );
+      });
     try {
-      await navigator.clipboard.writeText(['着用記録（FursuitWeather）', ...lines].join('\n'));
+      await navigator.clipboard.writeText(['今日の着用記録（FursuitWeather）', ...lines].join('\n'));
       setStatus('着用記録をコピーしました。', false);
     } catch {
       setStatus('コピーできませんでした。', true);
@@ -3397,10 +3458,9 @@
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく（リロード復帰後の保険）
     prepareTimerAudio();
     if (timerState.mode === 'wear') {
-      // 着用セッションをふりかえり記録へ残してから休憩に切り替える
-      recordWearSession(timerState);
-      // 休憩へ: 着用した長さを控えて「同じ長さ以上の休憩」の目安に使う
-      const wearMinutes = Math.max(1, Math.round((Date.now() - timerState.startedAt) / 60000));
+      // 着用セッションをふりかえり記録へ残してから休憩に切り替える。
+      // 記録した分数をそのまま「同じ長さ以上の休憩」の目安に使う（計算の二重化を避ける）
+      const wearMinutes = recordWearSession(timerState);
       timerState = {
         mode: 'rest',
         startedAt: Date.now(),
@@ -3420,6 +3480,11 @@
         timerNote.textContent = '現在の判定は「着用中止」のため再開できません。休憩を続けてください。';
         return;
       }
+      // 目安（着用と同じ長さ）に満たない早い再開は、止めはしないが注意を添える
+      // （危険側の楽観を誘わないため。現場の交代事情があるためブロックはしない）
+      const restMinutes = Math.floor((Date.now() - timerState.startedAt) / 60000);
+      const restTarget = timerState.wearMinutes;
+      const earlyResume = Number.isFinite(restTarget) && restMinutes < restTarget;
       timerState = {
         mode: 'wear',
         startedAt: Date.now(),
@@ -3431,7 +3496,9 @@
       };
       writeTimerState();
       updateTimerModeUi();
-      timerNote.textContent = '着用を再開しました。';
+      timerNote.textContent = earlyResume
+        ? `着用を再開しました。休憩はまだ約${restMinutes}分です（目安: ${restTarget}分以上）。体調を確認してから活動してください。`
+        : '着用を再開しました。';
     }
     const latest = currentOutdoorTarget();
     renderTimerJudgment(latest ? latest.outdoor : null);
@@ -3456,7 +3523,12 @@
     if (event.key !== 'Tab') {
       return;
     }
-    const focusables = [timerRestButton, timerStopButton];
+    // ダイアログ内のフォーカス順: 操作ボタン→応急対応リンク（常設導線）
+    const focusables = [
+      timerRestButton,
+      timerStopButton,
+      document.getElementById('timer-emergency-link'),
+    ];
     const index = focusables.indexOf(document.activeElement);
     if (index === -1 && !timerOverlay.contains(document.activeElement)) {
       // フォーカスが背面へ出ていたらダイアログへ戻す
