@@ -558,3 +558,310 @@ test('風速列と応急対応ページ: 時間別に風速が出て、/emergenc
   await expect(page.locator('.emergency-steps')).toContainText('ヘッド');
   await expect(page.locator('main')).toContainText('医療上の助言に代わるものではありません');
 });
+
+test('日の入り: 日別カード・時間別の目印・プランナーの日没またぎ注意に表示される', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 日別カード（デモデータの初日は18:30固定）
+  await page.click('#tab-days');
+  const firstCard = page.locator('#day-cards .day-card:not(.skeleton-card)').first();
+  await expect(firstCard).toContainText('日の入り');
+  await expect(firstCard).toContainText('18:30');
+
+  // 明日の時間別テーブルには日の入りの目印が出る（今日は時間帯により行が隠れるため明日で確認）
+  await page.click('#tab-day-1');
+  await expect(page.locator('#hours-body .sunset-note')).toHaveText('日の入り 18:29');
+
+  // プランナー: 終了20時は日の入り（18:30）の後 → 照明・冷え込みの注意が出る
+  await page.click('#tab-planner');
+  await page.selectOption('#plan-start', '15');
+  await page.selectOption('#plan-end', '20');
+  await page.click('#plan-button');
+  await expect(page.locator('#plan-result')).toContainText('日の入り（18:30）の後です');
+});
+
+test('共有URLの日付・時間帯（date/from/to）がタブとプランナーへ反映される', async ({ page }) => {
+  const jstDate = (offsetDays) =>
+    new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
+  const tomorrow = jstDate(1);
+  await page.goto(`/?lat=35.68&lon=139.68&date=${tomorrow}&from=9&to=15`);
+  await waitForForecast(page);
+  await expect(page.locator('#tab-day-1')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#plan-date')).toHaveValue(tomorrow);
+  await expect(page.locator('#plan-start')).toHaveValue('9');
+  await expect(page.locator('#plan-end')).toHaveValue('15');
+  await expect(page.locator('#status')).toContainText('9時〜15時');
+
+  // 予報範囲外の日付は固定の日本語文で案内し、地点のみの表示へフォールバック
+  await page.goto('/?lat=35.68&lon=139.68&date=2030-01-01');
+  await waitForForecast(page);
+  await expect(page.locator('#status')).toContainText('予報の範囲外');
+});
+
+test('イベント固定リンク（?event=）で開くと該当イベントの予報まで自動で進む', async ({
+  page,
+}) => {
+  const jstDate = (offsetDays) =>
+    new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
+  await page.route('**/events.json', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        events: [
+          {
+            name: 'サマーコン',
+            place: '東京ビッグサイト',
+            zip: '135-0063',
+            startDate: jstDate(0),
+            startTime: '11:00',
+            endTime: '17:30',
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route('**/api/geocode*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [{ name: '江東区', admin1: '東京都', latitude: 35.6297, longitude: 139.7947 }],
+      }),
+    }),
+  );
+
+  await page.goto(`/?event=${encodeURIComponent('サマーコン')}`);
+  await waitForForecast(page);
+  await expect(page.locator('#location-label')).toContainText('サマーコン（東京ビッグサイト');
+  await expect(page.locator('#status')).toContainText('「サマーコン」開催日');
+
+  // 一覧に無い名前は案内を出して通常の予報へフォールバック
+  await page.goto(`/?event=${encodeURIComponent('存在しないイベント')}`);
+  await waitForForecast(page);
+  await expect(page.locator('#status')).toContainText('一覧にありません');
+  await expect(page.locator('#status')).toHaveClass(/status-warning/);
+});
+
+test('前回見た予報との差分: 判定が変わっていればバナーで知らせ、閉じると再表示しない', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // 前回の閲覧（4時間前・全日grade 0）をこの端末の保存として作る
+  await page.evaluate(() => {
+    const query = new URLSearchParams(window.location.search);
+    const key = `lat=${query.get('lat')}&lon=${query.get('lon')}`;
+    const snapshot = {
+      [key]: {
+        at: Date.now() - 4 * 60 * 60 * 1000,
+        days: [0, 1, 2].map((offset) => {
+          const date = new Date(Date.now() + (9 * 60 + offset * 24 * 60) * 60 * 1000)
+            .toISOString()
+            .slice(0, 10);
+          return { date, grade: 0, label: 'ほぼ安全' };
+        }),
+      },
+    };
+    window.localStorage.setItem('fursuitweatherForecastSnapshots', JSON.stringify(snapshot));
+    window.localStorage.removeItem('fursuitweatherDiffDismissed');
+  });
+
+  // 再読み込み → デモデータの判定（grade>0）と食い違うため差分バナーが出る
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#diff-banner')).toBeVisible();
+  await expect(page.locator('#diff-banner')).toContainText('判定が変わりました');
+
+  // 閉じると消え、同じ差分は再読み込みでも再表示されない
+  await page.click('#diff-banner .diff-close');
+  await expect(page.locator('#diff-banner')).toBeHidden();
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#diff-banner')).toBeHidden();
+});
+
+test('プランナー連動: 休憩の質ガイドと持ち物リストが表示され、チェックと追加が保存される', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+
+  // 休憩の質ガイド（デモの日中は厳しい帯を含むため保冷剤の手順まで出る）
+  await expect(page.locator('.rest-guide')).toContainText('休憩の質ガイド');
+  await expect(page.locator('.rest-guide')).toContainText('首・脇の下・足の付け根');
+
+  // 持ち物リスト（警戒以上の時間帯がある日は保冷剤などが自動生成される）
+  await expect(page.locator('#packing-section')).toBeVisible();
+  await expect(page.locator('#packing-list')).toContainText('保冷剤');
+
+  // チェックと自由入力の追加はこの端末に保存され、再読み込み後も残る
+  await page.locator('#packing-list input[type="checkbox"]').first().check();
+  await page.fill('#packing-custom-input', '名刺');
+  await page.click('#packing-add-button');
+  await expect(page.locator('#packing-list')).toContainText('名刺');
+
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#packing-list input[type="checkbox"]').first()).toBeChecked();
+  await expect(page.locator('#packing-list')).toContainText('名刺');
+
+  // 自由入力は削除できる
+  await page.click('#packing-list .packing-remove');
+  await expect(page.locator('#packing-list')).not.toContainText('名刺');
+});
+
+test('印刷用シート: 発行情報が用意され、印刷専用ブロックは画面に出ない', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  // 印刷専用ブロック（応急対応の要点・連絡先欄）は画面では非表示
+  await expect(page.locator('.print-only')).toBeHidden();
+  // 発行情報（いつ・どの地点か）は読み込み時に埋まっている
+  const meta = await page.locator('#print-meta').textContent();
+  expect(meta).toContain('発行:');
+  expect(meta).toContain('東京');
+  await expect(page.locator('#print-button')).toBeVisible();
+});
+
+test('見やすさ設定・音声ボタン・ホーム画面案内が動く', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // Aaボタンで標準→大。root font-sizeが変わり、別ページでも適用される（prefs.js）
+  await page.click('#font-size-button');
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 大');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('115%');
+  await page.goto('/about');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('115%');
+
+  // 戻っても選択が保持され、特大→標準まで巡回する
+  await page.goto('/');
+  await waitForForecast(page);
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 大');
+  await page.click('#font-size-button');
+  await page.click('#font-size-button');
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 標準');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('');
+
+  // 音声読み上げボタン（Chromiumは音声合成対応のため表示される）
+  await expect(page.locator('#speak-button')).toBeVisible();
+  await expect(page.locator('#speak-button')).toHaveText('今日の要点を聞く');
+
+  // ホーム画面追加の案内（この環境では一般的な文言が出る）
+  await page.getByText('ホーム画面に追加して毎日見る').click();
+  await expect(page.locator('#a2hs-generic')).toBeVisible();
+});
+
+/** 予報の全時間帯を指定時刻（'05'・'14'など）の内容へ固定する。
+ * デモデータは時間帯で判定が変わるため、現在時刻に連動する機能（いまの判定・
+ * 着用タイマー）をテストの実行時刻に依存させないために使う */
+async function mockForecastFixedHour(page, templateHour) {
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    const template = body.hours.find((hour) => hour.time.endsWith(`T${templateHour}:00`));
+    body.hours = body.hours.map((hour) => ({ ...template, time: hour.time }));
+    await route.fulfill({ json: body });
+  });
+}
+
+test('実測WBGTの会場ログ: 記録・リロード保持・削除・CSV書き出しができる', async ({ page }) => {
+  await page.goto('/#tab-measured');
+
+  // 判定するまでは記録ボタンが押せない（未判定の記録を防ぐ）
+  await expect(page.locator('#wbgt-log-button')).toBeDisabled();
+  await page.fill('#wbgt-input', '20');
+  await page.click('#wbgt-judge-button');
+  await page.fill('#wbgt-place', 'ステージ横');
+  await page.click('#wbgt-log-button');
+
+  // 記録すると履歴の表に場所・実測・補正後・判定バッジが並ぶ
+  await expect(page.locator('#wbgt-log-section')).toBeVisible();
+  await expect(page.locator('#wbgt-log-body tr')).toHaveCount(1);
+  await expect(page.locator('#wbgt-log-body')).toContainText('ステージ横');
+  await expect(page.locator('#wbgt-log-body')).toContainText('20℃');
+  await expect(page.locator('#wbgt-log-body')).toContainText('31℃');
+  await expect(page.locator('#wbgt-log-body .badge')).toBeVisible();
+
+  // 記録はこの端末に保存され、リロード後も残る
+  // （予報の読み込みでURLは地点パラメータへ置き換わりハッシュが消えるため、
+  //   タブは明示的に開き直す）
+  await page.reload();
+  await page.click('#tab-measured');
+  await expect(page.locator('#wbgt-log-section')).toBeVisible();
+  await expect(page.locator('#wbgt-log-body tr')).toHaveCount(1);
+
+  // CSV書き出しはBOM付きUTF-8のファイルをダウンロードする
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#wbgt-log-csv-button');
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^wbgt-log-\d{4}-\d{2}-\d{2}\.csv$/);
+
+  // 行の削除で表から消え、0件になると履歴ごと隠れる
+  await page.click('#wbgt-log-body button');
+  await expect(page.locator('#wbgt-log-section')).toBeHidden();
+});
+
+test('シェア画像: Web Share非対応環境ではPNGのダウンロードになる', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#share-image-button');
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('fursuit-weather.png');
+  // 保存の案内（説明文のコピーは環境の許可に依存するため文頭のみ検証する）
+  await expect(page.locator('#status')).toContainText('画像を保存し');
+});
+
+test('着用タイマー: 開始→リロード継続→休憩→終了ができる', async ({ page }) => {
+  // 早朝（着用可能な判定）に固定し、実行時刻に依存させない
+  await mockForecastFixedHour(page, '05');
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.click('#timer-start-button');
+  await expect(page.locator('#timer-overlay')).toBeVisible();
+  await expect(page.locator('#timer-mode')).toHaveText('着用中');
+  await expect(page.locator('#timer-limit')).toContainText('上限');
+  await expect(page.locator('#timer-clock')).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.locator('#timer-judgment .badge')).toBeVisible();
+
+  // 開始時刻はこの端末に保存され、リロードしても継続する
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#timer-overlay')).toBeVisible();
+  await expect(page.locator('#timer-mode')).toHaveText('着用中');
+
+  // 休憩へ切り替えるとカウントアップになり、同じ長さ以上の休憩を促す
+  await page.click('#timer-rest-button');
+  await expect(page.locator('#timer-mode')).toHaveText('休憩中');
+  await expect(page.locator('#timer-limit')).toContainText('同じ長さ以上の休憩');
+  await expect(page.locator('#timer-rest-button')).toHaveText('着用を再開');
+
+  // 終了で閉じ、保存も消える（リロードしても再表示されない）
+  await page.click('#timer-stop-button');
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+});
+
+test('着用タイマー: 判定が「着用中止」のときは開始できない', async ({ page }) => {
+  // 昼14時（危険レベル・着用中止）に固定する
+  await mockForecastFixedHour(page, '14');
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.click('#timer-start-button');
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+  await expect(page.locator('#status-error')).toContainText('タイマーは開始できません');
+});

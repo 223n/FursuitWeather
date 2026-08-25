@@ -17,7 +17,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && npm run typecheck",
-    "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/wbgt-tool.js --minify --charset=utf8 --allow-overwrite --outfile=public/wbgt-tool.js && esbuild public/display.js --minify --charset=utf8 --allow-overwrite --outfile=public/display.js && esbuild public/sw.js --minify --charset=utf8 --allow-overwrite --outfile=public/sw.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css && esbuild public/display.css --minify --charset=utf8 --allow-overwrite --outfile=public/display.css"
+    "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/prefs.js --minify --charset=utf8 --allow-overwrite --outfile=public/prefs.js && esbuild public/wbgt-tool.js --minify --charset=utf8 --allow-overwrite --outfile=public/wbgt-tool.js && esbuild public/display.js --minify --charset=utf8 --allow-overwrite --outfile=public/display.js && esbuild public/sw.js --minify --charset=utf8 --allow-overwrite --outfile=public/sw.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css && esbuild public/display.css --minify --charset=utf8 --allow-overwrite --outfile=public/display.css"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260820.1",
@@ -25,7 +25,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "0.28.2",
     "eslint": "^10.8.1",
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.10",
     "wrangler": "^4.125.0"

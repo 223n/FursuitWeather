@@ -20,11 +20,17 @@ import aboutHtml from '../public/about.html?raw';
 import emergencyHtml from '../public/emergency.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
+import prefsJs from '../public/prefs.js?raw';
 import llmsTxt from '../public/llms.txt?raw';
 import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
 import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
+// style.cssは「?raw」ではなくfsで読む（vitestはCSSを専用パイプラインで処理する
+// ため、?raw指定でも空文字列になる）
+import { readFileSync } from 'node:fs';
+
+const styleCss = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
 import {
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
@@ -121,6 +127,21 @@ describe('静的HTMLとconstantsの同期', () => {
     expect(caption).not.toBeNull();
     for (const column of ['時刻', '天気', '気温', '湿度', '降水確率', '風速', '暑さ指数', '屋外判定', '屋内判定']) {
       expect(caption![1]).toContain(column);
+    }
+  });
+
+  it('文字サイズの対応表はprefs.js（適用）とapp.js（切り替えUI）で一致する', () => {
+    // 片側だけの変更で「選んだサイズと適用されるサイズが食い違う」のを防ぐ
+    const sizes = appJs.match(/const FONT_SIZES = \[([\s\S]*?)\];/);
+    expect(sizes).not.toBeNull();
+    for (const [id, size] of [
+      ['standard', '100%'],
+      ['large', '115%'],
+      ['xlarge', '130%'],
+    ]) {
+      expect(sizes![1]).toContain(`id: '${id}'`);
+      expect(sizes![1]).toContain(`size: '${size}'`);
+      expect(prefsJs).toContain(`${id}: '${size}'`);
     }
   });
 
@@ -381,6 +402,40 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     for (const key of Object.keys(COOLING_LABELS)) {
       expect(block![1]).toContain(`${key}: {`);
     }
+  });
+
+  it('シェア画像の配色はstyle.cssのレベル別トークン（ライト側）と一致する', () => {
+    // Canvas描画はCSS変数を参照できないためapp.jsが色を複製している。
+    // style.cssの:root（ライト側。ダークモード側の再定義より前に現れる）と突き合わせ、
+    // 配色変更時に共有画像だけ旧配色のまま残るのを防ぐ
+    const token = (name: string): string => {
+      const match = styleCss.match(new RegExp(`--${name}: (#[0-9A-F]{6});`));
+      expect(match, `--${name}がstyle.cssに見つからない`).not.toBeNull();
+      return match![1] ?? '';
+    };
+    const block = appJs.match(/const SHARE_GRADE_COLORS = \[([\s\S]*?)\n {2}\];/);
+    expect(block).not.toBeNull();
+    const rows = [
+      ...(block![1] ?? '').matchAll(
+        /accent: '(#[0-9A-F]{6})', surface: '(#[0-9A-F]{6})', text: '(#[0-9A-F]{6})'/g,
+      ),
+    ];
+    expect(rows).toHaveLength(5);
+    rows.forEach((row, grade) => {
+      expect(row[1]).toBe(token(`level-${grade}-accent`));
+      expect(row[2]).toBe(token(`level-${grade}-surface`));
+      expect(row[3]).toBe(token(`level-${grade}-text`));
+    });
+    const cold = appJs.match(
+      /const SHARE_COLD_COLORS = \{ accent: '(#[0-9A-F]{6})', surface: '(#[0-9A-F]{6})', text: '(#[0-9A-F]{6})' \}/,
+    );
+    expect(cold).not.toBeNull();
+    expect(cold![1]).toBe(token('level-cold-accent'));
+    expect(cold![2]).toBe(token('level-cold-surface'));
+    expect(cold![3]).toBe(token('level-cold-text'));
+    const header = appJs.match(/const SHARE_HEADER_COLOR = '(#[0-9A-F]{6})';/);
+    expect(header).not.toBeNull();
+    expect(header![1]).toBe(token('color-header-bg'));
   });
 
   it('日別カードの冷房必須ラベルはCOOLING_LABELS.requiredと一致する', () => {

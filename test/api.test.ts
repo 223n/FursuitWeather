@@ -220,6 +220,27 @@ describe('handleForecast', () => {
     );
   });
 
+  it('dailyの日の出・日の入りが日別サマリーへ載る（無い日はnull）', async () => {
+    const body = openMeteoBody() as Record<string, unknown>;
+    body['daily'] = {
+      time: [MOCK_DATE],
+      sunrise: [`${MOCK_DATE}T05:03`],
+      sunset: [`${MOCK_DATE}T18:24`],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+    );
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68'),
+    );
+    const forecast = (await response.json()) as {
+      days: { sunrise: string | null; sunset: string | null }[];
+    };
+    expect(forecast.days[0]).toMatchObject({ sunrise: '05:03', sunset: '18:24' });
+  });
+
   it('過去分がない応答ではsuddenHeatはnull（欠測時は黙って抑制）', async () => {
     vi.stubGlobal(
       'fetch',
@@ -445,6 +466,32 @@ describe('parseWeatherResponse', () => {
     expect(parsed.hours.every((h) => h.precipitationProbability === null)).toBe(true);
   });
 
+  it('dailyブロックから日の出・日の入りを日付ごとに取り出す', () => {
+    const body = openMeteoBody() as Record<string, unknown>;
+    body['daily'] = {
+      time: [MOCK_DATE],
+      sunrise: [`${MOCK_DATE}T05:03`],
+      sunset: [`${MOCK_DATE}T18:24`],
+    };
+    const result = parseWeatherResponse(body);
+    expect(result.sunTimes.get(MOCK_DATE)).toEqual({ sunrise: '05:03', sunset: '18:24' });
+  });
+
+  it('dailyが無い・形式異常でも本体は成功し、日の出・日の入りは空になる（ベストエフォート）', () => {
+    // daily無し
+    expect(parseWeatherResponse(openMeteoBody()).sunTimes.size).toBe(0);
+    // 形式異常（配列でない・時刻形式でない要素）
+    const broken = openMeteoBody() as Record<string, unknown>;
+    broken['daily'] = { time: [MOCK_DATE, 42], sunrise: 'x', sunset: [`${MOCK_DATE}T18:24`] };
+    expect(parseWeatherResponse(broken).sunTimes.size).toBe(0);
+    const partial = openMeteoBody() as Record<string, unknown>;
+    partial['daily'] = { time: [MOCK_DATE], sunrise: [1765864800], sunset: [`${MOCK_DATE}T18:24`] };
+    expect(parseWeatherResponse(partial).sunTimes.get(MOCK_DATE)).toEqual({
+      sunrise: null,
+      sunset: '18:24',
+    });
+  });
+
   it('時刻が文書契約の形式（YYYY-MM-DDTHH:mm）でない時間は破棄する', () => {
     // 形式不正が防御を通過すると、日付・時刻の位置切り出し（hourOf/dateOf）が
     // 化けたUIとして現れるため、上流境界で破棄する
@@ -642,6 +689,16 @@ describe('buildForecastUrl', () => {
     expect(url.searchParams.get('timezone')).toBe('Asia/Tokyo');
     expect(url.searchParams.get('wind_speed_unit')).toBe('ms');
     expect(url.searchParams.get('forecast_days')).toBe('4');
+    // 日の出・日の入り（補助情報）も同じ応答で受け取る
+    expect(url.searchParams.get('daily')).toBe('sunrise,sunset');
+  });
+
+  it('日付固定の取得（/api/national用）にはpast_days・dailyを付けない', () => {
+    const url = new URL(buildForecastUrl(35.6785, 139.6823, 4, '2026-08-15'));
+    expect(url.searchParams.get('start_date')).toBe('2026-08-15');
+    expect(url.searchParams.get('end_date')).toBe('2026-08-15');
+    expect(url.searchParams.get('past_days')).toBeNull();
+    expect(url.searchParams.get('daily')).toBeNull();
   });
 
   it('hourlyパラメータは必要フィールドと完全一致する（timeを含めない）', () => {

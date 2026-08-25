@@ -142,7 +142,149 @@
     );
 
     resultArea.replaceChildren(list);
+    // 会場ログ用に直近の判定を保持し、記録ボタンを押せるようにする
+    lastJudged = { measured, suitWbgt, grade: band.grade, label: band.label };
+    logButton.disabled = false;
   }
+
+  // ---- 会場ログ（実測WBGTの記録） ----
+  // 判定した値を場所ラベル・時刻付きでこの端末（localStorage）に記録し、
+  // 時系列の表とCSV書き出しでイベント後の振り返りに使えるようにする
+
+  const placeInput = document.getElementById('wbgt-place');
+  const logButton = document.getElementById('wbgt-log-button');
+  const logSection = document.getElementById('wbgt-log-section');
+  const logBody = document.getElementById('wbgt-log-body');
+  const WBGT_LOG_KEY = 'fursuitweatherWbgtLog';
+  /** 保存件数の上限（超えたら古い記録から削除する） */
+  const WBGT_LOG_LIMIT = 200;
+  /** 直近の判定結果（記録ボタンの対象。未判定ならnull） */
+  let lastJudged = null;
+
+  /** 保存済みの記録を読む（壊れた保存・保存不可の環境は空） */
+  function readLog() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(WBGT_LOG_KEY) ?? '');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** 記録を保存する（保存できない環境では黙って諦める） */
+  function writeLog(entries) {
+    try {
+      localStorage.setItem(WBGT_LOG_KEY, JSON.stringify(entries));
+    } catch {
+      // 保存できなくても表示中の表は使える
+    }
+  }
+
+  /** 記録1件の形式が正しいか（保存値の破損・古い形式への防御） */
+  function isValidEntry(entry) {
+    return (
+      entry &&
+      typeof entry.at === 'string' &&
+      typeof entry.place === 'string' &&
+      Number.isFinite(entry.measured) &&
+      Number.isFinite(entry.suitWbgt) &&
+      Number.isInteger(entry.grade) &&
+      typeof entry.label === 'string'
+    );
+  }
+
+  /** 記録時刻の表示文（月/日 時:分） */
+  function formatLogTime(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return '-';
+    }
+    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** 会場ログの表を描き直す（新しい記録が上に来るよう逆順で表示する） */
+  function renderLog() {
+    const entries = readLog().filter(isValidEntry);
+    logSection.hidden = entries.length === 0;
+    logBody.replaceChildren();
+    for (let i = entries.length - 1; i >= 0; i -= 1) {
+      const entry = entries[i];
+      const row = document.createElement('tr');
+      const addCell = (content) => {
+        const cell = document.createElement('td');
+        if (typeof content === 'string') {
+          cell.textContent = content;
+        } else {
+          cell.appendChild(content);
+        }
+        row.appendChild(cell);
+      };
+      addCell(formatLogTime(entry.at));
+      addCell(entry.place === '' ? '-' : entry.place);
+      addCell(`${entry.measured}℃`);
+      addCell(`${entry.suitWbgt}℃`);
+      addCell(
+        createBadge(entry.grade, GRADE_SYMBOLS[entry.grade] ?? ['?'], entry.label),
+      );
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '削除';
+      remove.setAttribute('aria-label', `${formatLogTime(entry.at)}の記録を削除`);
+      remove.addEventListener('click', () => {
+        const latest = readLog().filter(isValidEntry);
+        latest.splice(i, 1);
+        writeLog(latest);
+        renderLog();
+      });
+      addCell(remove);
+      logBody.appendChild(row);
+    }
+  }
+
+  logButton.addEventListener('click', () => {
+    if (!lastJudged) {
+      return;
+    }
+    const entries = readLog().filter(isValidEntry);
+    entries.push({
+      at: new Date().toISOString(),
+      // 制御文字を除いた表示用テキストにする（app.jsのnameパラメータと同じ対策）
+      place: placeInput.value.replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 30),
+      measured: lastJudged.measured,
+      suitWbgt: lastJudged.suitWbgt,
+      grade: lastJudged.grade,
+      label: lastJudged.label,
+    });
+    // 上限を超えたら古い記録から削除する
+    writeLog(entries.slice(-WBGT_LOG_LIMIT));
+    renderLog();
+    resultArea.appendChild(document.createTextNode('記録しました。'));
+  });
+
+  document.getElementById('wbgt-log-csv-button').addEventListener('click', () => {
+    const entries = readLog().filter(isValidEntry);
+    const escapeCsv = (text) => `"${String(text).replace(/"/g, '""')}"`;
+    const lines = [
+      ['記録時刻', '場所', '実測WBGT（℃）', '補正後WBGT（℃）', '判定'].map(escapeCsv).join(','),
+      ...entries.map((entry) =>
+        [entry.at, entry.place, entry.measured, entry.suitWbgt, entry.label]
+          .map(escapeCsv)
+          .join(','),
+      ),
+    ];
+    // BOM付きUTF-8にして表計算ソフトでの文字化けを防ぐ
+    const blob = new Blob(['\ufeff', lines.join('\r\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `wbgt-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  renderLog();
 
   judgeButton.addEventListener('click', judge);
   input.addEventListener('keydown', (event) => {

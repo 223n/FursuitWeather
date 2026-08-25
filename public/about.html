@@ -63,6 +63,8 @@
   }
   </script>
   <link rel="stylesheet" href="/style.css">
+  <!-- 見やすさ設定（文字サイズ）の適用。設定はトップページのAaボタンで変更する -->
+  <script src="/prefs.js"></script>
   <!-- favicon: 太陽+肉球（SVG優先、旧ブラウザ・クローラー向けにICO、iOS向けにタッチアイコン） -->
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -332,6 +334,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>date</code></th><td>string</td><td>日付（YYYY-MM-DD）</td></tr>
             <tr><th scope="row"><code>temperatureMin</code>・<code>temperatureMax</code></th><td>number</td><td>最低・最高気温（℃）</td></tr>
             <tr><th scope="row"><code>weatherCode</code>・<code>weatherLabel</code></th><td>number・string</td><td>日中の代表天気</td></tr>
+            <tr><th scope="row"><code>sunrise</code>・<code>sunset</code></th><td>string・null</td><td>日の出・日の入り時刻（<code>HH:mm</code>）。上流が提供しない場合・欠測時は<code>null</code></td></tr>
             <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
             <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式）。<br>深刻度1以下かつ降水なしの時間帯が対象</td></tr>
             <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>

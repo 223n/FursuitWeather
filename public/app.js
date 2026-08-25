@@ -124,6 +124,8 @@
    * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
    * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
   let manualTabSeq = 0;
+  /** イベント固定リンク（?event=）で指定された名前。一覧の読み込み後に自動選択する */
+  let pendingEventName = null;
 
   /**
    * 保留中のセレクトデバウンスを解除する
@@ -609,6 +611,11 @@
       }
       addRow('最大風速', windValue);
     }
+    // 日の入り（上流が提供しない場合は行ごと出さない）。イベントの終了時刻の
+    // 判断や撤収計画に使えるよう、日の出も括弧書きで添える
+    if (day.sunset) {
+      addRow('日の入り', day.sunrise ? `${day.sunset}（日の出 ${day.sunrise}）` : day.sunset);
+    }
     const laundryValue = badgeWithText(
       { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
       null,
@@ -908,6 +915,10 @@
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
+    // 日の入りの区切りマーク用（その日のデータが無ければ出さない）
+    const selectedDay = currentForecast.days.find((d) => d.date === selectedDate);
+    const sunset = selectedDay ? selectedDay.sunset : null;
+
     for (const hour of hours) {
       const row = document.createElement('tr');
       const hourNumber = hourNumberOf(hour.time);
@@ -926,6 +937,14 @@
       const timeHeader = document.createElement('th');
       timeHeader.scope = 'row';
       timeHeader.textContent = `${String(hourNumber).padStart(2, '0')}:00`;
+      // 日の入りを含む時間帯の行に目印を付ける（照明・撤収準備の目安）
+      if (sunset && hourNumber === Number(sunset.slice(0, 2))) {
+        const sunsetNote = document.createElement('span');
+        sunsetNote.className = 'sunset-note';
+        sunsetNote.textContent = `日の入り ${sunset}`;
+        timeHeader.appendChild(document.createElement('br'));
+        timeHeader.appendChild(sunsetNote);
+      }
       row.appendChild(timeHeader);
       addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
@@ -1056,6 +1075,122 @@
     }
   }
 
+  // ---- 前回見た予報との差分 ----
+  // 予報を表示するたびに日別判定をこの端末へ保存し、時間をあけた再訪で
+  // 判定が変わっていたら差分バナーで知らせる（サーバーへは何も送らない）
+
+  const diffBanner = document.getElementById('diff-banner');
+  const SNAPSHOT_STORAGE_KEY = 'fursuitweatherForecastSnapshots';
+  const DIFF_DISMISSED_KEY = 'fursuitweatherDiffDismissed';
+  /** 差分を比較する最小の経過時間。直前のリロードとの比較は意味が薄い */
+  const SNAPSHOT_MIN_AGE_MS = 3 * 60 * 60 * 1000;
+  /** 保存する地点数の上限（古い地点から削除して肥大化を防ぐ） */
+  const SNAPSHOT_LIMIT = 10;
+
+  /** 保存済みスナップショット一式を読む（壊れた保存値・保存不可の環境は空） */
+  function readForecastSnapshots() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SNAPSHOT_STORAGE_KEY) ?? '');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** 表示した予報の日別判定を地点クエリごとに保存する */
+  function writeForecastSnapshot(query, body) {
+    try {
+      const snapshots = readForecastSnapshots();
+      snapshots[query] = {
+        at: Date.now(),
+        days: body.days.map((day) => ({
+          date: day.date,
+          grade: day.outdoorWorst.grade,
+          label: day.outdoorWorst.label,
+        })),
+      };
+      const keys = Object.keys(snapshots);
+      if (keys.length > SNAPSHOT_LIMIT) {
+        keys.sort((a, b) => (snapshots[a].at ?? 0) - (snapshots[b].at ?? 0));
+        for (const key of keys.slice(0, keys.length - SNAPSHOT_LIMIT)) {
+          delete snapshots[key];
+        }
+      }
+      localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshots));
+    } catch {
+      // 保存できない環境（プライベートモード等）では差分表示を諦める
+    }
+  }
+
+  /** 前回の閲覧から日別判定が変わっていれば差分バナーを表示する */
+  function renderForecastDiff(query, body) {
+    diffBanner.hidden = true;
+    const previous = readForecastSnapshots()[query];
+    if (
+      !previous ||
+      !Array.isArray(previous.days) ||
+      typeof previous.at !== 'number' ||
+      Date.now() - previous.at < SNAPSHOT_MIN_AGE_MS
+    ) {
+      return;
+    }
+    const changes = [];
+    for (const day of body.days) {
+      const before = previous.days.find((d) => d && d.date === day.date);
+      if (
+        before &&
+        typeof before.grade === 'number' &&
+        typeof before.label === 'string' &&
+        before.grade !== day.outdoorWorst.grade
+      ) {
+        changes.push({ date: day.date, before, after: day.outdoorWorst });
+      }
+    }
+    if (changes.length === 0) {
+      return;
+    }
+    // 「閉じる」で同じ差分を再表示しないための署名（内容が変われば再び表示する）
+    const signature = JSON.stringify(
+      changes.map((c) => [query, c.date, c.before.grade, c.after.grade]),
+    );
+    try {
+      if (localStorage.getItem(DIFF_DISMISSED_KEY) === signature) {
+        return;
+      }
+    } catch {
+      // 読めない環境では常に表示する（安全側）
+    }
+
+    const worsened = changes.some((c) => c.after.grade > c.before.grade);
+    diffBanner.className = `diff-banner ${worsened ? 'diff-worse' : 'diff-better'}`;
+    const at = new Date(previous.at);
+    const text = document.createElement('span');
+    const changeText = changes
+      .map(
+        (c) =>
+          `${formatDate(c.date)} ${c.before.label}→${c.after.label}` +
+          `（${c.after.grade > c.before.grade ? '悪化' : '改善'}）`,
+      )
+      .join('、');
+    text.textContent =
+      `前回の閲覧（${at.getMonth() + 1}月${at.getDate()}日${at.getHours()}時ごろ）から` +
+      `判定が変わりました: ${changeText}`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'diff-close';
+    close.textContent = '閉じる';
+    close.addEventListener('click', () => {
+      diffBanner.hidden = true;
+      try {
+        localStorage.setItem(DIFF_DISMISSED_KEY, signature);
+      } catch {
+        // 保存できなくても閉じる操作自体は成立させる
+      }
+    });
+    diffBanner.replaceChildren(faIcon('triangle-exclamation', 'btn-icon'), text, close);
+    diffBanner.hidden = false;
+  }
+
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
    * @param {string} locationName 表示する地点名（成功時にラベルへ反映）
@@ -1142,6 +1277,19 @@
         }
       }
       renderForecast();
+      // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）
+      const printedAt = new Date();
+      document.getElementById('print-meta').textContent =
+        `発行: ${printedAt.getFullYear()}年${printedAt.getMonth() + 1}月${printedAt.getDate()}日` +
+        `${printedAt.getHours()}時${String(printedAt.getMinutes()).padStart(2, '0')}分・` +
+        `${locationName}・最新の予報は https://fursuit-weather.223n.tech/`;
+      // 前回見た予報との差分（記憶可能な地点のみ。現在地・デモはスナップショットも残さない）
+      if (displayedStorable) {
+        renderForecastDiff(query, body);
+        writeForecastSnapshot(query, body);
+      } else {
+        diffBanner.hidden = true;
+      }
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
@@ -1184,20 +1332,22 @@
     updateDayTabs();
     populatePlanDates();
     clearPlan();
+    // 着用タイマーの開始ボタンの表示と、表示中のタイマーの判定バッジを合わせる
+    updateTimerButton();
 
     if (selectedDate) {
       renderHours();
     }
   }
 
-  /** 選択中の都市で予報を読み込む */
+  /** 選択中の都市で予報を読み込む（完了を待てるようloadForecastの結果を返す） */
   function loadSelectedCity() {
     const cityIndex = Number(citySelect.value);
     const city = CITIES[cityIndex];
     if (!city) {
-      return;
+      return undefined;
     }
-    loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
+    return loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -1280,12 +1430,21 @@
   // 「予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
   // クリップボードで渡す（要求中・失敗中のlastQueryではなくdisplayedQueryを使い、
   // 画面の予報と共有URLが常に一致するようにする）
+  const shareIncludePlan = document.getElementById('share-include-plan');
   document.getElementById('share-button').addEventListener('click', async () => {
     let shareUrl = `${window.location.origin}/`;
     if (displayedQuery === DEMO_QUERY) {
       shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
     } else if (displayedQuery) {
-      shareUrl = `${window.location.origin}/?${shareQueryString(displayedQuery, displayedName)}`;
+      const params = new URLSearchParams(shareQueryString(displayedQuery, displayedName));
+      // 任意設定: 見ている日付とプランナーの時間帯（date/from/to）を含める。
+      // 開いた側は最新の予報で再計算されるため、古い画面写真を信じる事故を防げる
+      if (shareIncludePlan.checked && currentForecast && selectedDate) {
+        params.set('date', selectedDate);
+        params.set('from', planStart.value);
+        params.set('to', planEnd.value);
+      }
+      shareUrl = `${window.location.origin}/?${params.toString()}`;
     }
     if (navigator.share) {
       try {
@@ -1305,6 +1464,16 @@
     } catch {
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
+  });
+
+  // 印刷用ワンシート: 印刷レイアウトは@media print（style.css）が担う。
+  // ブラウザの印刷ダイアログを開くだけで、A4縦1枚の要約が出る
+  document.getElementById('print-button').addEventListener('click', () => {
+    if (!currentForecast) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    window.print();
   });
 
   // 会場表示モード（display.html）への導線: 表示に成功している地点を引き継いだ
@@ -1754,7 +1923,29 @@
   }
 
   eventButton.addEventListener('click', showEventForecast);
-  initEvents();
+  initEvents().then(async () => {
+    // イベント固定リンク（?event=イベント名）: 一覧が揃ってから該当イベントを
+    // 自動選択して開催地の予報表示まで進める。見つからなければ通常の初期表示へ
+    if (pendingEventName === null) {
+      return;
+    }
+    const name = pendingEventName;
+    pendingEventName = null;
+    const index = eventList.findIndex((event) => event.name === name);
+    if (index >= 0) {
+      eventSelect.value = String(index);
+      showEventForecast();
+      return;
+    }
+    // 通常表示の完了メッセージで消えないよう、読み込み後に案内を出す
+    // （通信エラーではないため、赤のエラーではなく黄の注意で示す）
+    await loadInitialStoredOrDefault();
+    setStatus(
+      `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
+      false,
+      true,
+    );
+  });
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
@@ -1794,6 +1985,9 @@
   /** プランナーの結果を消す（地点・日付が変わったとき、古い前提の計画を残さない） */
   function clearPlan() {
     planResult.replaceChildren();
+    // 持ち物リストも前提（対象日・地点）が変わるため隠す（計画の作成で再表示される）
+    packingSection.hidden = true;
+    lastPacking = null;
   }
 
   /** 選んだ日付の指定時間帯の計画を描画する */
@@ -1865,21 +2059,1002 @@
       );
       notes.appendChild(rainNote);
     }
+    // 終了時刻が日の入りの後なら、暗さ・冷え込みへの備えを促す
+    const planDay = currentForecast.days.find((d) => d.date === planDateValue);
+    if (planDay && planDay.sunset) {
+      const sunsetMinutes =
+        Number(planDay.sunset.slice(0, 2)) * 60 + Number(planDay.sunset.slice(3, 5));
+      if (end * 60 > sunsetMinutes) {
+        const sunsetNote = document.createElement('li');
+        sunsetNote.appendChild(faIcon('sun', 'btn-icon'));
+        sunsetNote.appendChild(
+          document.createTextNode(
+            `終了に選んだ${end}時は日の入り（${planDay.sunset}）の後です。` +
+              '照明の準備と、日没後の冷え込み・視界の悪化にご注意ください。',
+          ),
+        );
+        notes.appendChild(sunsetNote);
+      }
+    }
     const generalNote = document.createElement('li');
     generalNote.textContent =
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
     notes.appendChild(generalNote);
 
-    planResult.replaceChildren(heading, list, total, notes);
+    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
+    planResult.replaceChildren(heading, list, total, notes, buildRestGuide(worstGrade));
+    renderPacking(planDateValue, hours);
     setStatus('活動計画を作成しました。', false);
   }
 
+  /** 休憩の質ガイドを作る。判定が厳しいほど手順を足す（クールダウンの優先順） */
+  function buildRestGuide(worstGrade) {
+    const guide = document.createElement('div');
+    guide.className = 'rest-guide';
+    const heading = document.createElement('h4');
+    heading.appendChild(faIcon('snowflake', 'btn-icon'));
+    heading.appendChild(document.createTextNode('休憩の質ガイド'));
+    const list = document.createElement('ul');
+    const items = [
+      'ヘッドとハンドを外し、顔と手に風を当てる',
+      '水分と塩分を一緒にとる（汗をかいたら水だけにしない）',
+    ];
+    if (worstGrade >= 2) {
+      items.push(
+        '前腕から手を冷たい水につける（手のひら・前腕の冷却は体温を下げやすい）',
+        '冷房の効いた室内か、日陰で風通しのよい場所に座って休む',
+      );
+    }
+    if (worstGrade >= 3) {
+      items.push(
+        '首・脇の下・足の付け根を保冷剤で冷やす',
+        '「30分着たら30分休む」を守り、次の着用前に体調を互いに確認する',
+      );
+    }
+    for (const text of items) {
+      const item = document.createElement('li');
+      item.textContent = text;
+      list.appendChild(item);
+    }
+    guide.append(heading, list);
+    return guide;
+  }
+
+  // ---- この日の持ち物（予報連動チェックリスト） ----
+  // 判定・降水・低温・乾燥指数から自動生成し、チェック状態と自由入力の持ち物は
+  // この端末のlocalStorageにのみ保存する（サーバーへは何も送らない）
+
+  const packingSection = document.getElementById('packing-section');
+  const packingList = document.getElementById('packing-list');
+  const packingCustomInput = document.getElementById('packing-custom-input');
+  const PACKING_CHECKED_KEY = 'fursuitweatherPackingChecked';
+  const PACKING_CUSTOM_KEY = 'fursuitweatherPackingCustom';
+  const PACKING_CUSTOM_LIMIT = 10;
+  /** 直近に生成した持ち物リストの条件（自由入力の追加後に同じ条件で作り直す用） */
+  let lastPacking = null;
+
+  /** localStorageのJSON値を読む（壊れた保存・保存不可の環境はfallback） */
+  function readPackingState(key, fallback) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) ?? '');
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /** localStorageへJSON値を書く（保存できない環境では黙って諦める） */
+  function writePackingState(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // 保存できなくても表示中のリスト自体は使える
+    }
+  }
+
+  /** 対象日の予報から持ち物を自動生成する */
+  function buildPackingItems(day, hours) {
+    const items = ['飲み物（いつもより多めに）', 'タオル・着替えのインナー'];
+    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
+    if (worstGrade >= 2) {
+      items.push(
+        '保冷剤・凍らせたペットボトル',
+        '経口補水液または塩分タブレット',
+        '冷却ベスト・首用の冷却グッズ',
+      );
+    }
+    if (hours.some((h) => String(h.outdoor.level).startsWith('cold'))) {
+      items.push(
+        '速乾インナーの替え（汗冷え対策）',
+        'カイロ（肌に直接当てない。低温やけどに注意）',
+      );
+    }
+    const rainy = hours.some(
+      (h) =>
+        h.weather.precipitation > 0 ||
+        (typeof h.weather.precipitationProbability === 'number' &&
+          h.weather.precipitationProbability >= 50),
+    );
+    if (rainy) {
+      items.push('レインカバー・防水バッグ', '替えタオル（ファーの水気取り）');
+    }
+    if (day && day.laundry && day.laundry.moldWarning) {
+      items.push('乾燥剤・除湿グッズ（この日は乾きにくい予報）');
+    }
+    return items;
+  }
+
+  /** 持ち物リスト1項目を作って追加する */
+  function appendPackingItem(text, isCustom) {
+    const item = document.createElement('li');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = readPackingState(PACKING_CHECKED_KEY, {})[text] === true;
+    box.addEventListener('change', () => {
+      const state = readPackingState(PACKING_CHECKED_KEY, {});
+      if (box.checked) {
+        state[text] = true;
+      } else {
+        delete state[text];
+      }
+      writePackingState(PACKING_CHECKED_KEY, state);
+    });
+    label.append(box, document.createTextNode(` ${text}`));
+    item.appendChild(label);
+    if (isCustom) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'packing-remove';
+      remove.textContent = '削除';
+      remove.setAttribute('aria-label', `「${text}」を持ち物から削除`);
+      remove.addEventListener('click', () => {
+        writePackingState(
+          PACKING_CUSTOM_KEY,
+          readPackingState(PACKING_CUSTOM_KEY, []).filter((entry) => entry !== text),
+        );
+        item.remove();
+      });
+      item.appendChild(remove);
+    }
+    packingList.appendChild(item);
+  }
+
+  /** 対象日の持ち物リストを描画する（プランナーの計画作成時に更新される） */
+  function renderPacking(dateText, hours) {
+    lastPacking = { dateText, hours };
+    const day = currentForecast.days.find((d) => d.date === dateText);
+    packingList.replaceChildren();
+    for (const text of buildPackingItems(day, hours)) {
+      appendPackingItem(text, false);
+    }
+    for (const text of readPackingState(PACKING_CUSTOM_KEY, [])) {
+      if (typeof text === 'string' && text !== '') {
+        appendPackingItem(text, true);
+      }
+    }
+    packingSection.hidden = false;
+  }
+
+  /** 自由入力の持ち物を追加する */
+  function addCustomPackingItem() {
+    const text = packingCustomInput.value.trim().slice(0, 40);
+    if (text === '') {
+      return;
+    }
+    const custom = readPackingState(PACKING_CUSTOM_KEY, []).filter(
+      (entry) => typeof entry === 'string',
+    );
+    if (custom.includes(text)) {
+      setStatus('同じ持ち物がすでにあります。', false, true);
+      return;
+    }
+    if (custom.length >= PACKING_CUSTOM_LIMIT) {
+      setStatus(`自由入力の持ち物は${PACKING_CUSTOM_LIMIT}件までです。`, false, true);
+      return;
+    }
+    custom.push(text);
+    writePackingState(PACKING_CUSTOM_KEY, custom);
+    packingCustomInput.value = '';
+    if (lastPacking) {
+      renderPacking(lastPacking.dateText, lastPacking.hours);
+    }
+  }
+
+  document.getElementById('packing-add-button').addEventListener('click', addCustomPackingItem);
+  packingCustomInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addCustomPackingItem();
+    }
+  });
+  document.getElementById('packing-copy-button').addEventListener('click', async () => {
+    const lines = [...packingList.querySelectorAll('li')].map((item) => {
+      const box = item.querySelector('input');
+      const text = item.querySelector('label').textContent.trim();
+      return `${box.checked ? '☑' : '□'} ${text}`;
+    });
+    const header = `持ち物リスト（${planDate.value ? formatDate(planDate.value) : ''}・${displayedName || '選択地点'}）`;
+    try {
+      await navigator.clipboard.writeText([header, ...lines].join('\n'));
+      setStatus('持ち物リストをコピーしました。', false);
+    } catch {
+      setStatus('コピーできませんでした。リストを直接選択してコピーしてください。', true);
+    }
+  });
+
   planButton.addEventListener('click', renderPlan);
 
-  // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
+  // ---- シェア画像カード ----
+  // 表示中の予報からOGPサイズ（1200×630）の判定カード画像をCanvasで描き、
+  // Web Share（対応環境）またはPNGダウンロードで渡す。SNSの画面写真と違い、
+  // 生成時刻と出典・URL入りのため「いつの判定か」が伝わる
+
+  /** 判定レベル別の描画色。style.cssの--level-N-accent/surface/text（ライト側）と
+   * 同期する（ずれはhtmlSyncテストが検出する）。画像は閲覧環境のダークモード設定に
+   * 左右されない固定の見た目にするため、常にライト配色で描く */
+  const SHARE_GRADE_COLORS = [
+    { accent: '#009E73', surface: '#E5F5EF', text: '#006147' },
+    { accent: '#A66E00', surface: '#FCF0D8', text: '#6B4700' },
+    { accent: '#B34700', surface: '#FDE8D7', text: '#7A3100' },
+    { accent: '#CC3311', surface: '#FBE3DD', text: '#99260C' },
+    { accent: '#8A1500', surface: '#F6D7D0', text: '#6E1100' },
+  ];
+  /** 低温側レベルの描画色。style.cssの--level-cold-*（ライト側）と同期 */
+  const SHARE_COLD_COLORS = { accent: '#0072B2', surface: '#E1EFF8', text: '#005180' };
+  /** ヘッダー帯の色。style.cssの--color-header-bg（ライト側）と同期 */
+  const SHARE_HEADER_COLOR = '#0072B2';
+
+  /** 時間別判定に対応する描画色を返す（低温レベルは青系） */
+  function shareColorsOf(outdoor) {
+    return String(outdoor.level).startsWith('cold')
+      ? SHARE_COLD_COLORS
+      : (SHARE_GRADE_COLORS[outdoor.grade] ?? SHARE_GRADE_COLORS[0]);
+  }
+
+  /** 角丸長方形のパスを作る（roundRect未対応環境でも動く書き方にする） */
+  function shareRoundRectPath(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+  }
+
+  /** 禁止マーク（grade 4の記号。GRADE_SYMBOLSのbanアイコンに対応）を描く */
+  function shareDrawBan(ctx, x, y, radius, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(3, radius * 0.25);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    const offset = radius * Math.SQRT1_2;
+    ctx.beginPath();
+    ctx.moveTo(x - offset, y - offset);
+    ctx.lineTo(x + offset, y + offset);
+    ctx.stroke();
+  }
+
+  /** 時間帯セル・判定見出しの記号を描く（記号+色で段階を示す。危険は禁止マーク） */
+  function shareDrawSymbol(ctx, outdoor, x, y, size, color) {
+    if (!String(outdoor.level).startsWith('cold') && outdoor.grade === 4) {
+      shareDrawBan(ctx, x, y, size * 0.55, color);
+      return;
+    }
+    ctx.fillStyle = color;
+    ctx.font = `bold ${size}px sans-serif`;
+    const align = ctx.textAlign;
+    ctx.textAlign = 'center';
+    ctx.fillText(['◎', '○', '△', '✕'][outdoor.grade] ?? '?', x, y);
+    ctx.textAlign = align;
+  }
+
+  /** 表示中の予報からシェア用カード画像を描く（対象日の時間帯がなければnull） */
+  function buildShareCanvas() {
+    // 対象は選択中の日。時間帯ミニバーは時間別テーブルと同じ6〜18時
+    const date = selectedDate ?? currentForecast.days[0].date;
+    const dayHours = hoursOnDate(date).filter((h) => {
+      const hour = hourNumberOf(h.time);
+      return hour >= 6 && hour < 19;
+    });
+    if (dayHours.length === 0) {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 630;
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = 'middle';
+
+    // 背景とヘッダー帯
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = SHARE_HEADER_COLOR;
+    ctx.fillRect(0, 0, canvas.width, 84);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 38px sans-serif';
+    ctx.fillText('着ぐるみ天気予報 FursuitWeather', 40, 46);
+
+    // 地点と日付（長い地点名は画像内で収まる長さに切る）
+    ctx.fillStyle = '#1A1A1A';
+    ctx.font = 'bold 46px sans-serif';
+    ctx.fillText(`${(displayedName || '選択した地点').slice(0, 18)}・${formatDate(date)}`, 40, 148);
+
+    // 判定見出し（その日の6〜18時で最も厳しい時間帯）
+    const worstHour = dayHours.reduce((a, b) => (b.outdoor.grade > a.outdoor.grade ? b : a));
+    const outdoor = worstHour.outdoor;
+    const colors = shareColorsOf(outdoor);
+    shareRoundRectPath(ctx, 40, 192, 1120, 158, 16);
+    ctx.fillStyle = colors.surface;
+    ctx.fill();
+    ctx.strokeStyle = colors.accent;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    shareDrawSymbol(ctx, outdoor, 120, 274, 76, colors.text);
+    ctx.fillStyle = colors.text;
+    ctx.font = 'bold 60px sans-serif';
+    ctx.fillText(outdoor.label, 200, 248);
+    ctx.font = '34px sans-serif';
+    ctx.fillText(
+      outdoor.activityMinutes > 0
+        ? `屋外の連続着用は${outdoor.activityMinutes}分まで（最も厳しい時間帯の目安）`
+        : '屋外での着用は中止を（最も厳しい時間帯の判定）',
+      200,
+      308,
+    );
+
+    // 時間帯ミニバー（6〜18時。各セルをその時間の判定色で塗り、記号を重ねる）
+    const barX = 40;
+    const barY = 396;
+    const barHeight = 68;
+    const cellWidth = 1120 / 13;
+    for (let index = 0; index < dayHours.length; index += 1) {
+      const cellColors = shareColorsOf(dayHours[index].outdoor);
+      const x = barX + index * cellWidth;
+      ctx.fillStyle = cellColors.accent;
+      ctx.fillRect(x + 2, barY, cellWidth - 4, barHeight);
+      shareDrawSymbol(ctx, dayHours[index].outdoor, x + cellWidth / 2, barY + barHeight / 2 + 2, 28, '#FFFFFF');
+      ctx.fillStyle = '#555555';
+      ctx.font = '22px sans-serif';
+      const align = ctx.textAlign;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${hourNumberOf(dayHours[index].time)}時`, x + cellWidth / 2, barY + barHeight + 24);
+      ctx.textAlign = align;
+    }
+
+    // 注意文と出典・URL・生成時刻（「いつの判定か」を画像自体に残す）
+    ctx.fillStyle = '#1A1A1A';
+    ctx.font = '26px sans-serif';
+    ctx.fillText('判定は目安です。体調を最優先し、早めの休憩と水分・塩分補給を。', 40, 544);
+    ctx.fillStyle = '#555555';
+    ctx.font = '22px sans-serif';
+    const generatedAt = new Date();
+    ctx.fillText(
+      `fursuit-weather.223n.tech・${generatedAt.getMonth() + 1}月${generatedAt.getDate()}日` +
+        `${generatedAt.getHours()}時${String(generatedAt.getMinutes()).padStart(2, '0')}分生成・` +
+        '天気データ: Open-Meteo（気象庁モデル）',
+      40,
+      588,
+    );
+    return canvas;
+  }
+
+  document.getElementById('share-image-button').addEventListener('click', async () => {
+    if (!currentForecast || !displayedQuery) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    const canvas = buildShareCanvas();
+    if (!canvas) {
+      setStatus('この日の時間別データがないため、画像を作成できません。', true);
+      return;
+    }
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) {
+      setStatus('画像を作成できませんでした。', true);
+      return;
+    }
+    const file = new File([blob], 'fursuit-weather.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'FursuitWeather - 着ぐるみ天気予報',
+          text: `${displayedName || '選択した地点'}の着ぐるみ天気予報`,
+        });
+      } catch {
+        // 共有シートのキャンセルは正常な操作のため何もしない
+      }
+      return;
+    }
+    // Web Share非対応環境: PNGを保存する。画像には代替テキストを付けられないため、
+    // 貼り付けて使える説明文（読み上げ用サマリーと同文）をクリップボードへ用意する
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'fursuit-weather.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    try {
+      await navigator.clipboard.writeText(
+        srAnnounce.textContent || buildSpokenSummary(currentForecast, displayedName || ''),
+      );
+      setStatus(
+        '画像を保存し、内容の説明文をコピーしました。画像と一緒に貼り付けると文字でも伝わります。',
+        false,
+      );
+    } catch {
+      setStatus('画像を保存しました。', false);
+    }
+  });
+
+  // ---- 着用タイマー（アテンド用の全画面タイマー） ----
+  // 「着用開始」で現在の判定の連続活動時間を上限にした全画面タイマーを開く。
+  // 開始時刻などの状態はこの端末のlocalStorageにのみ保存し、リロード・
+  // スリープ復帰後も継続する。残り5分と超過は音・バイブ・表示で知らせる
+
+  const timerStartButton = document.getElementById('timer-start-button');
+  const timerOverlay = document.getElementById('timer-overlay');
+  const timerHeading = document.getElementById('timer-heading');
+  const timerModeElement = document.getElementById('timer-mode');
+  const timerClock = document.getElementById('timer-clock');
+  const timerLimitElement = document.getElementById('timer-limit');
+  const timerJudgmentElement = document.getElementById('timer-judgment');
+  const timerNote = document.getElementById('timer-note');
+  const timerRestButton = document.getElementById('timer-rest-button');
+  const timerStopButton = document.getElementById('timer-stop-button');
+  const TIMER_STATE_KEY = 'fursuitweatherWearTimer';
+  /** タイマー表示中に最新の予報で判定を取り直す間隔（ベストエフォート） */
+  const TIMER_REFRESH_MS = 10 * 60 * 1000;
+  /** 動作中のタイマー状態（null=停止中）。localStorageと同じ内容を保持する */
+  let timerState = null;
+  /** 1秒ごとの表示更新タイマー */
+  let timerTickId = null;
+  /** 画面消灯防止（Wake Lock）。非対応環境ではnullのまま動く */
+  let timerWakeLock = null;
+  /** 次に判定を取り直す時刻（ミリ秒） */
+  let timerNextRefreshAt = 0;
+  /** タイマーを開いたときのフォーカス元（終了時にフォーカスを返す） */
+  let timerReturnFocus = null;
+
+  /** 現在時刻（JST）の時間別予報を返す（renderNowCardと同じ直近未来への代替規則） */
+  function currentOutdoorTarget() {
+    if (!currentForecast) {
+      return null;
+    }
+    const now = nowInJst();
+    const todayHours = hoursOnDate(now.date);
+    return (
+      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
+      null
+    );
+  }
+
+  /** 予報の描画に合わせて開始ボタンの表示と、表示中のタイマーの判定を更新する */
+  function updateTimerButton() {
+    const target = currentOutdoorTarget();
+    // 判定できる時間帯がない日（深夜の欠測など）はボタン自体を出さない。
+    // 「着用中止」でもボタンは出し、押したときに理由を案内する
+    timerStartButton.hidden = target === null;
+    if (timerState) {
+      renderTimerJudgment(target ? target.outdoor : null);
+    }
+  }
+
+  /** タイマー内の判定バッジ（現在の時間帯の屋外判定）を描画する */
+  function renderTimerJudgment(outdoor) {
+    if (!outdoor) {
+      timerJudgmentElement.replaceChildren(hintParagraph('現在の判定を読み込んでいます…'));
+      return;
+    }
+    const line = document.createElement('p');
+    line.className = 'badge-line';
+    line.appendChild(createBadge(outdoor, true));
+    line.appendChild(
+      document.createTextNode(
+        outdoor.activityMinutes > 0 ? ` 連続${outdoor.activityMinutes}分まで` : ' 着用中止',
+      ),
+    );
+    timerJudgmentElement.replaceChildren(line);
+  }
+
+  /** 警告音（短いビープ）とバイブレーション。音を出せない環境では表示のみになる */
+  function timerAlert(times) {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audio = new AudioContextClass();
+      for (let i = 0; i < times; i += 1) {
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 880;
+        gain.gain.value = 0.2;
+        oscillator.connect(gain);
+        gain.connect(audio.destination);
+        const at = audio.currentTime + i * 0.4;
+        oscillator.start(at);
+        oscillator.stop(at + 0.25);
+      }
+      // 鳴らし終えたらコンテキストを閉じる（タブの音声リソースを残さない）
+      setTimeout(() => {
+        audio.close().catch(() => {});
+      }, times * 400 + 500);
+    } catch {
+      // 音を出せない環境（自動再生制限など）では表示とバイブのみ
+    }
+    try {
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch {
+      // バイブ非対応環境では何もしない
+    }
+  }
+
+  /** 画面消灯防止を取得する（非対応・省電力設定では黙って諦める） */
+  async function acquireTimerWakeLock() {
+    try {
+      if (navigator.wakeLock && timerState) {
+        timerWakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch {
+      // 取得できなくてもタイマーは動く（経過は開始時刻基準のため消灯中も正確）
+    }
+  }
+
+  /** 画面消灯防止を解放する */
+  function releaseTimerWakeLock() {
+    try {
+      if (timerWakeLock) {
+        timerWakeLock.release();
+      }
+    } catch {
+      // 解放に失敗してもタブを閉じれば解放される
+    }
+    timerWakeLock = null;
+  }
+
+  // スリープ・タブ切り替えからの復帰でWake Lockは自動解放されるため取り直す
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && timerState) {
+      acquireTimerWakeLock();
+    }
+  });
+
+  /** タイマー状態を保存する（保存できない環境ではこのタブの表示中だけ動く） */
+  function writeTimerState() {
+    try {
+      localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(timerState));
+    } catch {
+      // 保存できなくても表示中のタイマーは動き続ける
+    }
+  }
+
+  /** 保存済みのタイマー状態を読む（壊れた保存・古い形式はnull） */
+  function readTimerState() {
+    const state = readStorageJson(TIMER_STATE_KEY);
+    if (
+      state &&
+      (state.mode === 'wear' || state.mode === 'rest') &&
+      Number.isFinite(state.startedAt) &&
+      Number.isFinite(state.limitMinutes) &&
+      (state.mode !== 'rest' || Number.isFinite(state.wearMinutes))
+    ) {
+      return state;
+    }
+    return null;
+  }
+
+  /** モード（着用中/休憩中）に応じた表示へ切り替える */
+  function updateTimerModeUi() {
+    const resting = timerState.mode === 'rest';
+    timerModeElement.textContent = resting ? '休憩中' : '着用中';
+    timerRestButton.textContent = resting ? '着用を再開' : '休憩開始';
+    timerOverlay.classList.toggle('timer-rest', resting);
+    timerOverlay.classList.remove('timer-warning', 'timer-over');
+    if (resting) {
+      timerLimitElement.textContent =
+        `着用は約${timerState.wearMinutes}分でした。同じ長さ以上の休憩と、水分・塩分補給を。`;
+    }
+  }
+
+  /** 経過表示と残り時間の警告を更新する（1秒ごと） */
+  function updateTimerDisplay() {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timerState.startedAt) / 1000));
+    timerClock.textContent =
+      `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`;
+    if (timerState.mode !== 'wear') {
+      return;
+    }
+    const remainingSeconds = timerState.limitMinutes * 60 - elapsedSeconds;
+    timerLimitElement.textContent =
+      remainingSeconds >= 0
+        ? `上限 ${timerState.limitMinutes}分・残り約${Math.ceil(remainingSeconds / 60)}分`
+        : `上限 ${timerState.limitMinutes}分を超えています`;
+    // 警告は1回ずつ（warned5/warnedOver）。状態ごと保存し、リロードしても鳴り直さない
+    if (!timerState.warned5 && remainingSeconds <= 5 * 60 && remainingSeconds > 0) {
+      timerState.warned5 = true;
+      writeTimerState();
+      timerOverlay.classList.add('timer-warning');
+      timerNote.textContent = '残り5分です。休憩場所への移動を始めてください。';
+      timerAlert(2);
+    }
+    if (!timerState.warnedOver && remainingSeconds <= 0) {
+      timerState.warnedOver = true;
+      writeTimerState();
+      timerOverlay.classList.remove('timer-warning');
+      timerOverlay.classList.add('timer-over');
+      timerNote.textContent = '上限を超えました。すぐに休憩してください。';
+      timerAlert(3);
+    }
+  }
+
+  /** 表示中の地点の最新予報で判定を取り直す（失敗しても次の周期で再試行） */
+  async function refreshTimerJudgment() {
+    if (!displayedQuery) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/forecast?${displayedQuery}&days=${FORECAST_DAYS}`);
+      if (!response.ok) {
+        return;
+      }
+      const body = await response.json();
+      if (!timerState || !body || !Array.isArray(body.hours)) {
+        return;
+      }
+      const now = nowInJst();
+      const todayHours = body.hours.filter(
+        (h) => h && typeof h.time === 'string' && h.time.startsWith(now.date),
+      );
+      const target =
+        todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+        todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+      if (!target || !target.outdoor || !Number.isFinite(target.outdoor.activityMinutes)) {
+        return;
+      }
+      renderTimerJudgment(target.outdoor);
+      // 判定が悪化していたら上限を安全側へ短縮し、警告を新しい上限で出し直す
+      if (timerState.mode === 'wear' && target.outdoor.activityMinutes < timerState.limitMinutes) {
+        timerState.limitMinutes = target.outdoor.activityMinutes;
+        timerState.warned5 = false;
+        timerState.warnedOver = false;
+        writeTimerState();
+        timerNote.textContent =
+          target.outdoor.activityMinutes > 0
+            ? `最新の予報で判定が変わりました。上限を${target.outdoor.activityMinutes}分に短縮します。`
+            : '最新の予報で判定が「着用中止」になりました。すぐに休憩してください。';
+        updateTimerDisplay();
+      }
+    } catch {
+      // 取得できないときは前回の判定表示のまま続行する
+    }
+  }
+
+  /** 1秒ごとの更新（経過表示と、約10分ごとの判定の取り直し） */
+  function timerTick() {
+    if (!timerState) {
+      return;
+    }
+    updateTimerDisplay();
+    if (Date.now() >= timerNextRefreshAt) {
+      timerNextRefreshAt = Date.now() + TIMER_REFRESH_MS;
+      refreshTimerJudgment();
+    }
+  }
+
+  /** タイマーを開いて動かし始める（開始・リロード復帰で共通） */
+  function openTimer(state) {
+    timerState = state;
+    writeTimerState();
+    timerNote.textContent = '';
+    updateTimerModeUi();
+    const target = currentOutdoorTarget();
+    renderTimerJudgment(target ? target.outdoor : null);
+    updateTimerDisplay();
+    timerOverlay.hidden = false;
+    clearInterval(timerTickId);
+    timerTickId = setInterval(timerTick, 1000);
+    timerNextRefreshAt = Date.now() + TIMER_REFRESH_MS;
+    acquireTimerWakeLock();
+    timerReturnFocus = document.activeElement;
+    timerHeading.focus();
+  }
+
+  /** タイマーを終了して閉じる（保存した状態も消す） */
+  function stopTimer() {
+    clearInterval(timerTickId);
+    timerTickId = null;
+    timerState = null;
+    try {
+      localStorage.removeItem(TIMER_STATE_KEY);
+    } catch {
+      // 消せない環境でも表示は閉じる（次回表示時はreadTimerStateの検証に従う）
+    }
+    releaseTimerWakeLock();
+    timerOverlay.hidden = true;
+    timerOverlay.classList.remove('timer-warning', 'timer-over', 'timer-rest');
+    timerNote.textContent = '';
+    // フォーカスをタイマーを開いた操作元へ返す（キーボード利用者が迷子にならない）
+    if (timerReturnFocus && document.contains(timerReturnFocus)) {
+      timerReturnFocus.focus();
+    }
+    timerReturnFocus = null;
+  }
+
+  timerStartButton.addEventListener('click', () => {
+    const target = currentOutdoorTarget();
+    if (!target) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    if (target.outdoor.activityMinutes === 0) {
+      setStatus(
+        '現在の判定は「着用中止」のため、タイマーは開始できません。休憩・冷却を優先してください。',
+        true,
+      );
+      return;
+    }
+    openTimer({
+      mode: 'wear',
+      startedAt: Date.now(),
+      limitMinutes: target.outdoor.activityMinutes,
+      warned5: false,
+      warnedOver: false,
+    });
+  });
+
+  timerRestButton.addEventListener('click', () => {
+    if (!timerState) {
+      return;
+    }
+    if (timerState.mode === 'wear') {
+      // 休憩へ: 着用した長さを控えて「同じ長さ以上の休憩」の目安に使う
+      const wearMinutes = Math.max(1, Math.round((Date.now() - timerState.startedAt) / 60000));
+      timerState = {
+        mode: 'rest',
+        startedAt: Date.now(),
+        limitMinutes: timerState.limitMinutes,
+        wearMinutes,
+        warned5: false,
+        warnedOver: false,
+      };
+      writeTimerState();
+      updateTimerModeUi();
+      timerNote.textContent = '休憩を開始しました。';
+    } else {
+      // 着用の再開: 上限はその時点の判定から取り直す（休憩中に状況が変わり得る）
+      const target = currentOutdoorTarget();
+      if (!target || target.outdoor.activityMinutes === 0) {
+        timerNote.textContent = '現在の判定は「着用中止」のため再開できません。休憩を続けてください。';
+        return;
+      }
+      timerState = {
+        mode: 'wear',
+        startedAt: Date.now(),
+        limitMinutes: target.outdoor.activityMinutes,
+        warned5: false,
+        warnedOver: false,
+      };
+      writeTimerState();
+      updateTimerModeUi();
+      timerNote.textContent = '着用を再開しました。';
+    }
+    const latest = currentOutdoorTarget();
+    renderTimerJudgment(latest ? latest.outdoor : null);
+    updateTimerDisplay();
+  });
+
+  timerStopButton.addEventListener('click', stopTimer);
+
+  // 全画面ダイアログ内にフォーカスを留める（背後のページは操作対象外のため）
+  timerOverlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') {
+      return;
+    }
+    const focusables = [timerRestButton, timerStopButton];
+    const index = focusables.indexOf(document.activeElement);
+    if (event.shiftKey && index <= 0) {
+      event.preventDefault();
+      focusables[focusables.length - 1].focus();
+    } else if (!event.shiftKey && index === focusables.length - 1) {
+      event.preventDefault();
+      focusables[0].focus();
+    }
+  });
+
+  // リロード・再訪時: 保存済みのタイマーがあれば表示を復元する
+  // （予報の読み込み前でも経過は正しく出る。判定は読み込み完了後に埋まる）
+  const storedTimerState = readTimerState();
+  if (storedTimerState) {
+    openTimer(storedTimerState);
+  }
+
+  // ---- 見やすさ設定（文字サイズ） ----
+  // 押すたびに標準→大→特大と切り替え、この端末へ保存する。適用は全ページ共通の
+  // prefs.jsが担う（サイズの対応表はprefs.jsのSIZESと同期。htmlSyncテストが検証する）
+
+  const FONT_SIZE_KEY = 'fursuitweatherFontSize';
+  const FONT_SIZES = [
+    { id: 'standard', label: '標準', size: '100%' },
+    { id: 'large', label: '大', size: '115%' },
+    { id: 'xlarge', label: '特大', size: '130%' },
+  ];
+  const fontSizeButton = document.getElementById('font-size-button');
+
+  /** 保存済みの文字サイズの添字（読めない・未設定は標準） */
+  function currentFontSizeIndex() {
+    try {
+      const stored = localStorage.getItem(FONT_SIZE_KEY);
+      const index = FONT_SIZES.findIndex((entry) => entry.id === stored);
+      return index >= 0 ? index : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** 文字サイズを適用・保存し、ボタンの表記を合わせる */
+  function applyFontSize(index) {
+    const entry = FONT_SIZES[index];
+    document.documentElement.style.fontSize = entry.id === 'standard' ? '' : entry.size;
+    fontSizeButton.textContent = `Aa ${entry.label}`;
+    try {
+      localStorage.setItem(FONT_SIZE_KEY, entry.id);
+    } catch {
+      // 保存できない環境では、このページ表示中だけ適用される
+    }
+  }
+
+  fontSizeButton.textContent = `Aa ${FONT_SIZES[currentFontSizeIndex()].label}`;
+  fontSizeButton.addEventListener('click', () => {
+    const next = (currentFontSizeIndex() + 1) % FONT_SIZES.length;
+    applyFontSize(next);
+    setStatus(`文字の大きさを「${FONT_SIZES[next].label}」にしました。`, false);
+  });
+
+  // ---- 音声で聞く今日の要点 ----
+  // #sr-announce用に生成している要点文を、端末内蔵の音声合成で読み上げる。
+  // 通信・上流コストはゼロ。非対応環境ではボタンを出さない
+
+  const speakButton = document.getElementById('speak-button');
+  let speaking = false;
+
+  /** 再生状態に応じてボタンの表記を切り替える（2状態ボタン） */
+  function updateSpeakButton() {
+    speakButton.textContent = speaking ? '読み上げを停止' : '今日の要点を聞く';
+  }
+
+  if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance === 'function') {
+    speakButton.hidden = false;
+    updateSpeakButton();
+    speakButton.addEventListener('click', () => {
+      if (speaking) {
+        window.speechSynthesis.cancel();
+        speaking = false;
+        updateSpeakButton();
+        return;
+      }
+      if (!currentForecast) {
+        setStatus('先に予報を読み込んでください。', true);
+        return;
+      }
+      // 読み上げ文はスクリーンリーダー向けサマリーと同一（時刻の読みも変換済み）
+      const utterance = new SpeechSynthesisUtterance(
+        srAnnounce.textContent || buildSpokenSummary(currentForecast, displayedName || ''),
+      );
+      utterance.lang = 'ja-JP';
+      const finish = () => {
+        speaking = false;
+        updateSpeakButton();
+      };
+      utterance.addEventListener('end', finish);
+      utterance.addEventListener('error', finish);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      speaking = true;
+      updateSpeakButton();
+    });
+  }
+
+  // ---- ホーム画面追加のかんたん案内 ----
+  // Android Chrome系はbeforeinstallpromptを捕まえてワンタップの追加ボタンを出し、
+  // iOS Safariは操作手順の案内を出す。どちらでもない環境は一般的な文言のまま
+
+  const a2hsAndroid = document.getElementById('a2hs-android');
+  const a2hsIos = document.getElementById('a2hs-ios');
+  const a2hsGeneric = document.getElementById('a2hs-generic');
+  /** 捕捉したインストールプロンプト（対応ブラウザのみ。1回使うと無効になる） */
+  let installPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    a2hsAndroid.hidden = false;
+    a2hsGeneric.hidden = true;
+  });
+  document.getElementById('a2hs-install-button').addEventListener('click', async () => {
+    if (!installPrompt) {
+      return;
+    }
+    const prompt = installPrompt;
+    installPrompt = null;
+    a2hsAndroid.hidden = true;
+    a2hsGeneric.hidden = false;
+    await prompt.prompt();
+  });
+  // iOS Safari（スタンドアロン起動中は案内不要）
+  if (
+    /iPhone|iPad|iPod/.test(navigator.userAgent) &&
+    !window.matchMedia('(display-mode: standalone)').matches
+  ) {
+    a2hsIos.hidden = false;
+    a2hsGeneric.hidden = true;
+  }
+
+  // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)イベント固定リンク
+  // (4)記憶した地点 (5)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
   const sharedLat = Number.parseFloat(pageParams.get('lat') ?? '');
   const sharedLon = Number.parseFloat(pageParams.get('lon') ?? '');
+
+  /** 共有URLの日付・時間帯（date/from/to）を表示とプランナーへ反映する。
+   * 開いた時点の最新予報で再計算するため、共有元の画面写真より安全側になる */
+  function applySharedPlan(tabSeqAtStart) {
+    const date = (pageParams.get('date') ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return;
+    }
+    if (!currentForecast.days.some((d) => d.date === date)) {
+      // 予報3日を過ぎた・過去の日付は固定文で案内し、地点のみの表示に留める
+      // （通信エラーではないため、赤のエラーではなく黄の注意で示す）
+      setStatus(
+        `共有された日付（${date}）は予報の範囲外です。この地点の直近の予報を表示しています。`,
+        false,
+        true,
+      );
+      return;
+    }
+    planDate.value = date;
+    clearPlan();
+    const from = Number.parseInt(pageParams.get('from') ?? '', 10);
+    const to = Number.parseInt(pageParams.get('to') ?? '', 10);
+    const hasRange =
+      Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from <= 23 && to >= 1 && to <= 24 && from < to;
+    if (hasRange) {
+      planStart.value = String(from);
+      planEnd.value = String(to);
+    }
+    // 利用者が先にタブを触っていたら、その操作を尊重して切り替えない
+    const dayTab = dayTabForDate(date);
+    if (dayTab && manualTabSeq === tabSeqAtStart) {
+      forecastTabs.activate(dayTab.tabId, false);
+    }
+    setStatus(
+      `共有された日付（${formatDate(date)}）${hasRange ? `と時間帯（${from}時〜${to}時）` : ''}を反映しました。` +
+        '予報は開いた時点の最新の内容です。',
+      false,
+    );
+  }
+
+  /** 記憶した地点または既定都市を読み込む（イベント固定リンクの失敗時にも使う。
+   * 完了後に案内を出せるようloadForecastの結果を返す） */
+  function loadInitialStoredOrDefault() {
+    const stored = readStoredLocation();
+    if (stored) {
+      // 記憶した地点が地点セレクト由来なら、セレクトの表示も合わせる
+      if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
+        citySelect.value = String(stored.cityIndex);
+      }
+      return loadForecast(stored.query, stored.locationName, { cityIndex: stored.cityIndex });
+    }
+    return loadSelectedCity();
+  }
+
   if (pageParams.get('demo') === '1') {
     loadForecast(DEMO_QUERY, 'デモデータ（架空の気象データ）');
   } else if (
@@ -1899,6 +3074,7 @@
     const displayLabel = sharedName
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
       : coordName;
+    const tabSeqAtStart = manualTabSeq;
     // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
     loadForecast(coordQuery(sharedLat, sharedLon), displayLabel, {
       storedName: coordName,
@@ -1906,18 +3082,17 @@
       // 載せると、共有が1往復するたびに「（共有・…）」が積み重なって名前が伸び、
       // 80文字で切られて壊れる（名前が無ければURLにも載せない）
       urlName: sharedName,
-    });
-  } else {
-    const stored = readStoredLocation();
-    if (stored) {
-      // 記憶した地点が地点セレクト由来なら、セレクトの表示も合わせる
-      if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
-        citySelect.value = String(stored.cityIndex);
+    }).then((loaded) => {
+      if (loaded) {
+        applySharedPlan(tabSeqAtStart);
       }
-      loadForecast(stored.query, stored.locationName, { cityIndex: stored.cityIndex });
-    } else {
-      loadSelectedCity();
-    }
+    });
+  } else if ((pageParams.get('event') ?? '').trim() !== '') {
+    // イベント固定リンク（?event=イベント名）: 一覧の読み込み完了後に
+    // initEventsの続き（下のinitEvents().then）が該当イベントを自動選択する
+    pendingEventName = (pageParams.get('event') ?? '').trim().slice(0, 80);
+  } else {
+    loadInitialStoredOrDefault();
   }
 
   // Service Worker登録（PWA）: オフライン時にシェルと最後に取得した予報を表示できる。
