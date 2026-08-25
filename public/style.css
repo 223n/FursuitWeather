@@ -495,10 +495,11 @@ input[type='number'] {
 }
 
 /* 判定変化のハイライト: 色だけに依存しないよう、変化はチャイム+読み上げ+
-   この枠線強調の複数手段で伝える。点滅は視差効果を減らす設定では行わない
-   （枠線は静的に残る） */
+   状態表示の文言+この枠線強調の複数手段で伝える。点滅は視差効果を減らす
+   設定では行わない（枠線は静的に残る）。次の更新か明示操作まで表示し続ける。
+   フォーカスリング（--color-focus）と見分けられるよう、色は情報表示の青にする */
 .now-card.watch-changed {
-  outline: 3px solid var(--color-focus);
+  outline: 3px solid var(--color-blue);
   outline-offset: 2px;
 }
 

@@ -1354,6 +1354,9 @@
         }
       }
       renderForecast();
+      // 見守りモード中の明示的な地点変更・再取得では、変化検知の基準も
+      // 新しい表示内容へ合わせ直す（旧地点との比較による偽の変化通知を防ぐ）
+      syncWatchBaseline(displayedFromCache);
       // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）。
       // オフライン表示の保存済み予報は、発行時刻だけだと最新と誤認されるため
       // 取得時刻を明記する
@@ -1410,16 +1413,21 @@
     return `オフライン表示: ${cachedAtTimeText(response)}に取得した予報を表示しています。最新ではない可能性があります。`;
   }
 
-  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す */
-  function renderForecast() {
+  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す
+   * @param options.preservePlan trueならプランナーの日付候補と作成済みの計画を触らない
+   *   （見守りモードの自動再取得用。自動処理が明示操作の結果=作成した計画・
+   *   持ち物リストを黙って消さないため） */
+  function renderForecast({ preservePlan = false } = {}) {
     renderNowCard();
     renderDayCards();
     renderNotices();
     // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
     // 地点や取得結果が変わったら古い前提の計画を残さない
     updateDayTabs();
-    populatePlanDates();
-    clearPlan();
+    if (!preservePlan) {
+      populatePlanDates();
+      clearPlan();
+    }
     // 着用タイマーの開始ボタンの表示と、表示中のタイマーの判定バッジを合わせる
     updateTimerButton();
     // 当日ボードの自動の上限は「いまの判定」に連動するため、予報の描画と同時に更新する
@@ -1482,7 +1490,6 @@
   let watchLastLevel = null;
   /** 最後に再取得へ成功した時刻（ミリ秒。バックグラウンド復帰時の即時更新の判断に使う） */
   let watchLastUpdatedMs = 0;
-  let watchHighlightTimer = null;
 
   /** 見守りの状態表示を更新する */
   function updateWatchStatus(text) {
@@ -1496,17 +1503,37 @@
   }
 
   /** 判定変化の通知（画面内ハイライト+短いチャイム+読み上げ）。
-   * 前面で開いているときだけ呼ばれる（バックグラウンドでは再取得自体を止める） */
+   * 前面で開いているときだけ呼ばれる（バックグラウンドでは再取得自体を止める）。
+   * ハイライトはチャイムを聞けない利用者の代替手段のため一時表示にせず、
+   * 次の更新か明示操作まで残す（解除はwatchRefresh成功時・syncWatchBaseline・OFF） */
   function notifyWatchChange(label) {
-    nowCard.classList.remove('watch-changed');
     // 再フローを挟んでクラスを付け直し、CSSアニメーションを再発火させる
     // （連続変化でも毎回光る。getBoundingClientRectは同期レイアウトの強制目的）
     nowCard.getBoundingClientRect();
     nowCard.classList.add('watch-changed');
-    clearTimeout(watchHighlightTimer);
-    watchHighlightTimer = setTimeout(() => nowCard.classList.remove('watch-changed'), 6000);
     timerAlert(2);
     srAnnounce.textContent = `見守り: いまの判定が「${label}」に変わりました。`;
+  }
+
+  /**
+   * 見守りの変化検知基準を表示中の予報へ合わせ直す
+   * 明示的な地点変更・再取得（loadForecast）の後に呼ぶ。旧地点の判定と
+   * 新地点の判定を比較して偽の「判定が変わりました」通知が出るのを防ぐ
+   * @param fromCache オフライン表示（Service Workerの保存済み応答）だったか
+   */
+  function syncWatchBaseline(fromCache) {
+    if (watchTimer === null) {
+      return;
+    }
+    const entry = currentForecast ? currentHourEntry() : null;
+    watchLastLevel = entry ? entry.outdoor.level : null;
+    watchLastUpdatedMs = Date.now();
+    nowCard.classList.remove('watch-changed');
+    updateWatchStatus(
+      fromCache
+        ? '見守り中・通信できず更新が止まっています（自動で再試行します）'
+        : `見守り中・最終更新 ${watchClockText(new Date())}`,
+    );
   }
 
   /**
@@ -1533,19 +1560,31 @@
       if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours) || !Array.isArray(body.notices)) {
         throw new Error('形式異常');
       }
+      // Service Workerのオフライン退避応答は「更新の成功」ではない。
+      // 古いキャッシュを最新の取得と偽らず、更新が止まっている事実を表示する
+      if (response.headers.get('X-Served-From-Cache') === '1') {
+        updateWatchStatus('見守り中・通信できず更新が止まっています（自動で再試行します）');
+        return;
+      }
       currentForecast = body;
       // 選択中の日を維持する（「予報を更新」と同じ配慮）
       const dates = body.days.map((d) => d.date);
       selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
-      renderForecast();
+      // 自動再取得は利用者の明示操作（活動プランの作成）を消さない
+      renderForecast({ preservePlan: true });
       const entry = currentHourEntry();
       const level = entry ? entry.outdoor.level : null;
       const changed = watchLastLevel !== null && level !== null && level !== watchLastLevel;
       watchLastLevel = level;
       watchLastUpdatedMs = Date.now();
-      updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
       if (changed) {
+        updateWatchStatus(
+          `見守り中・最終更新 ${watchClockText(new Date())}・判定が「${entry.outdoor.label}」に変わりました`,
+        );
         notifyWatchChange(entry.outdoor.label);
+      } else {
+        nowCard.classList.remove('watch-changed');
+        updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
       }
     } catch {
       if (watchTimer === null) {
@@ -3180,6 +3219,12 @@
     return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   }
 
+  /** 記録時刻として妥当な範囲（ミリ秒）。書き込みは常にDate.now()のため、
+   * この範囲外は破損・改ざんとみなして捨てる（Dateの有効範囲外の有限値は
+   * jstDateOfMsのtoISOStringが例外を投げ、初期化全体を巻き込むため） */
+  const WEAR_LOG_AT_MIN = Date.UTC(2020, 0, 1);
+  const WEAR_LOG_AT_MAX = Date.UTC(2100, 0, 1);
+
   /** 保存済みの着用セッションを読む（壊れた保存・保存不可の環境は空） */
   function readWearLog() {
     const list = readStorageJson(WEAR_LOG_KEY);
@@ -3187,7 +3232,12 @@
       return [];
     }
     return list.filter(
-      (entry) => entry && Number.isFinite(entry.at) && Number.isFinite(entry.minutes),
+      (entry) =>
+        entry &&
+        Number.isFinite(entry.at) &&
+        entry.at >= WEAR_LOG_AT_MIN &&
+        entry.at <= WEAR_LOG_AT_MAX &&
+        Number.isFinite(entry.minutes),
     );
   }
 
@@ -3208,9 +3258,13 @@
     renderWearLog();
   }
 
+  /** 「今日の記録」として最後に描画した日（日付またぎの再評価用。boardTickが監視する） */
+  let wearLogRenderedDate = null;
+
   /** 今日の着用記録のサマリーを描画する（今日の記録がなければ隠す） */
   function renderWearLog() {
     const today = nowInJst().date;
+    wearLogRenderedDate = today;
     const todayEntries = readWearLog().filter((entry) => jstDateOfMs(entry.at) === today);
     wearLogSection.hidden = todayEntries.length === 0;
     if (todayEntries.length === 0) {
@@ -3405,6 +3459,14 @@
     box.addEventListener('change', updateConditionNote);
   }
 
+  // 「回答は保存されません」の約束を守るため、ブラウザのフォーム状態復元
+  // （リロード・戻る操作でチェックが残る挙動）も読み込み時に必ず打ち消す
+  // （HTML側のautocomplete="off"と二重の防御）
+  for (const box of conditionItems) {
+    box.checked = false;
+  }
+  updateConditionNote();
+
   // ---- 当日ボード（複数着用者の見守り） ----
   // 1台の画面点灯した端末で「誰がいつから出ていて、誰がそろそろ休憩か」を
   // 一覧する掲示ボード。データはこの端末のlocalStorageのみで、当日限り
@@ -3503,12 +3565,20 @@
     return { text: `経過${elapsed}分／上限${limit}分`, emphasis: null };
   }
 
-  /** 状態変更ボタンを作る */
-  function boardActionButton(label, onClick) {
+  /** 状態変更ボタンを作る
+   * @param wearerName アクセシブルネーム用の着用者名（同名ボタンが複数カードに
+   *   並んでも読み上げで区別できるようにする） */
+  function boardActionButton(label, wearerName, onClick) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = label;
-    button.addEventListener('click', onClick);
+    button.setAttribute('aria-label', `${label}（${wearerName}）`);
+    button.addEventListener('click', () => {
+      // 超過チャイムの自動再生制限を、復元済みボードの操作でも解いておく
+      // （既存方針: 警告の瞬間のAudioContext新規作成は無音になり得る）
+      prepareTimerAudio();
+      onClick();
+    });
     return button;
   }
 
@@ -3521,6 +3591,28 @@
     renderBoard();
   }
 
+  /** カードの状況テキストと強調クラスを現在時刻に合わせる（作成時・定期更新の共通処理） */
+  function applyBoardCardStatus(wearer, limit, refs) {
+    let text;
+    let emphasis = null;
+    if (wearer.state === 'wearing') {
+      ({ text, emphasis } = boardWearingStatus(wearer, limit));
+    } else if (wearer.state === 'resting') {
+      text = `休憩${boardElapsedMinutes(wearer)}分`;
+    } else {
+      text = '待機中';
+    }
+    if (refs.status.textContent !== text) {
+      refs.status.textContent = text;
+    }
+    refs.item.classList.toggle('board-card-over', emphasis === 'over');
+    refs.item.classList.toggle('board-card-soon', emphasis === 'soon');
+  }
+
+  /** 描画済みカードのDOM参照（着用者オブジェクト→要素）。
+   * boardStateはJSONで保存するため、DOM参照はこのMapで別管理する */
+  const boardCardRefs = new Map();
+
   /** 1人分のカードを作る */
   function boardCard(wearer, limit) {
     const item = document.createElement('li');
@@ -3532,65 +3624,72 @@
 
     const status = document.createElement('span');
     status.className = 'board-card-status';
-    if (wearer.state === 'wearing') {
-      const { text, emphasis } = boardWearingStatus(wearer, limit);
-      status.textContent = text;
-      if (emphasis) {
-        item.classList.add(`board-card-${emphasis}`);
-      }
-    } else if (wearer.state === 'resting') {
-      status.textContent = `休憩${boardElapsedMinutes(wearer)}分`;
-    } else {
-      status.textContent = '待機中';
-    }
     item.appendChild(status);
 
     const actions = document.createElement('span');
     actions.className = 'board-card-actions';
     if (wearer.state !== 'wearing') {
-      actions.appendChild(boardActionButton('出演開始', () => moveBoardWearer(wearer, 'wearing')));
+      actions.appendChild(
+        boardActionButton('出演開始', wearer.name, () => moveBoardWearer(wearer, 'wearing')),
+      );
     }
     if (wearer.state === 'wearing') {
-      actions.appendChild(boardActionButton('休憩へ', () => moveBoardWearer(wearer, 'resting')));
+      actions.appendChild(
+        boardActionButton('休憩へ', wearer.name, () => moveBoardWearer(wearer, 'resting')),
+      );
     }
     if (wearer.state !== 'waiting') {
-      actions.appendChild(boardActionButton('待機へ', () => moveBoardWearer(wearer, 'waiting')));
+      actions.appendChild(
+        boardActionButton('待機へ', wearer.name, () => moveBoardWearer(wearer, 'waiting')),
+      );
     }
     actions.appendChild(
-      boardActionButton('削除', () => {
+      boardActionButton('削除', wearer.name, () => {
         boardState.wearers = boardState.wearers.filter((entry) => entry !== wearer);
         writeBoardState();
         renderBoard();
       }),
     );
     item.appendChild(actions);
+
+    boardCardRefs.set(wearer, { item, status });
+    applyBoardCardStatus(wearer, limit, { item, status });
     return item;
   }
 
-  /** 上限の目安の表示を更新する */
+  /** 上限の目安の表示を更新する（role=statusのライブ領域のため、変化時のみ書き換える） */
   function renderBoardLimitNote(limit) {
+    let text;
     if (boardState.limitMode === 'manual') {
-      boardLimitNote.textContent = `目安: ${boardState.manualLimitMinutes}分（手動）`;
+      text = `目安: ${boardState.manualLimitMinutes}分（手動）`;
     } else if (limit === null) {
-      boardLimitNote.textContent = '目安: 予報の取得後に表示されます';
-    } else if (limit <= 0) {
-      boardLimitNote.textContent = '目安: 着用中止の判定です';
+      text = '目安: 予報の取得後に表示されます';
     } else {
-      boardLimitNote.textContent = `目安: ${limit}分（いまの判定から自動）`;
+      // 自動の目安は「表示中の地点」に連動する。別地点の閲覧で目安が置き換わったことに
+      // 気づけるよう、どの地点の判定かを併記する
+      const place = displayedName || '表示中の地点';
+      text =
+        limit <= 0
+          ? `目安: 着用中止の判定です（${place}）`
+          : `目安: ${limit}分（${place}・いまの判定から自動）`;
+    }
+    if (boardLimitNote.textContent !== text) {
+      boardLimitNote.textContent = text;
     }
   }
 
-  /** ボード全体を描画し、上限超過のチャイムを鳴らす（画面表示中のみ）。
-   * 出演中は残り時間の少ない順に並べ、次に交代させる人が先頭に来るようにする */
-  function renderBoard() {
-    // 日付が変わったら当日ボードの約束どおりリセットする（深夜運用のまたぎ対策）
-    if (boardState.date !== nowInJst().date) {
-      boardState = emptyBoardState();
-      writeBoardState();
-    }
-    const limit = boardLimitMinutes();
-    renderBoardLimitNote(limit);
+  /** ボードの構成（人数・状態・開始時刻）の指紋。変わらない限りDOMを作り直さない */
+  function boardSignature() {
+    return boardState.wearers
+      .map((wearer) => `${wearer.name} ${wearer.state} ${wearer.since}`)
+      .join('');
+  }
 
+  let boardRenderedSignature = null;
+
+  /** 3グループのリストをDOMごと作り直す（構成が変わったときのみ呼ぶ） */
+  function rebuildBoardLists(limit) {
+    boardCardRefs.clear();
     const groups = { wearing: [], resting: [], waiting: [] };
     for (const wearer of boardState.wearers) {
       groups[wearer.state].push(wearer);
@@ -3607,13 +3706,42 @@
         boardLists[state].appendChild(empty);
       }
     }
+  }
+
+  /** ボード全体を描画し、上限超過のチャイムを鳴らす（画面表示中のみ）。
+   * 出演中は開始の早い順（=残り時間の少ない順）に並べ、次に交代させる人が先頭に来る。
+   * 構成が変わらない定期更新はカードの文言だけを書き換える
+   * （30秒ごとのDOM再生成で操作中のキーボードフォーカスを壊さないため） */
+  function renderBoard() {
+    // 日付が変わったら当日ボードの約束どおりリセットする（深夜運用のまたぎ対策。
+    // 上限モードのラジオ・手動分数のUIも内部状態と食い違わないよう同期し直す）
+    if (boardState.date !== nowInJst().date) {
+      boardState = emptyBoardState();
+      writeBoardState();
+      syncBoardControls();
+    }
+    const limit = boardLimitMinutes();
+    renderBoardLimitNote(limit);
+
+    const signature = boardSignature();
+    if (signature !== boardRenderedSignature) {
+      rebuildBoardLists(limit);
+      boardRenderedSignature = signature;
+    } else {
+      for (const [wearer, refs] of boardCardRefs) {
+        applyBoardCardStatus(wearer, limit, refs);
+      }
+    }
 
     // 上限超過のチャイム（1回だけ。休憩・待機へ動かすと再武装される）。
     // 画面点灯前提のボードのため、前面表示中以外では鳴らさない
     if (document.visibilityState === 'visible') {
-      for (const wearer of groups.wearing) {
+      for (const wearer of boardState.wearers) {
+        if (wearer.state !== 'wearing' || wearer.warnedOver) {
+          continue;
+        }
         const { emphasis } = boardWearingStatus(wearer, limit);
-        if (emphasis === 'over' && !wearer.warnedOver) {
+        if (emphasis === 'over') {
           wearer.warnedOver = true;
           writeBoardState();
           timerAlert(3);
@@ -3664,16 +3792,30 @@
     renderBoard();
   });
 
-  /** 保存済みの状態をUIへ反映してボードを開始する */
-  function initBoard() {
-    boardState = readBoardState();
+  /** 上限モードのラジオ・手動分数の入力を内部状態と同期する
+   * （初期化と日付またぎリセットの両方で使い、表示と状態の食い違いを防ぐ） */
+  function syncBoardControls() {
     const manualRadio = document.querySelector('input[name="board-limit-mode"][value="manual"]');
     const autoRadio = document.querySelector('input[name="board-limit-mode"][value="auto"]');
     (boardState.limitMode === 'manual' ? manualRadio : autoRadio).checked = true;
     boardManualLimitInput.value = String(boardState.manualLimitMinutes);
+  }
+
+  /** 30秒ごとの定期更新（経過表示は分単位のため十分。1分ずれの半分以下に収まる） */
+  function boardTick() {
     renderBoard();
-    // 経過表示は分単位のため30秒ごとの再描画で十分（1分ずれの半分以下に収まる）
-    setInterval(renderBoard, 30 * 1000);
+    // 「今日の着用記録」も日付またぎで前日分を出し続けないよう再評価する
+    if (wearLogRenderedDate !== null && wearLogRenderedDate !== nowInJst().date) {
+      renderWearLog();
+    }
+  }
+
+  /** 保存済みの状態をUIへ反映してボードを開始する */
+  function initBoard() {
+    boardState = readBoardState();
+    syncBoardControls();
+    renderBoard();
+    setInterval(boardTick, 30 * 1000);
   }
 
   initBoard();

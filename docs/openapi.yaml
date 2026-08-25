@@ -374,7 +374,7 @@ components:
           type: string
           enum: [low, medium, high]
           description: >-
-            静電気の起きやすさ。日中の最も乾いた時間帯の湿度・気温で判定
+            静電気の起きやすさ。日中の各時間の湿度・気温を個別に判定し最も厳しいレベルを採用
             （湿度25%未満で「高」、湿度40%未満かつ気温20℃未満で「中」。
             帯電対策の一般的な目安に基づく生活指数）
         label: { type: string, description: 日本語ラベル（低・中・高） }

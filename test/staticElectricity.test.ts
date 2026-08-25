@@ -57,11 +57,21 @@ describe('assessStaticElectricity', () => {
     ).toBe('low');
   });
 
-  it('日中の最も乾いた時間帯で判定する（夜間の乾燥は対象外）', () => {
+  it('日中の各時間のうち最も厳しいレベルを採用する（夜間の乾燥は対象外）', () => {
     const result = assessStaticElectricity([
       hourAt(3, { humidity: 20 }), // 夜間の乾燥は無視される
       hourAt(10, { humidity: 60 }),
-      hourAt(14, { humidity: 30, temperature: 10 }), // 日中の最少湿度→「中」
+      hourAt(14, { humidity: 30, temperature: 10 }), // 日中の「中」条件→「中」
+    ]);
+    expect(result.level).toBe('medium');
+  });
+
+  it('最低湿度の時間が「低」でも、別の時間が「中」条件を満たせば「中」にする', () => {
+    // 「中」は湿度と気温の複合条件のため、最低湿度の1時間だけでは検出できない
+    // （回帰テスト: 湿度30%・22℃=「低」の時間が最少湿度でも、湿度38%・15℃=「中」を採用）
+    const result = assessStaticElectricity([
+      hourAt(12, { humidity: 30, temperature: 22 }),
+      hourAt(15, { humidity: 38, temperature: 15 }),
     ]);
     expect(result.level).toBe('medium');
   });

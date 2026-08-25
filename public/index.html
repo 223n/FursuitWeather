@@ -319,11 +319,11 @@
           <legend>連続活動の上限の目安</legend>
           <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
           <label><input type="radio" name="board-limit-mode" value="manual"> 手動</label>
-          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30"> 分</label>
+          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30" aria-label="手動の連続活動の上限（分）"> 分</label>
           <span id="board-limit-note" class="board-limit-note" role="status"></span>
         </fieldset>
         <p class="hint">
-          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。
+          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。また自動の目安は表示中の地点のいまの判定に連動するため、会場の地点を表示したままお使いください。
         </p>
         <div id="board-groups">
           <h3>出演中</h3>
@@ -349,11 +349,11 @@
           回答はこの端末にも保存されず、どこにも送信されません。
         </p>
         <ul class="condition-list">
-          <li><label><input type="checkbox" class="condition-item"> 睡眠が6時間未満だった</label></li>
-          <li><label><input type="checkbox" class="condition-item"> 前日にお酒を飲んだ</label></li>
-          <li><label><input type="checkbox" class="condition-item"> 朝食・水分をとっていない</label></li>
-          <li><label><input type="checkbox" class="condition-item" data-severe="true"> 発熱・下痢など体調不良がある</label></li>
-          <li><label><input type="checkbox" class="condition-item"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
         </ul>
         <p id="condition-note" class="condition-note" role="status"></p>
         <p class="hint">

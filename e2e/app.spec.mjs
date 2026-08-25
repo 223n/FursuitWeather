@@ -366,25 +366,37 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
   expect(body.endsWith('END:VCALENDAR\r\n')).toBe(true);
 });
 
-test('見守りモード: 10分ごとに自動再取得し、判定の変化をハイライトで知らせる', async ({
-  page,
-}) => {
+// 見守りモードの自動再取得はService Worker経由になるとpage.routeのモックが
+// 効かない（PlaywrightはSW発のfetchを傍受しない）ため、SWを止めて検証する
+test.describe('見守りモード（SWなし）', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('見守りモード: 10分ごとに自動再取得し、判定の変化をハイライトで知らせる', async ({
+    page,
+  }) => {
   await page.clock.install();
   let forecastCalls = 0;
+  let firstLevels = null;
   // beforeEachのデモモックより後に登録したこちらが先に評価される。
-  // 2回目以降の応答で全時間の屋外判定を反転させ、「判定帯の変化」を作る
+  // 2回目以降の応答は「初回に存在しないレベル」へ全時間を差し替え、
+  // 早送りで比較対象の時間帯（時境界）が変わっても必ず変化が検知されるようにする
   await page.route('**/api/forecast*', async (route) => {
     forecastCalls += 1;
     const url = new URL(route.request().url());
     url.searchParams.set('demo', '1');
     const response = await route.fetch({ url: url.toString() });
     const body = await response.json();
-    if (forecastCalls >= 2) {
+    if (forecastCalls === 1) {
+      firstLevels = new Set(body.hours.map((hour) => hour.outdoor.level));
+    } else {
+      const candidates = [
+        { level: 'coldDanger', label: '低温危険', grade: 4 },
+        { level: 'danger', label: '危険', grade: 4 },
+        { level: 'safe', label: 'ほぼ安全', grade: 0 },
+      ];
+      const target = candidates.find((c) => !firstLevels.has(c.level)) ?? candidates[0];
       for (const hour of body.hours) {
-        hour.outdoor =
-          hour.outdoor.level === 'danger'
-            ? { ...hour.outdoor, level: 'safe', label: 'ほぼ安全', grade: 0 }
-            : { ...hour.outdoor, level: 'danger', label: '危険', grade: 4 };
+        hour.outdoor = { ...hour.outdoor, ...target };
       }
     }
     await route.fulfill({ json: body });
@@ -410,6 +422,7 @@ test('見守りモード: 10分ごとに自動再取得し、判定の変化を�
   await page.uncheck('#watch-toggle');
   await expect(page.locator('#watch-status')).toBeHidden();
   await expect(page.locator('#now-card')).not.toHaveClass(/watch-changed/);
+  });
 });
 
 test('当日ボード: 追加・状態移動・上限超過の強調と、ニックネームの非漏洩', async ({ page }) => {

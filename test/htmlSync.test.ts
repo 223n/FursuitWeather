@@ -26,6 +26,7 @@ import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
 import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
+import eventsApiTs from '../src/api/events.ts?raw';
 // style.cssは「?raw」ではなくfsで読む（vitestはCSSを専用パイプラインで処理する
 // ため、?raw指定でも空文字列になる）
 import { readFileSync } from 'node:fs';
@@ -625,6 +626,22 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     expect(symbolsOf(displayJs)).toBe(symbolsOf(appJs));
     // wbgt-tool.jsも同じ判定記号を複製しているため併せて検証する
     expect(symbolsOf(wbgtTool)).toBe(symbolsOf(appJs));
+  });
+
+  it('events.jsonの検証パターン（郵便番号・時刻・日付）はapp.jsとsrc/api/events.tsで一致する', () => {
+    // イベント定義の検証基準はフロント（一覧表示）とWorker（/api/events.ics・
+    // /api/badge.svg）で複製されている。片方だけ基準を変えると「一覧には出るのに
+    // カレンダー・バッジでは弾かれる」形のずれになるため、正規表現リテラルの
+    // 完全一致で機械検証する
+    const patterns = [
+      String.raw`/^\d{3}-?\d{4}$/`,
+      String.raw`/^([01]\d|2[0-3]):[0-5]\d$/`,
+      String.raw`/^\d{4}-\d{2}-\d{2}$/`,
+    ];
+    for (const pattern of patterns) {
+      expect(appJs, `app.jsに${pattern}が見つからない`).toContain(pattern);
+      expect(eventsApiTs, `src/api/events.tsに${pattern}が見つからない`).toContain(pattern);
+    }
   });
 
   it('埋め込みバッジ（/api/badge.svg）の記号はapp.jsのGRADE_SYMBOLSと一致する', () => {

@@ -30,18 +30,29 @@ function levelOf(humidity: number, temperature: number): StaticElectricityLevelI
   return 'low';
 }
 
+/** レベルの厳しさ（比較用） */
+const LEVEL_SEVERITY: Record<StaticElectricityLevelId, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
 /**
  * 1日分の時間別データから静電気指数を判定する
- * 活動中の最悪ケースを示すため、日中（DAYTIME_*）の最も乾いた時間帯の
- * 湿度とその時間の気温で判定する（日中データがない日は全時間帯で代替）
+ * 活動中の最悪ケースを示すため、日中（DAYTIME_*）の各時間を個別に判定し、
+ * 最も厳しいレベルを採用する（日中データがない日は全時間帯で代替）。
+ * 「中」は湿度と気温の複合条件のため、最低湿度の1時間だけを見ると
+ * 別の時間帯の「中」を見落とす（最低湿度の時間が「低」でも、より湿度が
+ * 高く低温の時間が「中」になり得る）
  */
 export function assessStaticElectricity(
   hours: readonly HourlyWeather[],
 ): StaticElectricityAssessment {
   const daytime = filterByHourRange(hours, DAYTIME_START_HOUR, DAYTIME_END_HOUR);
   const target = daytime.length > 0 ? daytime : hours;
-  const driest = target.reduce((a, b) => (b.humidity < a.humidity ? b : a));
-  const level = levelOf(driest.humidity, driest.temperature);
+  const level = target
+    .map((hour) => levelOf(hour.humidity, hour.temperature))
+    .reduce((a, b) => (LEVEL_SEVERITY[b] > LEVEL_SEVERITY[a] ? b : a));
   return {
     level,
     label: STATIC_ELECTRICITY_LABELS[level],

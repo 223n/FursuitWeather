@@ -170,7 +170,7 @@ export interface DayForecast {
   /** その日の最大風速（m/s、1時間平均の最大。全時間帯から取る） */
   maxWindSpeed: number;
   laundry: LaundryAssessment;
-  /** 静電気の起きやすさ（日中の最も乾いた時間帯で判定） */
+  /** 静電気の起きやすさ（日中の各時間のうち最も厳しいレベルを採用） */
   staticElectricity: StaticElectricityAssessment;
   /** 空気のよごれ（黄砂・PM2.5）。取得失敗・欠測時はnull（ベストエフォート） */
   airQuality: AirQualityAssessment | null;
