@@ -682,3 +682,49 @@ test('前回見た予報との差分: 判定が変わっていればバナーで
   await waitForForecast(page);
   await expect(page.locator('#diff-banner')).toBeHidden();
 });
+
+test('プランナー連動: 休憩の質ガイドと持ち物リストが表示され、チェックと追加が保存される', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+
+  // 休憩の質ガイド（デモの日中は厳しい帯を含むため保冷剤の手順まで出る）
+  await expect(page.locator('.rest-guide')).toContainText('休憩の質ガイド');
+  await expect(page.locator('.rest-guide')).toContainText('首・脇の下・足の付け根');
+
+  // 持ち物リスト（警戒以上の時間帯がある日は保冷剤などが自動生成される）
+  await expect(page.locator('#packing-section')).toBeVisible();
+  await expect(page.locator('#packing-list')).toContainText('保冷剤');
+
+  // チェックと自由入力の追加はこの端末に保存され、再読み込み後も残る
+  await page.locator('#packing-list input[type="checkbox"]').first().check();
+  await page.fill('#packing-custom-input', '名刺');
+  await page.click('#packing-add-button');
+  await expect(page.locator('#packing-list')).toContainText('名刺');
+
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#packing-list input[type="checkbox"]').first()).toBeChecked();
+  await expect(page.locator('#packing-list')).toContainText('名刺');
+
+  // 自由入力は削除できる
+  await page.click('#packing-list .packing-remove');
+  await expect(page.locator('#packing-list')).not.toContainText('名刺');
+});
+
+test('印刷用シート: 発行情報が用意され、印刷専用ブロックは画面に出ない', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  // 印刷専用ブロック（応急対応の要点・連絡先欄）は画面では非表示
+  await expect(page.locator('.print-only')).toBeHidden();
+  // 発行情報（いつ・どの地点か）は読み込み時に埋まっている
+  const meta = await page.locator('#print-meta').textContent();
+  expect(meta).toContain('発行:');
+  expect(meta).toContain('東京');
+  await expect(page.locator('#print-button')).toBeVisible();
+});

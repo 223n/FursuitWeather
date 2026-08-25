@@ -1061,6 +1061,73 @@ section h3 {
   margin: 1.25rem 0 0.5rem;
 }
 
+/* 休憩の質ガイド（プランナー結果の下のクールダウン手順カード） */
+.rest-guide {
+  border: 2px solid var(--level-cold-accent);
+  border-radius: 8px;
+  background-color: var(--level-cold-surface);
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.rest-guide > h4 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.rest-guide > h4 .fa-icon {
+  color: var(--level-cold-accent);
+}
+
+.rest-guide > ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.rest-guide > ul > li {
+  margin-bottom: 0.25rem;
+}
+
+/* この日の持ち物（プランナー連動チェックリスト） */
+.packing-section {
+  border: 2px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.packing-section > h3 {
+  margin-top: 0;
+}
+
+.packing-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+}
+
+.packing-list > li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.packing-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* タップ領域の確保（チェック操作は指で行う前提） */
+  min-height: 2rem;
+}
+
+.packing-remove {
+  margin-left: auto;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+}
+
 /* 共有URLへ日付・時間帯を含める任意設定（共有ボタンの下の1行） */
 .share-plan-option {
   display: block;
@@ -1327,10 +1394,64 @@ section h3 {
 /* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって
    サイト名が読めなくなる。印刷時は背景を外し、本文と同じ濃色文字で出す
    （「背景も印刷する」設定でも濃色文字on青帯の低コントラストにならない） */
+/* 印刷専用の補足（画面では出さない。@media printで表示する） */
+.print-only {
+  display: none;
+}
+
 @media print {
   .site-header {
     background-color: transparent;
     color: var(--color-text);
+  }
+
+  /* 印刷用ワンシート: A4縦1枚を想定し、操作UI・説明・重複情報を落として
+     「地点・日別判定・時間別の表・注意・応急対応の要点・連絡先欄」に絞る */
+  body {
+    font-size: 9pt;
+  }
+
+  .controls .control-row,
+  .controls .legend-details,
+  .status-area,
+  #diff-banner,
+  .tabs,
+  #planner-section,
+  #measured-section,
+  .legend,
+  .table-scroll-hint,
+  .about,
+  .skeleton-card,
+  .skeleton-line {
+    display: none !important;
+  }
+
+  /* タブで隠れているパネルも1枚に並べて印刷する */
+  #now-section[hidden],
+  #days-section[hidden],
+  #hours-section[hidden] {
+    display: block !important;
+  }
+
+  /* 日別カードは横並びを保ちつつ枠を薄くしてインク量を抑える */
+  #day-cards {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .print-only {
+    display: block;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .print-only h2 {
+    font-size: 11pt;
+  }
+
+  .print-contact {
+    font-size: 11pt;
   }
 }
 

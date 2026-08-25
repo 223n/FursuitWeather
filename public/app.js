@@ -1277,6 +1277,12 @@
         }
       }
       renderForecast();
+      // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）
+      const printedAt = new Date();
+      document.getElementById('print-meta').textContent =
+        `発行: ${printedAt.getFullYear()}年${printedAt.getMonth() + 1}月${printedAt.getDate()}日` +
+        `${printedAt.getHours()}時${String(printedAt.getMinutes()).padStart(2, '0')}分・` +
+        `${locationName}・最新の予報は https://fursuit-weather.223n.tech/`;
       // 前回見た予報との差分（記憶可能な地点のみ。現在地・デモはスナップショットも残さない）
       if (displayedStorable) {
         renderForecastDiff(query, body);
@@ -1456,6 +1462,16 @@
     } catch {
       setStatus('URLをコピーできませんでした。アドレスバーのURLをご利用ください。', true);
     }
+  });
+
+  // 印刷用ワンシート: 印刷レイアウトは@media print（style.css）が担う。
+  // ブラウザの印刷ダイアログを開くだけで、A4縦1枚の要約が出る
+  document.getElementById('print-button').addEventListener('click', () => {
+    if (!currentForecast) {
+      setStatus('先に予報を読み込んでください。', true);
+      return;
+    }
+    window.print();
   });
 
   // 会場表示モード（display.html）への導線: 表示に成功している地点を引き継いだ
@@ -1967,6 +1983,9 @@
   /** プランナーの結果を消す（地点・日付が変わったとき、古い前提の計画を残さない） */
   function clearPlan() {
     planResult.replaceChildren();
+    // 持ち物リストも前提（対象日・地点）が変わるため隠す（計画の作成で再表示される）
+    packingSection.hidden = true;
+    lastPacking = null;
   }
 
   /** 選んだ日付の指定時間帯の計画を描画する */
@@ -2060,9 +2079,207 @@
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
     notes.appendChild(generalNote);
 
-    planResult.replaceChildren(heading, list, total, notes);
+    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
+    planResult.replaceChildren(heading, list, total, notes, buildRestGuide(worstGrade));
+    renderPacking(planDateValue, hours);
     setStatus('活動計画を作成しました。', false);
   }
+
+  /** 休憩の質ガイドを作る。判定が厳しいほど手順を足す（クールダウンの優先順） */
+  function buildRestGuide(worstGrade) {
+    const guide = document.createElement('div');
+    guide.className = 'rest-guide';
+    const heading = document.createElement('h4');
+    heading.appendChild(faIcon('snowflake', 'btn-icon'));
+    heading.appendChild(document.createTextNode('休憩の質ガイド'));
+    const list = document.createElement('ul');
+    const items = [
+      'ヘッドとハンドを外し、顔と手に風を当てる',
+      '水分と塩分を一緒にとる（汗をかいたら水だけにしない）',
+    ];
+    if (worstGrade >= 2) {
+      items.push(
+        '前腕から手を冷たい水につける（手のひら・前腕の冷却は体温を下げやすい）',
+        '冷房の効いた室内か、日陰で風通しのよい場所に座って休む',
+      );
+    }
+    if (worstGrade >= 3) {
+      items.push(
+        '首・脇の下・足の付け根を保冷剤で冷やす',
+        '「30分着たら30分休む」を守り、次の着用前に体調を互いに確認する',
+      );
+    }
+    for (const text of items) {
+      const item = document.createElement('li');
+      item.textContent = text;
+      list.appendChild(item);
+    }
+    guide.append(heading, list);
+    return guide;
+  }
+
+  // ---- この日の持ち物（予報連動チェックリスト） ----
+  // 判定・降水・低温・乾燥指数から自動生成し、チェック状態と自由入力の持ち物は
+  // この端末のlocalStorageにのみ保存する（サーバーへは何も送らない）
+
+  const packingSection = document.getElementById('packing-section');
+  const packingList = document.getElementById('packing-list');
+  const packingCustomInput = document.getElementById('packing-custom-input');
+  const PACKING_CHECKED_KEY = 'fursuitweatherPackingChecked';
+  const PACKING_CUSTOM_KEY = 'fursuitweatherPackingCustom';
+  const PACKING_CUSTOM_LIMIT = 10;
+  /** 直近に生成した持ち物リストの条件（自由入力の追加後に同じ条件で作り直す用） */
+  let lastPacking = null;
+
+  /** localStorageのJSON値を読む（壊れた保存・保存不可の環境はfallback） */
+  function readPackingState(key, fallback) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) ?? '');
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /** localStorageへJSON値を書く（保存できない環境では黙って諦める） */
+  function writePackingState(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // 保存できなくても表示中のリスト自体は使える
+    }
+  }
+
+  /** 対象日の予報から持ち物を自動生成する */
+  function buildPackingItems(day, hours) {
+    const items = ['飲み物（いつもより多めに）', 'タオル・着替えのインナー'];
+    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
+    if (worstGrade >= 2) {
+      items.push(
+        '保冷剤・凍らせたペットボトル',
+        '経口補水液または塩分タブレット',
+        '冷却ベスト・首用の冷却グッズ',
+      );
+    }
+    if (hours.some((h) => String(h.outdoor.level).startsWith('cold'))) {
+      items.push(
+        '速乾インナーの替え（汗冷え対策）',
+        'カイロ（肌に直接当てない。低温やけどに注意）',
+      );
+    }
+    const rainy = hours.some(
+      (h) =>
+        h.weather.precipitation > 0 ||
+        (typeof h.weather.precipitationProbability === 'number' &&
+          h.weather.precipitationProbability >= 50),
+    );
+    if (rainy) {
+      items.push('レインカバー・防水バッグ', '替えタオル（ファーの水気取り）');
+    }
+    if (day && day.laundry && day.laundry.moldWarning) {
+      items.push('乾燥剤・除湿グッズ（この日は乾きにくい予報）');
+    }
+    return items;
+  }
+
+  /** 持ち物リスト1項目を作って追加する */
+  function appendPackingItem(text, isCustom) {
+    const item = document.createElement('li');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = readPackingState(PACKING_CHECKED_KEY, {})[text] === true;
+    box.addEventListener('change', () => {
+      const state = readPackingState(PACKING_CHECKED_KEY, {});
+      if (box.checked) {
+        state[text] = true;
+      } else {
+        delete state[text];
+      }
+      writePackingState(PACKING_CHECKED_KEY, state);
+    });
+    label.append(box, document.createTextNode(` ${text}`));
+    item.appendChild(label);
+    if (isCustom) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'packing-remove';
+      remove.textContent = '削除';
+      remove.setAttribute('aria-label', `「${text}」を持ち物から削除`);
+      remove.addEventListener('click', () => {
+        writePackingState(
+          PACKING_CUSTOM_KEY,
+          readPackingState(PACKING_CUSTOM_KEY, []).filter((entry) => entry !== text),
+        );
+        item.remove();
+      });
+      item.appendChild(remove);
+    }
+    packingList.appendChild(item);
+  }
+
+  /** 対象日の持ち物リストを描画する（プランナーの計画作成時に更新される） */
+  function renderPacking(dateText, hours) {
+    lastPacking = { dateText, hours };
+    const day = currentForecast.days.find((d) => d.date === dateText);
+    packingList.replaceChildren();
+    for (const text of buildPackingItems(day, hours)) {
+      appendPackingItem(text, false);
+    }
+    for (const text of readPackingState(PACKING_CUSTOM_KEY, [])) {
+      if (typeof text === 'string' && text !== '') {
+        appendPackingItem(text, true);
+      }
+    }
+    packingSection.hidden = false;
+  }
+
+  /** 自由入力の持ち物を追加する */
+  function addCustomPackingItem() {
+    const text = packingCustomInput.value.trim().slice(0, 40);
+    if (text === '') {
+      return;
+    }
+    const custom = readPackingState(PACKING_CUSTOM_KEY, []).filter(
+      (entry) => typeof entry === 'string',
+    );
+    if (custom.includes(text)) {
+      setStatus('同じ持ち物がすでにあります。', false, true);
+      return;
+    }
+    if (custom.length >= PACKING_CUSTOM_LIMIT) {
+      setStatus(`自由入力の持ち物は${PACKING_CUSTOM_LIMIT}件までです。`, false, true);
+      return;
+    }
+    custom.push(text);
+    writePackingState(PACKING_CUSTOM_KEY, custom);
+    packingCustomInput.value = '';
+    if (lastPacking) {
+      renderPacking(lastPacking.dateText, lastPacking.hours);
+    }
+  }
+
+  document.getElementById('packing-add-button').addEventListener('click', addCustomPackingItem);
+  packingCustomInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addCustomPackingItem();
+    }
+  });
+  document.getElementById('packing-copy-button').addEventListener('click', async () => {
+    const lines = [...packingList.querySelectorAll('li')].map((item) => {
+      const box = item.querySelector('input');
+      const text = item.querySelector('label').textContent.trim();
+      return `${box.checked ? '☑' : '□'} ${text}`;
+    });
+    const header = `持ち物リスト（${planDate.value ? formatDate(planDate.value) : ''}・${displayedName || '選択地点'}）`;
+    try {
+      await navigator.clipboard.writeText([header, ...lines].join('\n'));
+      setStatus('持ち物リストをコピーしました。', false);
+    } catch {
+      setStatus('コピーできませんでした。リストを直接選択してコピーしてください。', true);
+    }
+  });
 
   planButton.addEventListener('click', renderPlan);
 
