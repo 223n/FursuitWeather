@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as forecastApi from '../src/api/forecast';
 import * as geocodeApi from '../src/api/geocode';
 import worker, { type Env } from '../src/index';
+import { todayInJst } from '../src/logic/time';
 
 // spyモードで実体を残したままモック化し、500系のテストでのみ失敗を注入する
 vi.mock('../src/api/forecast', { spy: true });
@@ -178,7 +179,12 @@ describe('HTMLページへのnonce注入', () => {
   class HTMLRewriterStub {
     private handlers: { selector: string; element: (el: unknown) => void }[] = [];
     /** 呼び出し側が付けた属性の記録（テストから参照する） */
-    static applied: { selector: string; type: string | null; nonce: string | null }[] = [];
+    static applied: {
+      selector: string;
+      type: string | null;
+      nonce: string | null;
+      content: string | null;
+    }[] = [];
 
     on(selector: string, handler: { element: (el: unknown) => void }): this {
       this.handlers.push({ selector, element: handler.element });
@@ -186,11 +192,27 @@ describe('HTMLページへのnonce注入', () => {
     }
 
     transform(response: Response): Response {
-      // 実物のHTMLに含まれるタグを模したもの（script2つ・style1つ）
+      // 実物のHTMLに含まれるタグを模したもの（script2つ・style1つ・OGメタ4つ）
       const tags = [
         { selector: 'script', attrs: { type: null } as Record<string, string | null> },
         { selector: 'script', attrs: { type: 'application/ld+json' } as Record<string, string | null> },
         { selector: 'style', attrs: {} as Record<string, string | null> },
+        {
+          selector: 'meta[property="og:title"]',
+          attrs: { content: '静的タイトル' } as Record<string, string | null>,
+        },
+        {
+          selector: 'meta[property="og:description"]',
+          attrs: { content: '静的説明' } as Record<string, string | null>,
+        },
+        {
+          selector: 'meta[name="twitter:title"]',
+          attrs: { content: '静的タイトル' } as Record<string, string | null>,
+        },
+        {
+          selector: 'meta[name="twitter:description"]',
+          attrs: { content: '静的説明' } as Record<string, string | null>,
+        },
       ];
       for (const tag of tags) {
         for (const handler of this.handlers) {
@@ -208,10 +230,35 @@ describe('HTMLページへのnonce注入', () => {
           selector: tag.selector,
           type: tag.attrs.type ?? null,
           nonce: tag.attrs.nonce ?? null,
+          content: tag.attrs.content ?? null,
         });
       }
       return response;
     }
+  }
+
+  /** OGサマリー取得（ogSummaryFor）が呼ぶ上流（Open-Meteo）のモックを作る */
+  function ogUpstreamBody(): unknown {
+    const date = todayInJst(new Date());
+    const time: string[] = [];
+    for (let hour = 0; hour < 24; hour += 1) {
+      time.push(`${date}T${String(hour).padStart(2, '0')}:00`);
+    }
+    return {
+      latitude: 35.7,
+      longitude: 139.7,
+      timezone: 'Asia/Tokyo',
+      hourly: {
+        time,
+        temperature_2m: time.map(() => 28),
+        relative_humidity_2m: time.map(() => 65),
+        apparent_temperature: time.map(() => 31),
+        precipitation: time.map(() => 0),
+        weather_code: time.map(() => 1),
+        shortwave_radiation: time.map(() => 400),
+        wind_speed_10m: time.map(() => 2),
+      },
+    };
   }
 
   beforeEach(() => {
@@ -254,6 +301,49 @@ describe('HTMLページへのnonce注入', () => {
       r.headers.get('Content-Security-Policy')!.match(/'nonce-([^']+)'/)![1]!;
 
     expect(nonceOf(first)).not.toBe(nonceOf(second));
+  });
+
+  it('クローラーUA+共有座標のトップページはOGタグへ当日判定を差し込む', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(ogUpstreamBody()), { status: 200 })),
+    );
+    const response = await worker.fetch(
+      new Request('https://example.com/?lat=35.68&lon=139.68', {
+        headers: { 'user-agent': 'Twitterbot/1.0' },
+      }),
+      createEnv(),
+      ctx,
+    );
+    // OGサマリーが失敗してもHTML配信は続く契約のため、まず配信自体を確認する
+    expect(response.status).toBe(200);
+
+    const contentOf = (selector: string): string | null =>
+      HTMLRewriterStub.applied.find((t) => t.selector === selector)!.content;
+    expect(contentOf('meta[property="og:title"]')).toContain('東京付近');
+    expect(contentOf('meta[property="og:title"]')).toContain('の着ぐるみ判定: ');
+    expect(contentOf('meta[property="og:description"]')).toContain(
+      '最新の判定はリンク先で確認してください',
+    );
+    // Xカード側も同じ文言に差し替わる
+    expect(contentOf('meta[name="twitter:title"]')).toBe(contentOf('meta[property="og:title"]'));
+    expect(contentOf('meta[name="twitter:description"]')).toBe(
+      contentOf('meta[property="og:description"]'),
+    );
+  });
+
+  it('通常閲覧では静的OGタグのまま返し、上流も呼ばない', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await worker.fetch(
+      new Request('https://example.com/?lat=35.68&lon=139.68'),
+      createEnv(),
+      ctx,
+    );
+    expect(
+      HTMLRewriterStub.applied.find((t) => t.selector === 'meta[property="og:title"]')!.content,
+    ).toBe('静的タイトル');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('アセット側のステータス（404ページなど）を引き継ぐ', async () => {

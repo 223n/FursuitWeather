@@ -7,6 +7,7 @@ import { handleGeocode } from './api/geocode';
 import { handleNational } from './api/national';
 import { jsonError, methodGuard, upstreamErrorResponse } from './api/http';
 import { isHtmlPath, withNonce } from './csp';
+import { ogSummaryFor } from './ogp';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -55,9 +56,11 @@ export default {
     }
 
     // HTMLページはリクエストごとのnonceを差し込んで返す
+    // （リンクプレビュー用クローラーには当日判定のOGサマリーも差し込む。
+    //   ベストエフォートのためnull（通常閲覧・取得失敗）でもHTML配信は続行する）
     if (isHtmlPath(url.pathname)) {
-      const asset = await env.ASSETS.fetch(request);
-      return withNonce(asset, crypto.randomUUID());
+      const [asset, og] = await Promise.all([env.ASSETS.fetch(request), ogSummaryFor(request)]);
+      return withNonce(asset, crypto.randomUUID(), og ?? undefined);
     }
 
     // run_worker_firstの対象外パスは通常ここに到達しないが、念のためアセットへ委譲する

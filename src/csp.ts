@@ -5,6 +5,8 @@
 // CSPへ同時に差し込む。nonceは毎回変える必要がある（HTMLに書かれた値は
 // 攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて突破される）。
 
+import type { OgSummary } from './ogp';
+
 /** WorkerがHTMLとして処理するパス。ここに載せたパスはwrangler.jsoncの
  * run_worker_firstにも含めること（載っていないとWorkerが起動せず、
  * nonceの無い_headers側のCSPで配信される） */
@@ -70,9 +72,17 @@ export function buildHtmlCsp(nonce: string): string {
  * データブロックのためnonceを付けない（付けても無害だが、実行対象と
  * 紛らわしいので明示的に除外する）。
  * nonceは毎回変わるため、共有キャッシュに載らないようno-storeを付ける
+ *
+ * @param og 指定時はOGP・Xカードのタイトル・説明メタタグを差し替える
+ *   （リンクカードへの当日判定表示。src/ogp.tsのogSummaryForが組み立てる。
+ *   setAttributeは属性値をエスケープするため、文言に判定ラベル等を含めても安全）
  */
-export async function withNonce(asset: Response, nonce: string): Promise<Response> {
-  const rewritten = new HTMLRewriter()
+export async function withNonce(
+  asset: Response,
+  nonce: string,
+  og?: OgSummary,
+): Promise<Response> {
+  let rewriter = new HTMLRewriter()
     .on('script', {
       element(element): void {
         if (element.getAttribute('type') !== 'application/ld+json') {
@@ -84,8 +94,35 @@ export async function withNonce(asset: Response, nonce: string): Promise<Respons
       element(element): void {
         element.setAttribute('nonce', nonce);
       },
-    })
-    .transform(asset);
+    });
+
+  if (og) {
+    const { title, description } = og;
+    // HTMLRewriterはカンマ区切りセレクタに対応しないため、4タグを個別に登録する
+    rewriter = rewriter
+      .on('meta[property="og:title"]', {
+        element(element): void {
+          element.setAttribute('content', title);
+        },
+      })
+      .on('meta[property="og:description"]', {
+        element(element): void {
+          element.setAttribute('content', description);
+        },
+      })
+      .on('meta[name="twitter:title"]', {
+        element(element): void {
+          element.setAttribute('content', title);
+        },
+      })
+      .on('meta[name="twitter:description"]', {
+        element(element): void {
+          element.setAttribute('content', description);
+        },
+      });
+  }
+
+  const rewritten = rewriter.transform(asset);
 
   const headers = new Headers(rewritten.headers);
   headers.set('Content-Security-Policy', buildHtmlCsp(nonce));
