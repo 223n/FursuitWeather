@@ -307,6 +307,34 @@
     }
   }
 
+  /** localStorageから生の文字列を読み出す。未保存・使えない環境ではnullを返す
+   * （「プライベートモード等では黙って無効」の例外方針をJSON版と同様に単一化する） */
+  function readStorageText(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  /** localStorageへ生の文字列を書き込む（保存できない環境では黙って無効） */
+  function writeStorageText(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // 保存できなくても操作自体は成立させる
+    }
+  }
+
+  /** localStorageのキーを削除する（消せない環境では黙って無効） */
+  function removeStorageItem(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // 消せない環境でも呼び出し側の処理は続行する
+    }
+  }
+
   /** 記憶済みの地点を読み出す。形式が不正・破損している場合はnullを返す */
   function readStoredLocation() {
     const stored = readStorageJson(LOCATION_STORAGE_KEY);
@@ -407,7 +435,13 @@
     note.hidden = !text;
     note.replaceChildren();
     if (text) {
-      note.append(faIcon('triangle-exclamation'), document.createTextNode(text));
+      // 見出しのない注意文の共通規約: sr-onlyの「注意: 」で読み上げにも役割を伝える
+      // （アイコンは装飾（aria-hidden）のまま。docs/accessibility.mdの方針）
+      note.append(
+        faIcon('triangle-exclamation'),
+        srOnlySpan('注意: '),
+        document.createTextNode(text),
+      );
     }
   }
 
@@ -434,7 +468,8 @@
     const warn = !isError && Boolean(isWarning) && Boolean(message);
     statusElement.classList.toggle('status-warning', warn);
     if (warn) {
-      statusElement.prepend(faIcon('triangle-exclamation'));
+      // 見出しのない注意文の共通規約に合わせ、読み上げにも注意の役割を伝える
+      statusElement.prepend(faIcon('triangle-exclamation'), srOnlySpan('注意: '));
     }
     // エラーも色だけに頼らせない（グレースケール・色覚多様性の環境でも枠の意味が
     // 伝わるよう△!を付ける）。アイコンは装飾（aria-hidden）で、意味は本文が担う
@@ -929,6 +964,10 @@
 
   // 地点の選び方のタブ（主な都市／イベント／検索・現在地／お気に入り）。
   // 選び方ごとに操作をまとめ、操作エリアが縦に伸びないようにする
+  /** イベント一覧の読み込みが失敗したままか（イベントタブ選択時の再試行の判定用。
+   * initEventsが設定し、成功で解除する） */
+  let eventsLoadFailed = false;
+
   createTabs(
     'picker-tabs',
     [
@@ -938,6 +977,14 @@
       { tabId: 'picker-tab-favorites', panelId: 'picker-favorites' },
     ],
     'picker-tab-city',
+    (target) => {
+      // 初回読み込みだけ失敗したスマホ利用者が、ページ全体の再読み込みなしで
+      // 復帰できるようにする（予報本体の「予報を更新」に相当する再試行手段）
+      if (target.tabId === 'picker-tab-event' && eventsLoadFailed) {
+        eventsLoadFailed = false;
+        initEvents();
+      }
+    },
   );
 
   // いまの判定: 現在時刻（JST）の時間別判定を大きく1枚で表示する
@@ -1052,13 +1099,17 @@
     nowCard.replaceChildren(...children);
   }
 
+  /** 当日の過ぎた時間帯を除外する（例: 15:25なら15時以降のみ残す）
+   * 時間別テーブルとプランナーが共有する基準（片側だけ変わると表と計画の
+   * 合計が食い違うため、単一実装にする） */
+  function dropPastHoursToday(hours, date, now) {
+    return hours.filter((h) => date !== now.date || hourNumberOf(h.time) >= now.hour);
+  }
+
   /** 時間別テーブルを描画する */
   function renderHours() {
     const now = nowInJst();
-    // 当日は過ぎた時間帯を表示しない（例: 15:25なら15時以降のみ表示する）
-    const hours = hoursOnDate(selectedDate).filter(
-      (h) => selectedDate !== now.date || hourNumberOf(h.time) >= now.hour,
-    );
+    const hours = dropPastHoursToday(hoursOnDate(selectedDate), selectedDate, now);
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
@@ -1148,7 +1199,8 @@
   async function refreshEnvAlert(query, seq) {
     let alert = null;
     try {
-      const response = await fetch(`/api/alert?${query === DEMO_QUERY ? 'demo=1' : query}`);
+      // デモ表示のときはquery自体が'demo=1'（DEMO_QUERY）のため、そのまま渡せばよい
+      const response = await fetch(`/api/alert?${query}`);
       if (response.ok) {
         const body = await response.json();
         if (body && body.alert && typeof body.alert.prefectureName === 'string') {
@@ -1360,12 +1412,9 @@
     const signature = JSON.stringify(
       changes.map((c) => [query, c.date, c.before.grade, c.after.grade]),
     );
-    try {
-      if (localStorage.getItem(DIFF_DISMISSED_KEY) === signature) {
-        return;
-      }
-    } catch {
-      // 読めない環境では常に表示する（安全側）
+    // 読めない環境（readStorageTextがnull）では常に表示する（安全側）
+    if (readStorageText(DIFF_DISMISSED_KEY) === signature) {
+      return;
     }
 
     const worsened = changes.some((c) => c.after.grade > c.before.grade);
@@ -1388,11 +1437,7 @@
     close.textContent = '閉じる';
     close.addEventListener('click', () => {
       diffBanner.hidden = true;
-      try {
-        localStorage.setItem(DIFF_DISMISSED_KEY, signature);
-      } catch {
-        // 保存できなくても閉じる操作自体は成立させる
-      }
+      writeStorageText(DIFF_DISMISSED_KEY, signature);
     });
     // 悪化のときだけ警告アイコンを付ける（改善の知らせに△!を付けると文意と食い違う。
     // 悪化/改善の別は本文と配色クラスが担う）
@@ -1692,7 +1737,7 @@
     if (watchTimer === null) {
       return;
     }
-    const entry = currentForecast ? currentHourEntry() : null;
+    const entry = currentOutdoorTarget();
     watchLastLevel = entry ? entry.outdoor.level : null;
     watchLastUpdatedMs = Date.now();
     nowCard.classList.remove('watch-changed');
@@ -1759,11 +1804,10 @@
     // チャイムの自動再生制限はユーザー操作の中で解いておく
     prepareTimerAudio();
     if (watchToggle.checked) {
-      const entry = currentForecast ? currentHourEntry() : null;
-      watchLastLevel = entry ? entry.outdoor.level : null;
-      watchLastUpdatedMs = Date.now();
+      // 基準リセット（偽の変化通知の防止）はsyncWatchBaselineの単一実装を使う
+      // （syncWatchBaselineはwatchTimer設定済みが前提のため、先にタイマーを張る）
       watchTimer = setInterval(watchRefresh, WATCH_INTERVAL_MS);
-      updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
+      syncWatchBaseline(false);
     } else {
       clearInterval(watchTimer);
       watchTimer = null;
@@ -2188,7 +2232,10 @@
           .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
       }
     } catch {
-      emptyMessage = 'イベント情報を読み込めませんでした';
+      // 移動中の電波不安定などの一時失敗から復帰できるよう、失敗を記録して
+      // イベントタブの選択時に再試行する（下のpicker-tabs onActivateが参照）
+      eventsLoadFailed = true;
+      emptyMessage = 'イベント情報を読み込めませんでした（イベントタブを選び直すと再試行します）';
     }
     eventSelect.replaceChildren();
     if (eventList.length === 0) {
@@ -2336,8 +2383,12 @@
       activateDayTabUnlessOverridden(targetDate, tabSeqAtStart);
       const message =
         `${prefix}「${event.name}」開催日（${formatDate(targetDate)}）の予報です。` +
-        // 設定した事実だけでは計画表示までの残り手順が伝わらないため、導線を添える
-        (planText ? `活動プランナーに${planText}を設定しました。${PLANNER_GUIDE_TEXT}` : '');
+        // 設定した事実だけでは計画表示までの残り手順が伝わらないため、導線を添える。
+        // 複数日開催（planTextなし）でも開催日はプランナーへ設定済みのため、
+        // 時間帯を選べば計画を立てられることを案内する（機能に気付く手掛かりを揃える）
+        (planText
+          ? `活動プランナーに${planText}を設定しました。${PLANNER_GUIDE_TEXT}`
+          : `活動プランナーに開催日を設定しました。時間帯を選び、${PLANNER_GUIDE_TEXT}`);
       setStatus(message, false);
       // 読み上げサマリーは常に当日の予報を述べるため、対象日が今日でない
       // ときに食い違う。開催日を明示した文で上書きする
@@ -2459,8 +2510,13 @@
     planDate.disabled = false;
     planButton.disabled = false;
     const names = ['今日', '明日', '明後日'];
-    currentForecast.days.forEach((day, index) => {
-      const prefix = names[index] ? `${names[index]} ` : '';
+    const today = nowInJst().date;
+    currentForecast.days.forEach((day) => {
+      // 相対ラベルは配列位置ではなくJSTの今日との日付差で決める（display.jsの
+      // formatDayLabelと同じ規則）。オフライン表示・日付またぎのキャッシュでは
+      // days[0]が前日になり得るため、位置ベースだと前日に「今日」と付いてしまう
+      const relative = names[daysBetween(today, day.date)] ?? '';
+      const prefix = relative ? `${relative} ` : '';
       planDate.appendChild(new Option(`${prefix}${formatDate(day.date)}`, day.date));
     });
     if ([...planDate.options].some((option) => option.value === previous)) {
@@ -2499,10 +2555,8 @@
       const hour = hourNumberOf(h.time);
       return hour >= start && hour < end;
     });
-    // 当日は過ぎた時間帯を合計に含めない（時間別テーブルの表示と同じ基準）
-    const hours = rangeHours.filter(
-      (h) => planDateValue !== now.date || hourNumberOf(h.time) >= now.hour,
-    );
+    // 当日は過ぎた時間帯を合計に含めない（時間別テーブルと同じdropPastHoursToday基準）
+    const hours = dropPastHoursToday(rangeHours, planDateValue, now);
     // 除外された過去の時間帯（rangeHoursの先頭から連続する分）。理由の説明に使う
     const excludedCount = rangeHours.length - hours.length;
     if (hours.length === 0) {
@@ -3362,7 +3416,20 @@
     timerClock.textContent =
       `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`;
     if (timerState.mode !== 'wear') {
-      timerLimitElement.textContent = restGuideText(Math.floor(elapsedSeconds / 60));
+      const restMinutes = Math.floor(elapsedSeconds / 60);
+      timerLimitElement.textContent = restGuideText(restMinutes);
+      // 休憩目安に達したら1回だけ短いチャイム（アテンドは着用者の世話で画面から
+      // 目を離すため、文言変化だけでは気づけない）。着用中の警告と同様に
+      // フラグごと保存し、リロードしても鳴り直さない
+      if (
+        !timerState.restNotified &&
+        Number.isFinite(timerState.wearMinutes) &&
+        restMinutes >= timerState.wearMinutes
+      ) {
+        timerState.restNotified = true;
+        writeTimerState();
+        timerAlert(1);
+      }
       return;
     }
     const remainingSeconds = timerRemainingSeconds(timerState);
@@ -3485,11 +3552,8 @@
     clearInterval(timerTickId);
     timerTickId = null;
     timerState = null;
-    try {
-      localStorage.removeItem(TIMER_STATE_KEY);
-    } catch {
-      // 消せない環境でも表示は閉じる（次回表示時はreadTimerStateの検証に従う）
-    }
+    // 消せない環境でも表示は閉じる（次回表示時はreadTimerStateの検証に従う）
+    removeStorageItem(TIMER_STATE_KEY);
     releaseTimerWakeLock();
     timerOverlay.hidden = true;
     setBackgroundInert(false);
@@ -3702,8 +3766,13 @@
       updateTimerDisplay();
       return;
     }
-    const latest = currentOutdoorTarget();
-    renderTimerJudgment(latest ? latest.outdoor : null);
+    // 休憩切り替え後の判定バッジ: 表示中が開始地点と同じときだけ描き直す
+    // （別地点を表示中は、refreshTimerJudgmentが開始地点で維持しているバッジを
+    //   表示地点の判定で上書きしない。「取り直しは開始時の地点」の不変条件）
+    if (!timerState.query || timerState.query === displayedQuery) {
+      const latest = currentOutdoorTarget();
+      renderTimerJudgment(latest ? latest.outdoor : null);
+    }
     updateTimerDisplay();
   });
 
@@ -4130,6 +4199,15 @@
     }
   }
 
+  // 他のテキスト入力（地点検索・持ち物・実測WBGT）と同様にEnterキーでも追加できる
+  // （手袋越しの操作でソフトキーボードの確定キーだけで完結させる）
+  boardNameInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.getElementById('board-add-button').click();
+    }
+  });
+
   document.getElementById('board-add-button').addEventListener('click', () => {
     prepareTimerAudio();
     const name = boardNameInput.value.trim();
@@ -4145,15 +4223,20 @@
       );
       return;
     }
+    // 名前の重複は許す（同名の実在は現場であり得る）が、同名カードが並ぶと
+    // 交代・削除の取り違えの元になるため、追加時に注意だけ添える
+    const duplicated = boardState.wearers.some((wearer) => wearer.name === name);
     boardState.wearers.push({
-      // idは使い捨て（並び・削除はオブジェクト参照で行う）。名前の重複は許す
+      // idは使い捨て（並び・削除はオブジェクト参照で行う）
       name,
       state: 'waiting',
       since: Date.now(),
       warnedOver: false,
     });
     boardNameInput.value = '';
-    boardStatusElement.textContent = `「${name}」を待機へ追加しました。`;
+    boardStatusElement.textContent = duplicated
+      ? `「${name}」を待機へ追加しました。同じニックネームがすでに登録されています。区別できる名前（「${name}2」など）をおすすめします。`
+      : `「${name}」を待機へ追加しました。`;
     writeBoardState();
     renderBoard();
   });
@@ -4224,13 +4307,9 @@
 
   /** 保存済みの文字サイズの添字（読めない・未設定は標準） */
   function currentFontSizeIndex() {
-    try {
-      const stored = localStorage.getItem(FONT_SIZE_KEY);
-      const index = FONT_SIZES.findIndex((entry) => entry.id === stored);
-      return index >= 0 ? index : 0;
-    } catch {
-      return 0;
-    }
+    const stored = readStorageText(FONT_SIZE_KEY);
+    const index = FONT_SIZES.findIndex((entry) => entry.id === stored);
+    return index >= 0 ? index : 0;
   }
 
   /** 適用中の文字サイズの添字。保存値とは別にメモリで持ち、localStorageが使えない
@@ -4249,11 +4328,8 @@
     const entry = FONT_SIZES[index];
     document.documentElement.style.fontSize = entry.id === 'standard' ? '' : entry.size;
     updateFontSizeButton(entry);
-    try {
-      localStorage.setItem(FONT_SIZE_KEY, entry.id);
-    } catch {
-      // 保存できない環境では、このページ表示中だけ適用される
-    }
+    // 保存できない環境では、このページ表示中だけ適用される
+    writeStorageText(FONT_SIZE_KEY, entry.id);
   }
 
   updateFontSizeButton(FONT_SIZES[fontSizeIndex]);
@@ -4350,7 +4426,9 @@
    * 開いた時点の最新予報で再計算するため、共有元の画面写真より安全側になる */
   function applySharedPlan(tabSeqAtStart) {
     const date = (pageParams.get('date') ?? '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    // 形式に加えて実在する日付かも検証する（2026-02-30などが通ると、範囲外分岐で
+    // 繰り上がった別の日の曜日付きの無意味な案内が出てしまう。events.jsonと同基準）
+    if (!isValidDateText(date)) {
       return;
     }
     if (!currentForecast.days.some((d) => d.date === date)) {
@@ -4362,6 +4440,9 @@
         false,
         true,
       );
+      // ステータスは後続の操作で流れて消えるため、イベント経路（showEventForecast）と
+      // 同様に常設注記へも残す（地点が変わればloadForecastが消す）
+      setLocationNote(`共有された日付（${formatEventDate(date)}）の予報ではありません（表示は直近の予報）`);
       return;
     }
     planDate.value = date;

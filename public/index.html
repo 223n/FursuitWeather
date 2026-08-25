@@ -180,7 +180,7 @@
           <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
           <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
         </div>
-        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。「固定リンクをコピー」は、開くと選んだイベントの予報が表示されるURLです（告知への掲載用）。開催の詳細は主催者の告知をご確認ください。</p>
+        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。「固定リンクをコピー」は、開くと選んだイベントの予報が表示されるURLです（告知への掲載用）。開催の詳細は主催者の告知をご確認ください。イベントの掲載を希望する主催者の方は<a href="https://github.com/223n/FursuitWeather/issues" rel="noopener">GitHubリポジトリのissue</a>からご連絡ください。</p>
       </div>
       <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
         <div class="control-row">
@@ -226,7 +226,9 @@
           <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
         </div>
         <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
-        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、見ている日付とプランナーの時間帯を含める</label>
+        <!-- 実挙動と一致させる: 日付はプランナーの日付を優先（未選択時のみ見ている日付）、
+             時間帯はプランナーの現在値（app.jsのshare-buttonハンドラーと同期） -->
+        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーの日付と時間帯を含める（日付が未選択なら見ている日付）</label>
       </div>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
@@ -291,6 +293,31 @@
           バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
         </p>
       </div>
+      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
+           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
+           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
+           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない）。
+           着る前に目に入るよう、着用開始の動線（判定カード・タイマー）の近くに置く -->
+      <details class="condition-check">
+        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
+        <p class="hint">
+          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
+          当てはまるものにチェックすると、今日の心構えを表示します。
+          回答はこの端末にも保存されず、どこにも送信されません。
+        </p>
+        <ul class="condition-list">
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+        </ul>
+        <p id="condition-note" class="condition-note" role="status"></p>
+        <p class="hint">
+          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
+          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
+        </p>
+      </details>
       <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
            （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
       <div id="wear-log-section" class="wear-log-section" hidden>
@@ -320,7 +347,7 @@
         </p>
         <div class="control-row">
           <label for="board-name-input">ニックネーム</label>
-          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ">
+          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ" enterkeyhint="done">
           <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
         </div>
         <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
@@ -345,30 +372,6 @@
         </div>
         <p class="hint">
           これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
-        </p>
-      </details>
-      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
-           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
-           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
-           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない） -->
-      <details class="condition-check">
-        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
-        <p class="hint">
-          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
-          当てはまるものにチェックすると、今日の心構えを表示します。
-          回答はこの端末にも保存されず、どこにも送信されません。
-        </p>
-        <ul class="condition-list">
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
-          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
-        </ul>
-        <p id="condition-note" class="condition-note" role="status"></p>
-        <p class="hint">
-          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
-          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
         </p>
       </details>
     </section>

@@ -9,6 +9,8 @@
 // - 時刻はJST→UTC（末尾Z）で書く。TZID方式はVTIMEZONE定義の同梱が必須になるため
 //   使わない（JSTは夏時間がなく-9時間の固定変換で正確）
 
+import { nextDateOf } from './time';
+
 /** カレンダーへ載せる1イベント（検証済み。endDateは単日開催でもstartDateと同値で埋まっている） */
 export interface CalendarEvent {
   readonly name: string;
@@ -65,8 +67,7 @@ function icalDate(date: string): string {
 
 /** YYYY-MM-DD の翌日 → YYYYMMDD（終日予定のDTENDは最終日の翌日を指す排他表現） */
 function icalNextDay(date: string): string {
-  const nextMs = Date.parse(`${date}T00:00:00Z`) + 24 * 60 * 60 * 1000;
-  return icalDate(new Date(nextMs).toISOString().slice(0, 10));
+  return icalDate(nextDateOf(date));
 }
 
 /** Date → YYYYMMDDTHHMMSSZ（UTC） */

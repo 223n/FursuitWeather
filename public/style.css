@@ -756,7 +756,10 @@ input[type='number'] {
   content: '▼' / '';
 }
 
-.legend-details summary:focus {
+/* 折りたたみ見出しのフォーカスリングはページ内で統一する（判定の見方・
+   当日ボード・コンディションチェック・暑熱順化など、summary全般に適用。
+   coarse環境のタップ領域確保がsummary全般を対象にするのと同じ扱い） */
+summary:focus {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }

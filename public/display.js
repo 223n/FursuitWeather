@@ -303,14 +303,19 @@
     }
   }
 
-  const settings = parseSettingsFromUrl() ??
-    readStoredSettings() ?? {
+  /** 表示設定の既定値（起動時フォールバックとリセットの単一情報源。
+   * 設定項目を増やすときはここへ足せば両方に効く） */
+  function defaultSettings() {
+    return {
       slides: SLIDES.map((slide) => slide.key),
       emergency: false,
       cities: null,
       extras: [],
       message: '',
     };
+  }
+
+  const settings = parseSettingsFromUrl() ?? readStoredSettings() ?? defaultSettings();
 
   /** もしものときスライドを表示するか（設定ON、または現在判定が厳重警戒以上）。
    * 低温側の危険（coldDanger）はgradeが同値でも熱中症の手順ではないため自動表示しない */
@@ -1377,11 +1382,8 @@
     } catch {
       // 保存を消せない環境でも、以降の既定値適用とURL反映で表示は初期化される
     }
-    settings.slides = SLIDES.map((slide) => slide.key);
-    settings.emergency = false;
-    settings.cities = null;
-    settings.extras = [];
-    settings.message = '';
+    // settingsはconstで参照が各所に配られているため、差し替えではなく上書きする
+    Object.assign(settings, defaultSettings());
     extraSummaries = [];
     syncSlideCheckboxes();
     settingsMessageInput.value = '';

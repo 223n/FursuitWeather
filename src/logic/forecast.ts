@@ -48,7 +48,8 @@ export function buildDayForecastFor(
   hours: readonly HourlyWeather[],
   date: string,
 ): DayForecast | null {
-  const dayHours = hours.map(buildHourForecast).filter((hour) => dateOf(hour.time) === date);
+  // 先に対象日で絞ってから判定を組み立てる（捨てる時間分のWBGT計算を避ける）
+  const dayHours = hours.filter((hour) => dateOf(hour.time) === date).map(buildHourForecast);
   return dayHours.length === 0 ? null : buildDayForecast(date, dayHours);
 }
 

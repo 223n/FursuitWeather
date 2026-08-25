@@ -49,8 +49,9 @@ export function jsonError(status: number, message: string): Response {
   return json({ error: message }, { status });
 }
 
-/** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
-export function parseNumberParam(params: URLSearchParams, name: string): number | null {
+/** 数値クエリパラメータを解析する。欠落・非数値はnullを返す
+ * （モジュール内専用。座標を受けるエンドポイントの共通入口はparseLatLonParams） */
+function parseNumberParam(params: URLSearchParams, name: string): number | null {
   const raw = params.get(name);
   if (raw === null || raw.trim() === '') {
     return null;

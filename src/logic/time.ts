@@ -19,6 +19,14 @@ export function todayInJst(now: Date): string {
   return jst.toISOString().slice(0, 10);
 }
 
+/** YYYY-MM-DDの翌日の日付（YYYY-MM-DD）を返す
+ * 実行環境のタイムゾーンに依存しないよう、UTC基準で計算する
+ * （デモデータの2日目・iCalの終日DTEND（排他区間）が共有する） */
+export function nextDateOf(date: string): string {
+  const nextMs = Date.parse(`${date}T00:00:00Z`) + 24 * 60 * 60 * 1000;
+  return new Date(nextMs).toISOString().slice(0, 10);
+}
+
 /** 時刻が[startHour, endHour)の半開区間に入る要素だけ残す（開始を含み終了を含まない） */
 export function filterByHourRange<T extends { time: string }>(
   items: readonly T[],

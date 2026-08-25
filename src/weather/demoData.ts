@@ -2,6 +2,7 @@
 // 上流APIに接続できない環境での動作確認と、UIのプレビューに使用する
 // 真夏の晴天日（1日目）と雨の日（2日目）を模した決定的なデータを返す
 
+import { nextDateOf } from '../logic/time';
 import type { HourlyWeather } from '../types';
 import type { WeatherResult } from './openMeteo';
 
@@ -57,10 +58,7 @@ function buildDay(
 
 /** 指定日から2日分のデモデータを返す */
 export function demoWeather(startDate: string): WeatherResult {
-  // 実行環境のタイムゾーンに依存しないよう、UTC基準で翌日の日付を求める
-  const [year, month, day] = startDate.split('-').map(Number);
-  const next = new Date(Date.UTC(year ?? 2026, (month ?? 1) - 1, day ?? 1) + 24 * 60 * 60 * 1000);
-  const nextDate = next.toISOString().slice(0, 10);
+  const nextDate = nextDateOf(startDate);
 
   // 朝晩は警戒レベル、日中は危険レベルと段階が変化する晴天日を再現する
   const sunnyDay = buildDay(startDate, {

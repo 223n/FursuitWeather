@@ -2,7 +2,9 @@
 // 気象庁MSM（約5kmメッシュ・1時間粒度・4日先）を優先し、以降はGSMに自動接続する
 // jma_seamlessモデルのデータを取得する。APIキーは不要（非商用・要出典表記）
 // 降水確率のみ気象庁モデルにないため、標準予報APIから補完取得する（失敗しても
-// 予報本体は成功させるベストエフォート）
+// 予報本体は成功させるベストエフォート）。
+// 大気質（黄砂・PM2.5）もAir Quality APIから同じベストエフォートで補完取得する
+// （CLAUDE.mdの上流6系統のうち、Open-Meteo系の3系統を本ファイルが担う）
 
 import {
   OPEN_METEO_AIR_QUALITY_BASE_URL,
@@ -265,16 +267,23 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
  * 補助情報のため、どの失敗でも予報本体を巻き込まない（ベストエフォート）。
  * 予報本体と同じ上流のため、瞬断の取り直し（requestUpstream）も同じ扱いにする
  *
- * @param subject ログ・利用者向け文言の件名（「降水確率」「大気質」）
+ * @param subject ログ・利用者向け文言の件名（「降水確率」「大気質」。
+ *   上流リクエストの文言セットもここから組み立て、件名と文言のずれを防ぐ）
  * @param collect 検証済みhourlyオブジェクトからMapを作る純粋関数（形式異常はnull）
  */
 async function fetchAuxiliaryHourly<T>(
   url: string,
-  messages: UpstreamMessages,
   subject: string,
   fetchImpl: typeof fetch,
   collect: (hourly: Record<string, unknown>) => Map<string, T> | null,
 ): Promise<Map<string, T>> {
+  // 補助取得の文言セット。件名を分けることで、本体障害（利用者に502が出る）と
+  // 補助取得の失敗（利用者影響なし）をログの1行目で切り分けられるようにする
+  // （failureは下のcatchが握り潰し利用者へ届かないが、方針どおり固定の日本語文にする）
+  const messages: UpstreamMessages = {
+    logLabel: `${subject}の取得に失敗:`,
+    failure: `${subject}を取得できませんでした`,
+  };
   try {
     const response = await requestUpstream(url, fetchImpl, messages);
     if (!response.ok) {
@@ -360,7 +369,6 @@ function fetchPrecipitationProbability(
 ): Promise<Map<string, number>> {
   return fetchAuxiliaryHourly(
     buildProbabilityUrl(latitude, longitude, days),
-    PROBABILITY_FETCH_MESSAGES,
     '降水確率',
     fetchImpl,
     collectProbabilityByTime,
@@ -379,7 +387,6 @@ function fetchAirQuality(
 ): Promise<Map<string, AirQualityValues>> {
   return fetchAuxiliaryHourly(
     buildAirQualityUrl(latitude, longitude, days),
-    AIR_QUALITY_FETCH_MESSAGES,
     '大気質',
     fetchImpl,
     collectAirQualityByDate,
@@ -395,22 +402,6 @@ const WEATHER_FETCH_MESSAGES: UpstreamMessages = {
   failure: '気象データの取得に失敗しました。時間をおいて再度お試しください',
   // タイムアウトは「待てば直る」ことが多いため専用文言で区別する
   timeout: '気象データの取得がタイムアウトしました。時間をおいて再度お試しください',
-};
-
-/**
- * 補助取得（降水確率）用の文言。件名を分けることで、本体障害（利用者に502が出る）と
- * 補助取得の失敗（利用者影響なし）をログの1行目で切り分けられるようにする
- * （failureは呼び出し側のcatchが握り潰し利用者へ届かないが、方針どおり固定の日本語文にする）
- */
-const PROBABILITY_FETCH_MESSAGES: UpstreamMessages = {
-  logLabel: '降水確率の取得に失敗:',
-  failure: '降水確率を取得できませんでした',
-};
-
-/** 補助取得（大気質）用の文言（降水確率と同じ扱い） */
-const AIR_QUALITY_FETCH_MESSAGES: UpstreamMessages = {
-  logLabel: '大気質の取得に失敗:',
-  failure: '大気質を取得できませんでした',
 };
 
 /** 上流リクエスト1回分（エッジキャッシュTTLと文言セットを束ねてfetchUpstreamへ委譲する） */
@@ -474,11 +465,12 @@ async function fetchWeatherFromUrl(url: string, fetchImpl: typeof fetch): Promis
 
 /**
  * 時間別の気象データを取得する（降水確率の補完なし）
- * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
+ * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる。
+ * モジュール内専用（予報本体の公開入口はfetchWeather / fetchWeatherForDateの2つ）
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
-export function fetchWeatherBase(
+function fetchWeatherBase(
   latitude: number,
   longitude: number,
   days: number,
