@@ -124,6 +124,8 @@
    * 読み込み待ちの間に利用者が選んだタブを上書きしないためのガード
    * （「最後の明示操作が勝つ」不変条件をタブ切り替えにも適用する） */
   let manualTabSeq = 0;
+  /** イベント固定リンク（?event=）で指定された名前。一覧の読み込み後に自動選択する */
+  let pendingEventName = null;
 
   /**
    * 保留中のセレクトデバウンスを解除する
@@ -1073,6 +1075,122 @@
     }
   }
 
+  // ---- 前回見た予報との差分 ----
+  // 予報を表示するたびに日別判定をこの端末へ保存し、時間をあけた再訪で
+  // 判定が変わっていたら差分バナーで知らせる（サーバーへは何も送らない）
+
+  const diffBanner = document.getElementById('diff-banner');
+  const SNAPSHOT_STORAGE_KEY = 'fursuitweatherForecastSnapshots';
+  const DIFF_DISMISSED_KEY = 'fursuitweatherDiffDismissed';
+  /** 差分を比較する最小の経過時間。直前のリロードとの比較は意味が薄い */
+  const SNAPSHOT_MIN_AGE_MS = 3 * 60 * 60 * 1000;
+  /** 保存する地点数の上限（古い地点から削除して肥大化を防ぐ） */
+  const SNAPSHOT_LIMIT = 10;
+
+  /** 保存済みスナップショット一式を読む（壊れた保存値・保存不可の環境は空） */
+  function readForecastSnapshots() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SNAPSHOT_STORAGE_KEY) ?? '');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** 表示した予報の日別判定を地点クエリごとに保存する */
+  function writeForecastSnapshot(query, body) {
+    try {
+      const snapshots = readForecastSnapshots();
+      snapshots[query] = {
+        at: Date.now(),
+        days: body.days.map((day) => ({
+          date: day.date,
+          grade: day.outdoorWorst.grade,
+          label: day.outdoorWorst.label,
+        })),
+      };
+      const keys = Object.keys(snapshots);
+      if (keys.length > SNAPSHOT_LIMIT) {
+        keys.sort((a, b) => (snapshots[a].at ?? 0) - (snapshots[b].at ?? 0));
+        for (const key of keys.slice(0, keys.length - SNAPSHOT_LIMIT)) {
+          delete snapshots[key];
+        }
+      }
+      localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshots));
+    } catch {
+      // 保存できない環境（プライベートモード等）では差分表示を諦める
+    }
+  }
+
+  /** 前回の閲覧から日別判定が変わっていれば差分バナーを表示する */
+  function renderForecastDiff(query, body) {
+    diffBanner.hidden = true;
+    const previous = readForecastSnapshots()[query];
+    if (
+      !previous ||
+      !Array.isArray(previous.days) ||
+      typeof previous.at !== 'number' ||
+      Date.now() - previous.at < SNAPSHOT_MIN_AGE_MS
+    ) {
+      return;
+    }
+    const changes = [];
+    for (const day of body.days) {
+      const before = previous.days.find((d) => d && d.date === day.date);
+      if (
+        before &&
+        typeof before.grade === 'number' &&
+        typeof before.label === 'string' &&
+        before.grade !== day.outdoorWorst.grade
+      ) {
+        changes.push({ date: day.date, before, after: day.outdoorWorst });
+      }
+    }
+    if (changes.length === 0) {
+      return;
+    }
+    // 「閉じる」で同じ差分を再表示しないための署名（内容が変われば再び表示する）
+    const signature = JSON.stringify(
+      changes.map((c) => [query, c.date, c.before.grade, c.after.grade]),
+    );
+    try {
+      if (localStorage.getItem(DIFF_DISMISSED_KEY) === signature) {
+        return;
+      }
+    } catch {
+      // 読めない環境では常に表示する（安全側）
+    }
+
+    const worsened = changes.some((c) => c.after.grade > c.before.grade);
+    diffBanner.className = `diff-banner ${worsened ? 'diff-worse' : 'diff-better'}`;
+    const at = new Date(previous.at);
+    const text = document.createElement('span');
+    const changeText = changes
+      .map(
+        (c) =>
+          `${formatDate(c.date)} ${c.before.label}→${c.after.label}` +
+          `（${c.after.grade > c.before.grade ? '悪化' : '改善'}）`,
+      )
+      .join('、');
+    text.textContent =
+      `前回の閲覧（${at.getMonth() + 1}月${at.getDate()}日${at.getHours()}時ごろ）から` +
+      `判定が変わりました: ${changeText}`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'diff-close';
+    close.textContent = '閉じる';
+    close.addEventListener('click', () => {
+      diffBanner.hidden = true;
+      try {
+        localStorage.setItem(DIFF_DISMISSED_KEY, signature);
+      } catch {
+        // 保存できなくても閉じる操作自体は成立させる
+      }
+    });
+    diffBanner.replaceChildren(faIcon('triangle-exclamation', 'btn-icon'), text, close);
+    diffBanner.hidden = false;
+  }
+
   /** 予報を取得して描画する
    * @param {string} query APIへのクエリ文字列
    * @param {string} locationName 表示する地点名（成功時にラベルへ反映）
@@ -1159,6 +1277,13 @@
         }
       }
       renderForecast();
+      // 前回見た予報との差分（記憶可能な地点のみ。現在地・デモはスナップショットも残さない）
+      if (displayedStorable) {
+        renderForecastDiff(query, body);
+        writeForecastSnapshot(query, body);
+      } else {
+        diffBanner.hidden = true;
+      }
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       srAnnounce.textContent = buildSpokenSummary(body, locationName);
@@ -1207,14 +1332,14 @@
     }
   }
 
-  /** 選択中の都市で予報を読み込む */
+  /** 選択中の都市で予報を読み込む（完了を待てるようloadForecastの結果を返す） */
   function loadSelectedCity() {
     const cityIndex = Number(citySelect.value);
     const city = CITIES[cityIndex];
     if (!city) {
-      return;
+      return undefined;
     }
-    loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
+    return loadForecast(coordQuery(city.lat, city.lon), city.name, { cityIndex });
   }
 
   // 地点セレクトの選択肢はレイアウトシフト防止のためindex.htmlに静的に記載している
@@ -1297,12 +1422,21 @@
   // 「予報を共有」: 表示に成功している地点の共有URLをOSの共有機能または
   // クリップボードで渡す（要求中・失敗中のlastQueryではなくdisplayedQueryを使い、
   // 画面の予報と共有URLが常に一致するようにする）
+  const shareIncludePlan = document.getElementById('share-include-plan');
   document.getElementById('share-button').addEventListener('click', async () => {
     let shareUrl = `${window.location.origin}/`;
     if (displayedQuery === DEMO_QUERY) {
       shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
     } else if (displayedQuery) {
-      shareUrl = `${window.location.origin}/?${shareQueryString(displayedQuery, displayedName)}`;
+      const params = new URLSearchParams(shareQueryString(displayedQuery, displayedName));
+      // 任意設定: 見ている日付とプランナーの時間帯（date/from/to）を含める。
+      // 開いた側は最新の予報で再計算されるため、古い画面写真を信じる事故を防げる
+      if (shareIncludePlan.checked && currentForecast && selectedDate) {
+        params.set('date', selectedDate);
+        params.set('from', planStart.value);
+        params.set('to', planEnd.value);
+      }
+      shareUrl = `${window.location.origin}/?${params.toString()}`;
     }
     if (navigator.share) {
       try {
@@ -1771,7 +1905,29 @@
   }
 
   eventButton.addEventListener('click', showEventForecast);
-  initEvents();
+  initEvents().then(async () => {
+    // イベント固定リンク（?event=イベント名）: 一覧が揃ってから該当イベントを
+    // 自動選択して開催地の予報表示まで進める。見つからなければ通常の初期表示へ
+    if (pendingEventName === null) {
+      return;
+    }
+    const name = pendingEventName;
+    pendingEventName = null;
+    const index = eventList.findIndex((event) => event.name === name);
+    if (index >= 0) {
+      eventSelect.value = String(index);
+      showEventForecast();
+      return;
+    }
+    // 通常表示の完了メッセージで消えないよう、読み込み後に案内を出す
+    // （通信エラーではないため、赤のエラーではなく黄の注意で示す）
+    await loadInitialStoredOrDefault();
+    setStatus(
+      `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
+      false,
+      true,
+    );
+  });
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
@@ -1910,10 +2066,65 @@
 
   planButton.addEventListener('click', renderPlan);
 
-  // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)記憶した地点 (4)既定の都市
+  // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)イベント固定リンク
+  // (4)記憶した地点 (5)既定の都市
   const pageParams = new URLSearchParams(window.location.search);
   const sharedLat = Number.parseFloat(pageParams.get('lat') ?? '');
   const sharedLon = Number.parseFloat(pageParams.get('lon') ?? '');
+
+  /** 共有URLの日付・時間帯（date/from/to）を表示とプランナーへ反映する。
+   * 開いた時点の最新予報で再計算するため、共有元の画面写真より安全側になる */
+  function applySharedPlan(tabSeqAtStart) {
+    const date = (pageParams.get('date') ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return;
+    }
+    if (!currentForecast.days.some((d) => d.date === date)) {
+      // 予報3日を過ぎた・過去の日付は固定文で案内し、地点のみの表示に留める
+      // （通信エラーではないため、赤のエラーではなく黄の注意で示す）
+      setStatus(
+        `共有された日付（${date}）は予報の範囲外です。この地点の直近の予報を表示しています。`,
+        false,
+        true,
+      );
+      return;
+    }
+    planDate.value = date;
+    clearPlan();
+    const from = Number.parseInt(pageParams.get('from') ?? '', 10);
+    const to = Number.parseInt(pageParams.get('to') ?? '', 10);
+    const hasRange =
+      Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from <= 23 && to >= 1 && to <= 24 && from < to;
+    if (hasRange) {
+      planStart.value = String(from);
+      planEnd.value = String(to);
+    }
+    // 利用者が先にタブを触っていたら、その操作を尊重して切り替えない
+    const dayTab = dayTabForDate(date);
+    if (dayTab && manualTabSeq === tabSeqAtStart) {
+      forecastTabs.activate(dayTab.tabId, false);
+    }
+    setStatus(
+      `共有された日付（${formatDate(date)}）${hasRange ? `と時間帯（${from}時〜${to}時）` : ''}を反映しました。` +
+        '予報は開いた時点の最新の内容です。',
+      false,
+    );
+  }
+
+  /** 記憶した地点または既定都市を読み込む（イベント固定リンクの失敗時にも使う。
+   * 完了後に案内を出せるようloadForecastの結果を返す） */
+  function loadInitialStoredOrDefault() {
+    const stored = readStoredLocation();
+    if (stored) {
+      // 記憶した地点が地点セレクト由来なら、セレクトの表示も合わせる
+      if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
+        citySelect.value = String(stored.cityIndex);
+      }
+      return loadForecast(stored.query, stored.locationName, { cityIndex: stored.cityIndex });
+    }
+    return loadSelectedCity();
+  }
+
   if (pageParams.get('demo') === '1') {
     loadForecast(DEMO_QUERY, 'デモデータ（架空の気象データ）');
   } else if (
@@ -1933,6 +2144,7 @@
     const displayLabel = sharedName
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
       : coordName;
+    const tabSeqAtStart = manualTabSeq;
     // 旧形式（小数4桁）の共有URLで開かれても、以後のURL・記憶は小数2桁に正規化する
     loadForecast(coordQuery(sharedLat, sharedLon), displayLabel, {
       storedName: coordName,
@@ -1940,18 +2152,17 @@
       // 載せると、共有が1往復するたびに「（共有・…）」が積み重なって名前が伸び、
       // 80文字で切られて壊れる（名前が無ければURLにも載せない）
       urlName: sharedName,
-    });
-  } else {
-    const stored = readStoredLocation();
-    if (stored) {
-      // 記憶した地点が地点セレクト由来なら、セレクトの表示も合わせる
-      if (stored.cityIndex !== null && CITIES[stored.cityIndex]) {
-        citySelect.value = String(stored.cityIndex);
+    }).then((loaded) => {
+      if (loaded) {
+        applySharedPlan(tabSeqAtStart);
       }
-      loadForecast(stored.query, stored.locationName, { cityIndex: stored.cityIndex });
-    } else {
-      loadSelectedCity();
-    }
+    });
+  } else if ((pageParams.get('event') ?? '').trim() !== '') {
+    // イベント固定リンク（?event=イベント名）: 一覧の読み込み完了後に
+    // initEventsの続き（下のinitEvents().then）が該当イベントを自動選択する
+    pendingEventName = (pageParams.get('event') ?? '').trim().slice(0, 80);
+  } else {
+    loadInitialStoredOrDefault();
   }
 
   // Service Worker登録（PWA）: オフライン時にシェルと最後に取得した予報を表示できる。

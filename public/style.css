@@ -1061,6 +1061,62 @@ section h3 {
   margin: 1.25rem 0 0.5rem;
 }
 
+/* 共有URLへ日付・時間帯を含める任意設定（共有ボタンの下の1行） */
+.share-plan-option {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+.share-plan-option input {
+  margin-right: 0.4em;
+}
+
+/* 前回見た予報との差分バナー（悪化は警戒の橙系、改善は情報の青系）。
+   display: flexはhidden属性のUAスタイルより優先されるため、非表示を明示する */
+.diff-banner[hidden] {
+  display: none;
+}
+
+.diff-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.diff-banner > .fa-icon {
+  flex-shrink: 0;
+  margin-top: 0.2em;
+}
+
+.diff-banner.diff-worse {
+  border: 2px solid var(--level-2-accent);
+  background-color: var(--level-2-surface);
+}
+
+.diff-banner.diff-worse > .fa-icon {
+  color: var(--level-2-accent);
+}
+
+.diff-banner.diff-better {
+  border: 2px solid var(--color-blue);
+  background-color: var(--level-cold-surface);
+}
+
+.diff-banner.diff-better > .fa-icon {
+  color: var(--color-blue);
+}
+
+.diff-close {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+}
+
 /* 判定カード内の応急対応リンク（厳重警戒以上のときだけ表示される） */
 .now-emergency {
   margin: 0.5rem 0 0;

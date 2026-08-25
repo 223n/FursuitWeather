@@ -210,6 +210,8 @@
                開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
           <a id="display-link" class="display-mode-link" href="/display" target="_blank" rel="noopener" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-tv"/></svg>会場表示モードで開く</a>
         </div>
+        <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
+        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、見ている日付とプランナーの時間帯を含める</label>
       </div>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
@@ -228,6 +230,9 @@
       <div id="status" class="status-box" role="status" aria-live="polite"></div>
       <div id="status-error" class="status-box" role="alert"></div>
     </div>
+
+    <!-- 前回見た予報との差分バナー（3時間以上あいた再訪で判定が変わったときだけ表示） -->
+    <div id="diff-banner" class="diff-banner" hidden></div>
 
     <!-- タブ: 主要コンテンツを切り替えて縦の長さを抑える（WAI-ARIAタブパターン、
          矢印キーで移動+自動選択）。時間別の3タブは同じパネルを日付を変えて共有する -->
