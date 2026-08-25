@@ -44,7 +44,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 - 2層構成: 静的アセット（`public/`）+ Worker（`/api/*`とHTMLページで起動、`wrangler.jsonc`の`run_worker_first`。HTMLはCSP nonceのため）
 - `src/logic/`は純粋関数のみでIO（fetch）から分離。係数・しきい値は`src/constants.ts`に出典コメント付きで集約（単一情報源。文言やしきい値を変えるときはここを起点にする)
-- 上流は4系統: Open-Meteo JMAモデル（予報本体）、標準予報API（降水確率の補完）、ジオコーディング（地名検索）、zipcloud（郵便番号→市区町村名）
+- 上流は6系統: Open-Meteo JMAモデル（予報本体）、標準予報API（降水確率の補完）、Air Quality API（黄砂・PM2.5）、ジオコーディング（地名検索）、zipcloud（郵便番号→市区町村名）、環境省アラート発表状況CSV（公式発表の突合。全経路ベストエフォート）
 - **エラー処理方針**: 利用者へは固定の日本語文、原因詳細（英語ランタイム文言・上流ボディ）は`console.error`のみ。上流障害は`UpstreamError`→502、検証エラー→400、予期しない例外は`src/index.ts`の最終防衛線が500+CORSで返す。補助取得（降水確率・zipcloud）はベストエフォートで、失敗しても本体の応答を巻き込まない
 - キャッシュ設計は予報と地点検索で正反対（予報: エッジ30分+ブラウザ10分／地点検索: 上流エッジ7日+レスポンスno-store）。エラーレスポンスは常に`no-store`
 

@@ -72,6 +72,17 @@ describe('Workerルーティング', () => {
     expect(response.headers.get('Content-Type')).toBe('image/svg+xml; charset=utf-8');
   });
 
+  it('/api/alert はhandleAlertに委譲する', async () => {
+    const response = await worker.fetch(
+      new Request('https://example.com/api/alert?demo=1'),
+      createEnv(),
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { alert: { prefectureName: string } };
+    expect(body.alert.prefectureName).toBe('東京都');
+  });
+
   it('/api/geocode はhandleGeocodeに委譲する', async () => {
     vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
       new Response(JSON.stringify({ results: [] }), { status: 200 }),

@@ -161,6 +161,52 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '502': { $ref: '#/components/responses/UpstreamError' }
+  /api/alert:
+    get:
+      summary: 表示地点の最寄り都道府県の熱中症警戒アラート発表状況を取得する
+      description: |
+        環境省の発表状況CSV（毎日5時/17時発表・例年4月下旬〜10月下旬提供）を
+        突合し、表示地点の最寄りの都道府県（都道府県庁所在地の代表点で判定）の
+        当日の発表状況を返します。発表なし・取得失敗・提供期間外・対象日不一致は
+        すべて`alert: null`の200（ベストエフォート）。specialは熱中症特別警戒
+        アラート（警戒より深刻な段階）を表します。
+        正常レスポンスは`Cache-Control: public, max-age=600`で10分間
+        ブラウザキャッシュされます。
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: 緯度（-90〜90）
+          schema: { type: number }
+        - name: lon
+          in: query
+          required: true
+          description: 経度（-180〜180）
+          schema: { type: number }
+        - name: demo
+          in: query
+          required: false
+          description: '`1`で上流を呼ばず固定の発表例を返す（表示の死活確認用。lat・lonは不要）'
+          schema: { type: string, enum: ['1'] }
+      responses:
+        '200':
+          description: 発表状況（発表なし・取得失敗はalertがnull）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alert]
+                properties:
+                  alert:
+                    type: object
+                    nullable: true
+                    required: [prefectureName, special, targetDate]
+                    properties:
+                      prefectureName: { type: string, example: 東京都 }
+                      special: { type: boolean, description: 熱中症特別警戒アラートか }
+                      targetDate: { type: string, example: '2026-08-25' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
 components:
   responses:
     BadRequest:

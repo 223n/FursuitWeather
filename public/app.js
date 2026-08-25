@@ -1043,9 +1043,63 @@
     }
   }
 
+  /** 環境省の公式発表（/api/alertの突合結果）。nullは非表示（未取得・発表なし・取得失敗） */
+  let envAlert = null;
+
+  /**
+   * 環境省のアラート発表状況を取得して注意欄へ反映する
+   * ベストエフォート: 取得失敗・提供期間外・発表なしはすべて非表示のまま。
+   * デモ表示ではdemo=1の固定発表例を使う（機能が黙って死んでいないかの死活確認手段）
+   */
+  async function refreshEnvAlert(query, seq) {
+    let alert = null;
+    try {
+      const response = await fetch(`/api/alert?${query === DEMO_QUERY ? 'demo=1' : query}`);
+      if (response.ok) {
+        const body = await response.json();
+        if (body && body.alert && typeof body.alert.prefectureName === 'string') {
+          alert = body.alert;
+        }
+      }
+    } catch {
+      // 非表示のまま（本体の予報表示を巻き込まない）
+    }
+    // 取得中に明示操作（地点変更）があれば古い地点の発表を表示しない
+    if (seq !== requestSeq) {
+      return;
+    }
+    envAlert = alert;
+    renderNotices();
+  }
+
   /** 注意事項を描画する */
   function renderNotices() {
     noticesList.replaceChildren();
+    // 環境省の公式発表（突合結果）。自前推定の「基準相当」表示より先頭に出す
+    if (envAlert) {
+      const item = document.createElement('li');
+      item.className = 'alert-notice';
+      const label = envAlert.special ? '熱中症特別警戒アラート' : '熱中症警戒アラート';
+      const advice = envAlert.special
+        ? '過去に例のない危険な暑さです。着ぐるみ活動は中止し、涼しい環境で過ごしてください。'
+        : '涼しい環境・こまめな休憩と水分・塩分補給を最優先してください。';
+      const text = document.createTextNode(
+        `環境省発表: 本日（${formatDate(envAlert.targetDate)}）、${envAlert.prefectureName}に${label}が発表されています` +
+          `（表示地点の最寄りの都道府県）。${advice}詳細は`,
+      );
+      const link = document.createElement('a');
+      link.href = 'https://www.wbgt.env.go.jp/alert.php';
+      link.rel = 'noopener';
+      link.textContent = '環境省 熱中症予防情報サイト';
+      item.append(
+        faIcon('triangle-exclamation', 'btn-icon'),
+        text,
+        link,
+        document.createTextNode('をご確認ください。'),
+      );
+      noticesList.appendChild(item);
+    }
+
     // 素のWBGT（着衣補正前）が熱中症警戒アラートの発表基準（33以上）に達する日は、
     // 公式の発表状況への導線つきで最上部に注意を出す（判定はサーバーのmaxWbgtを使う）
     const alertDays = currentForecast.days
@@ -1353,10 +1407,14 @@
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
+      // 古い地点の公式発表を新しい地点の予報と並べないよう、描画前に消して取り直す
+      envAlert = null;
       renderForecast();
       // 見守りモード中の明示的な地点変更・再取得では、変化検知の基準も
       // 新しい表示内容へ合わせ直す（旧地点との比較による偽の変化通知を防ぐ）
       syncWatchBaseline(displayedFromCache);
+      // 環境省の発表状況の突合はベストエフォートで並行取得する（完了を待たない）
+      refreshEnvAlert(query, seq);
       // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）。
       // オフライン表示の保存済み予報は、発行時刻だけだと最新と誤認されるため
       // 取得時刻を明記する
@@ -1572,6 +1630,8 @@
       selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
       // 自動再取得は利用者の明示操作（活動プランの作成）を消さない
       renderForecast({ preservePlan: true });
+      // 公式発表の突合も取り直す（見守りの長時間運転で朝5時の発表をまたぐケース）
+      refreshEnvAlert(query, seq);
       const entry = currentHourEntry();
       const level = entry ? entry.outdoor.level : null;
       const changed = watchLastLevel !== null && level !== null && level !== watchLastLevel;

@@ -425,6 +425,42 @@ test.describe('見守りモード（SWなし）', () => {
   });
 });
 
+test('環境省アラート: 発表中は公式発表の赤帯を出し、発表なしは出さない', async ({ page }) => {
+  const jstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // 発表中: 突合結果の赤帯が注意欄の先頭に出る
+  await page.route('**/api/alert*', (route) =>
+    route.fulfill({
+      json: { alert: { prefectureName: '東京都', special: false, targetDate: jstToday } },
+    }),
+  );
+  await page.goto('/');
+  await waitForForecast(page);
+  const officialNotice = page.locator('#notices-list .alert-notice', { hasText: '環境省発表' });
+  await expect(officialNotice).toContainText('東京都に熱中症警戒アラートが発表されています');
+  await expect(officialNotice).toContainText('表示地点の最寄りの都道府県');
+
+  // 特別警戒: より深刻な文言に切り替わる
+  await page.unroute('**/api/alert*');
+  await page.route('**/api/alert*', (route) =>
+    route.fulfill({
+      json: { alert: { prefectureName: '和歌山県', special: true, targetDate: jstToday } },
+    }),
+  );
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#notices-list .alert-notice', { hasText: '環境省発表' })).toContainText(
+    '熱中症特別警戒アラート',
+  );
+
+  // 発表なし・取得失敗: 何も出さない（黙って非表示のベストエフォート）
+  await page.unroute('**/api/alert*');
+  await page.route('**/api/alert*', (route) => route.fulfill({ json: { alert: null } }));
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#notices-list')).not.toContainText('環境省発表');
+});
+
 test('当日ボード: 追加・状態移動・上限超過の強調と、ニックネームの非漏洩', async ({ page }) => {
   await page.clock.install();
   await page.goto('/');
