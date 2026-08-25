@@ -281,6 +281,7 @@ components:
             その日の最大風速（m/s、1時間平均の最大。全時間帯から取る）。
             10以上は気象庁の「やや強い風」に相当
         laundry: { $ref: '#/components/schemas/LaundryAssessment' }
+        staticElectricity: { $ref: '#/components/schemas/StaticElectricityAssessment' }
     SuddenHeatWarning:
       type: object
       properties:
@@ -302,6 +303,21 @@ components:
           description: 着ぐるみ全身洗いの乾燥目安（時間）
         moldWarning: { type: boolean }
         advice: { type: string }
+    StaticElectricityAssessment:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [low, medium, high]
+          description: >-
+            静電気の起きやすさ。日中の最も乾いた時間帯の湿度・気温で判定
+            （湿度25%未満で「高」、湿度40%未満かつ気温20℃未満で「中」。
+            帯電対策の一般的な目安に基づく生活指数）
+        label: { type: string, description: 日本語ラベル（低・中・高） }
+        advice:
+          type: string
+          nullable: true
+          description: 「高」の日の対策の一言（それ以外はnull）
     GeocodeResponse:
       type: object
       required: [results]

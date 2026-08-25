@@ -19,6 +19,7 @@ import type {
 } from '../types';
 import { assessIndoor, assessOutdoor } from './fursuit';
 import { assessLaundry } from './laundry';
+import { assessStaticElectricity } from './staticElectricity';
 import { dateOf, filterByHourRange, hourOf } from './time';
 
 /** 1時間分の予報を組み立てる */
@@ -87,6 +88,7 @@ export function buildDayForecast(
     // 風は設営・撤収も含め終日のリスクのため、maxWbgtと同様に全時間帯から取る
     maxWindSpeed: Math.max(...hours.map((h) => h.weather.windSpeed)),
     laundry: assessLaundry(hours.map((h) => h.weather)),
+    staticElectricity: assessStaticElectricity(hours.map((h) => h.weather)),
   };
 }
 

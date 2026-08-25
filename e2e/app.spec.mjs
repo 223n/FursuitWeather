@@ -571,6 +571,10 @@ test('日の入り: 日別カード・時間別の目印・プランナーの日
   await expect(firstCard).toContainText('日の入り');
   await expect(firstCard).toContainText('18:30');
 
+  // 静電気行（デモデータは真夏日のため「低」）
+  await expect(firstCard).toContainText('静電気');
+  await expect(firstCard).toContainText('低');
+
   // 明日の時間別テーブルには日の入りの目印が出る（今日は時間帯により行が隠れるため明日で確認）
   await page.click('#tab-day-1');
   await expect(page.locator('#hours-body .sunset-note')).toHaveText('日の入り 18:29');

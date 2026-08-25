@@ -51,6 +51,8 @@ import {
   NATIONAL_CITIES,
   RECOMMENDED_MAX_GRADE,
   RESPONSE_CACHE_MAX_AGE_SECONDS,
+  STATIC_ELECTRICITY,
+  STATIC_ELECTRICITY_LABELS,
   SUDDEN_HEAT,
   SUIT_WBGT_ADJUSTMENT,
   THUNDER_WEATHER_CODE_MIN,
@@ -405,6 +407,24 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     expect(block).not.toBeNull();
     for (const key of Object.keys(COOLING_LABELS)) {
       expect(block![1]).toContain(`${key}: {`);
+    }
+  });
+
+  it('STATIC_BADGESに全静電気レベルのキーがある', () => {
+    const block = appJs.match(/const STATIC_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
+    for (const key of Object.keys(STATIC_ELECTRICITY_LABELS)) {
+      expect(block![1]).toContain(`${key}: {`);
+    }
+  });
+
+  it('静電気のしきい値の記述はconstantsと一致する', () => {
+    // 公開仕様（about・api.md・llms.txt）のしきい値の複製を単一情報源と突き合わせる
+    const high = `湿度${STATIC_ELECTRICITY.highHumidity}%未満`;
+    const medium = `湿度${STATIC_ELECTRICITY.mediumHumidity}%未満かつ気温${STATIC_ELECTRICITY.mediumTemperature}℃未満`;
+    for (const doc of [aboutHtml, apiMd, llmsTxt, openapiYaml]) {
+      expect(doc).toContain(high);
+      expect(doc).toContain(medium);
     }
   });
 

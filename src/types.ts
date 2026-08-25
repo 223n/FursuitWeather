@@ -103,6 +103,22 @@ export interface LaundryAssessment {
   advice: string;
 }
 
+/** 静電気の起きやすさレベル（低・中・高の3段階） */
+export type StaticElectricityLevelId = 'low' | 'medium' | 'high';
+
+/**
+ * 静電気指数（1日単位）
+ * 乾燥期の化繊ファーの帯電（グリーティングでの放電・ほこり吸着）への
+ * 備え（帯電防止スプレー・加湿）の判断に使う
+ */
+export interface StaticElectricityAssessment {
+  level: StaticElectricityLevelId;
+  /** 日本語ラベル（低・中・高） */
+  label: string;
+  /** 「高」の日の対策の一言（それ以外はnull） */
+  advice: string | null;
+}
+
 /** レベルの要約（日別サマリー用）。ActivityAssessmentの部分集合であることを型で明示する */
 export type LevelSummary = Pick<ActivityAssessment, 'level' | 'label' | 'grade'>;
 
@@ -133,6 +149,8 @@ export interface DayForecast {
   /** その日の最大風速（m/s、1時間平均の最大。全時間帯から取る） */
   maxWindSpeed: number;
   laundry: LaundryAssessment;
+  /** 静電気の起きやすさ（日中の最も乾いた時間帯で判定） */
+  staticElectricity: StaticElectricityAssessment;
 }
 
 /**

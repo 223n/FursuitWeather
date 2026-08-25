@@ -482,6 +482,14 @@
     noDryCold: { grade: 3, symbol: [{ icon: 'temperature-low' }, '✕'], cold: true },
   };
 
+  /** 静電気レベルごとのバッジ設定（色+記号）。ラベルはAPIのlabelを使う。
+   * 低（対策不要）=◎緑、中=△橙、高（対策推奨）=✕赤系で、悪いほど暖色に寄せる */
+  const STATIC_BADGES = {
+    low: { grade: 0 },
+    medium: { grade: 2 },
+    high: { grade: 3 },
+  };
+
   /** 冷房要否ごとのバッジ設定（色+記号）。ラベルはAPIのcoolingLabelを使う */
   const COOLING_BADGES = {
     required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'] },
@@ -626,6 +634,20 @@
     laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
     addRow('洗濯・乾燥', laundryValue);
     addRow('着ぐるみ乾燥目安', fursuitDryingBadge(day.laundry));
+    // 静電気（配信済みの古いレスポンスには無い場合があるため有無を確認する）。
+    // 「高」の日はAPIのadvice（帯電防止スプレーの一言）を添える
+    if (day.staticElectricity) {
+      addRow(
+        '静電気',
+        badgeWithText(
+          {
+            ...(STATIC_BADGES[day.staticElectricity.level] ?? { grade: 2 }),
+            label: day.staticElectricity.label,
+          },
+          day.staticElectricity.advice,
+        ),
+      );
+    }
 
     card.appendChild(list);
 
