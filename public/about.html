@@ -215,6 +215,12 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
         いまの判定・この後の予報・3日間の天気・全国の天気を自動で切り替えながら、
         予報を定期的に更新し続けます（掲示中の操作は不要です）。
       </p>
+      <p>
+        設営前のチェック（端末の時刻合わせ・初回は必ずオンラインで開く・
+        <code>?demo=1</code>でのリハーサルなど）と設置手順の詳細は、GitHubリポジトリの
+        <a href="https://github.com/223n/FursuitWeather/blob/main/docs/display.md" rel="noopener">会場表示モードの使い方（docs/display.md）</a>
+        を参照してください。
+      </p>
     </section>
 
     <section id="api" aria-label="API仕様">
@@ -418,6 +424,27 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
   ]
 }</pre>
 
+      <h3 id="badge"><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M384 192c53 0 96-43 96-96s-43-96-96-96-96 43-96 96c0 5.4 .5 10.8 1.3 16L159.6 184.1c-16.9-15-39.2-24.1-63.6-24.1-53 0-96 43-96 96s43 96 96 96c24.4 0 46.6-9.1 63.6-24.1L289.3 400c-.9 5.2-1.3 10.5-1.3 16 0 53 43 96 96 96s96-43 96-96-43-96-96-96c-24.4 0-46.6 9.1-63.6 24.1L190.7 272c.9-5.2 1.3-10.5 1.3-16s-.5-10.8-1.3-16l129.7-72.1c16.9 15 39.2 24.1 63.6 24.1z"/></svg>GET /api/badge.svg（判定バッジ）</h3>
+      <p>
+        当日（日本時間）の最も厳しい屋外判定を、イベントの告知ページなどに貼れる
+        SVGバッジで返します。地点は主要12都市名（<code>city</code>。トップページの
+        地点セレクトと同じ名前）か、登録済みイベント名（<code>event</code>。開催地の
+        判定になります）のどちらか一方で指定します。バッジはブラウザで10分
+        キャッシュされ、判定の更新もこの周期です。
+      </p>
+      <p>貼り付け例（都市名で指定）:</p>
+      <pre class="formula">&lt;img src="https://fursuit-weather.223n.tech/api/badge.svg?city=東京"
+     alt="東京の本日の着ぐるみ判定" width="216" height="24"&gt;</pre>
+      <p>貼り付け例（イベント名で指定。開催地の判定になります）:</p>
+      <pre class="formula">&lt;img src="https://fursuit-weather.223n.tech/api/badge.svg?event=けもケット17"
+     alt="けもケット17開催地の本日の着ぐるみ判定" width="216" height="24"&gt;</pre>
+      <p class="hint">
+        イベント名で指定したバッジは、イベントが定義（events.json）から削除されると
+        表示されなくなります（画像が壊れて見えます）。イベント終了後は告知ページの
+        バッジも合わせて外してください。表示の確認には<code>?demo=1</code>
+        （上流を呼ばない固定の見本）も使えます。
+      </p>
+
       <div class="notice-panel">
         <h3><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480L40 480c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24l0 112c0 13.3 10.7 24 24 24s24-10.7 24-24l0-112c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>利用上の注意</h3>
         <ul>
@@ -427,6 +454,16 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           <li>フィールドの追加は後方互換として予告なく行うことがあります。未知のフィールドは無視してください</li>
         </ul>
       </div>
+
+      <p>
+        このページで紹介しているのは主要な2エンドポイントです。全6エンドポイント
+        （<code>/api/forecast</code>・<code>/api/geocode</code>・<code>/api/national</code>・
+        <code>/api/events.ics</code>・<code>/api/badge.svg</code>・<code>/api/alert</code>）の
+        完全な仕様は、GitHubリポジトリの
+        <a href="https://github.com/223n/FursuitWeather/blob/main/docs/api.md" rel="noopener">API仕様（docs/api.md）</a>
+        を参照してください（機械可読な
+        <a href="https://github.com/223n/FursuitWeather/blob/main/docs/openapi.yaml" rel="noopener">OpenAPI定義</a>もあります）。
+      </p>
     </section>
 
     <section id="cache" aria-label="エッジ配信とキャッシュ">

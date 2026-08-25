@@ -16,6 +16,7 @@ import type {
   HourForecast,
   HourlyWeather,
   LevelSummary,
+  SunTimes,
 } from '../types';
 import { assessAirQuality, type AirQualityValues } from './airQuality';
 import { assessIndoor, assessOutdoor } from './fursuit';
@@ -34,10 +35,22 @@ export function buildHourForecast(weather: HourlyWeather): HourForecast {
   };
 }
 
-/** 1日分の日の出・日の入り（HH:mm、欠測はnull）。src/weather/openMeteo.tsのSunTimesと同形 */
-export interface DaySunTimes {
-  sunrise: string | null;
-  sunset: string | null;
+/**
+ * 時間別の気象データから、対象日1日分のサマリーを組み立てる
+ * （/api/national・/api/badge.svg・OGPの「当日サマリー」共通の入口）
+ *
+ * 上流はstart_date/end_dateで対象日を指定していても、キャッシュ済みの古い応答が
+ * 紛れると別の日のデータが混ざり得るため、ここで必ず日付で絞り直す。
+ * JSTの日付またぎ×上流エッジキャッシュの窓では対象日の時間が空になり得るので、
+ * そのときはnullを返す（エラー化・非表示化は呼び出し側の契約に委ねる）
+ */
+export function buildDayForecastFor(
+  hours: readonly HourlyWeather[],
+  date: string,
+): DayForecast | null {
+  // 先に対象日で絞ってから判定を組み立てる（捨てる時間分のWBGT計算を避ける）
+  const dayHours = hours.filter((hour) => dateOf(hour.time) === date).map(buildHourForecast);
+  return dayHours.length === 0 ? null : buildDayForecast(date, dayHours);
 }
 
 /** 日別サマリーを組み立てる
@@ -46,7 +59,7 @@ export interface DaySunTimes {
 export function buildDayForecast(
   date: string,
   hours: readonly HourForecast[],
-  sun?: DaySunTimes,
+  sun?: SunTimes,
   air?: AirQualityValues,
 ): DayForecast {
   const temperatures = hours.map((h) => h.weather.temperature);
@@ -102,7 +115,7 @@ export function buildForecast(
   location: ForecastLocation,
   model: string,
   generatedAt: string,
-  sunTimes: ReadonlyMap<string, DaySunTimes> = new Map(),
+  sunTimes: ReadonlyMap<string, SunTimes> = new Map(),
   airQuality: ReadonlyMap<string, AirQualityValues> = new Map(),
 ): ForecastResponse {
   const hours = weatherHours.map(buildHourForecast);

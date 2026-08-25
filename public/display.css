@@ -444,6 +444,15 @@
   color: var(--color-text);
 }
 
+/* ホバー時の文字色: 上のcolor宣言がstyle.cssのbutton:hover（青背景+白文字）の
+   文字色だけを打ち消してしまい、青背景に既定文字色でコントラスト不足になる
+   （ダークモードで1.88:1）。背景と文字を必ず対で切り替える */
+.display-controls button:hover {
+  background-color: var(--color-blue);
+  color: var(--color-on-accent);
+  border-color: var(--color-blue);
+}
+
 .display-updated {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
@@ -698,24 +707,28 @@
   }
 
   /* 縦画面の全国セルは1行の高さが低いため、縦積みをやめて
-     「都市名 天気 気温 判定」を横流れで並べる（4要素が2行までに収まる） */
+     「都市名 天気 気温 判定」を横流れで並べる（4要素が2行までに収まる）。
+     警告帯（環境省発表など）が出てセルがさらに低くなっても判定が切れないよう、
+     行間は本文既定（1.6）より詰める（各要素は1行なので読みやすさへの影響は小さい） */
   .display-city-cell {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     align-content: center;
-    gap: 0.2rem 0.6rem;
-    padding: 0.2rem 0.4rem;
+    gap: 0.1rem 0.6rem;
+    padding: 0.15rem 0.4rem;
+    line-height: 1.25;
   }
 }
 
 /* 13セル以上の全国グリッド: 縦積みでは1行の高さが足りないため、
-   セル内を横並びへ圧縮する（縦画面の全国セルと同じレイアウト） */
+   セル内を横並びへ圧縮する（縦画面の全国セルと同じレイアウト・行間） */
 .display-grid-compact .display-city-cell {
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
   align-content: center;
-  gap: 0.2rem 0.6rem;
-  padding: 0.2rem 0.4rem;
+  gap: 0.1rem 0.6rem;
+  padding: 0.15rem 0.4rem;
+  line-height: 1.25;
 }

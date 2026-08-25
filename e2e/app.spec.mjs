@@ -345,6 +345,48 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   await expect(page.locator('#event-select')).toBeDisabled();
   await expect(page.locator('#event-select')).toContainText('予定されているイベントはありません');
   await expect(page.locator('#event-button')).toBeDisabled();
+  await expect(page.locator('#event-link-button')).toBeDisabled();
+});
+
+test('イベント: 固定リンクをコピーで?event=のエンコード済みURLが渡る', async ({ page }) => {
+  const jstDate = (offsetDays) =>
+    new Date(Date.now() + (9 * 60 + offsetDays * 24 * 60) * 60 * 1000).toISOString().slice(0, 10);
+  await page.route('**/events.json', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        events: [
+          { name: 'サマーコン', place: '東京ビッグサイト', zip: '135-0063', startDate: jstDate(1) },
+        ],
+      }),
+    }),
+  );
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#picker-tab-event');
+  // 「選択中のイベントだけ登録」リンクが選択中のイベントに追随している
+  await expect(page.locator('#event-ics-link')).toHaveAttribute(
+    'href',
+    `/api/events.ics?event=${encodeURIComponent('サマーコン')}`,
+  );
+  // クリップボードはスタブして渡った文字列そのものを検証する（許可ダイアログ回避）
+  await page.evaluate(() => {
+    window.__copied = null;
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text) => {
+          window.__copied = text;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  await page.click('#event-link-button');
+  await expect(page.locator('#status')).toContainText('「サマーコン」の固定リンクをコピーしました');
+  const copied = await page.evaluate(() => window.__copied);
+  const origin = await page.evaluate(() => window.location.origin);
+  expect(copied).toBe(`${origin}/?event=${encodeURIComponent('サマーコン')}`);
 });
 
 test('イベント: カレンダー登録リンクからiCalendar（/api/events.ics）を取得できる', async ({
@@ -353,7 +395,11 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
   await page.goto('/');
   await waitForForecast(page);
   await page.click('#picker-tab-event');
-  await expect(page.locator('#picker-event a[href="/api/events.ics"]')).toBeVisible();
+  // 「選択中のイベントだけ登録」リンク（イベント選択で同じhrefになり得る）と
+  // 区別するため、全件リンクは文言でも絞り込む
+  await expect(
+    page.locator('#picker-event a[href="/api/events.ics"]', { hasText: 'カレンダーに登録' }),
+  ).toBeVisible();
 
   // 実ファイル（public/events.json）の内容に依存しない構造の検証に留める
   // （page.requestはWorkerの実エンドポイントへ届く）
@@ -610,6 +656,10 @@ test('上流障害時: 提供元の障害と分かる案内を出し、HTTPス�
   await expect(page.locator('#plan-date')).toBeDisabled();
   await expect(page.locator('#plan-date')).toContainText('予報を読み込むと選べます');
   await expect(page.locator('#plan-button')).toBeDisabled();
+
+  // 予報が表示できていない状態の共有はトップURLしか作れないため、案内して何も渡さない
+  await page.click('#share-button');
+  await expect(page.locator('#status-error')).toContainText('先に予報を読み込んでください');
 });
 
 test('実測WBGT: トップページのタブで判定でき、ハッシュから直接開ける', async ({ page }) => {
@@ -720,8 +770,13 @@ test('about: 見出しアイコンが描画され、レスポンス例が有効�
   expect(widths.every((w) => w > 0)).toBe(true);
 
   // レスポンス例は整形ツールへそのまま貼れる有効なJSONにしておく
-  const json = await page.locator('pre.formula').last().textContent();
-  expect(() => JSON.parse(json)).not.toThrow();
+  // （バッジの貼り付け例などJSONではないpreもあるため、JSONらしいものを対象にする）
+  const formulas = await page.locator('pre.formula').allTextContents();
+  const jsonExamples = formulas.filter((text) => text.trim().startsWith('{'));
+  expect(jsonExamples.length).toBeGreaterThan(0);
+  for (const json of jsonExamples) {
+    expect(() => JSON.parse(json)).not.toThrow();
+  }
 });
 
 test('風速列と応急対応ページ: 時間別に風速が出て、/emergencyの手順が開ける', async ({
@@ -1046,7 +1101,11 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await expect(page.locator('#timer-limit')).toContainText('同じ長さ以上の休憩');
   await expect(page.locator('#timer-rest-button')).toHaveText('着用を再開');
 
-  // 終了で閉じ、保存も消える（リロードしても再表示されない）
+  // 終了は誤タップ防止の二度押し確認（1度目は案内、2度目で閉じて保存も消える。
+  // リロードしても再表示されない）
+  await page.click('#timer-stop-button');
+  await expect(page.locator('#timer-note')).toContainText('もう一度「タイマー終了」を押すと終了します');
+  await expect(page.locator('#timer-overlay')).toBeVisible();
   await page.click('#timer-stop-button');
   await expect(page.locator('#timer-overlay')).toBeHidden();
   await page.reload();

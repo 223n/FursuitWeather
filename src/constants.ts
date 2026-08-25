@@ -369,6 +369,11 @@ export const RECOMMENDED_MAX_GRADE = 1;
 /** APIレスポンスのmodelフィールドに使う気象モデル表記（/api/forecast・/api/national共通） */
 export const WEATHER_MODEL_LABEL = 'jma_seamless（気象庁MSM/GSM）';
 
+/** 予報本体の取得失敗の利用者向け文言
+ * （openMeteo.tsの上流失敗と、forecast.tsの日付またぎ防御502が共有する単一情報源） */
+export const WEATHER_FETCH_FAILURE_MESSAGE =
+  '気象データの取得に失敗しました。時間をおいて再度お試しください';
+
 /** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
 export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
 
@@ -581,6 +586,10 @@ export const BADGE = {
   gradeTexts: ['#006147', '#6B4700', '#7A3100', '#99260C', '#6E1100'],
   /** gradeごとの強調色（style.cssの--level-N-accent。枠線に使う） */
   gradeAccents: ['#009E73', '#A66E00', '#B34700', '#CC3311', '#8A1500'],
+  /** 低温側判定（levelがcold接頭辞）の配色（style.cssの--level-cold-*と同期。
+   * ずれはhtmlSyncテストが検出する）。サイト本体の「低温側は青系+形の区別」を
+   * 埋め込みバッジでも維持する（バッジでは温度計アイコンの代わりに雪結晶を描く） */
+  cold: { surface: '#E1EFF8', text: '#005180', accent: '#0072B2' },
   /** 暑熱の「危険」だけに付ける明示文（HEAT_BANDSのadviceの要点。埋め込み先でも
    * 「着用中止」が文字で伝わるようにする。低温側はラベル自体が低温危険のため付けない） */
   dangerSuffix: '・着用中止',

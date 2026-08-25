@@ -3,13 +3,13 @@
 // 都市単位のベストエフォート: 1都市の失敗が全国全体の応答を巻き込まない
 
 import { ATTRIBUTION, NATIONAL_CITIES, WEATHER_MODEL_LABEL, type NationalCity } from '../constants';
-import { buildDayForecast, buildHourForecast } from '../logic/forecast';
-import { dateOf, todayInJst } from '../logic/time';
+import { todayInJst } from '../logic/time';
 import type { NationalCitySummary, NationalResponse } from '../types';
 import { demoWeather } from '../weather/demoData';
-import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
+import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
-import { json } from './http';
+import { requireDayForecast } from './daySummary';
+import { isDemoRequest, json } from './http';
 
 /** 気象データから1都市分の当日サマリーを組み立てる */
 function buildCitySummary(
@@ -17,16 +17,9 @@ function buildCitySummary(
   weather: WeatherResult,
   date: string,
 ): NationalCitySummary {
-  // レスポンス契約の「日本時間の当日」で絞る。上流はstart_date/end_dateで当日を
-  // 指定しているが、キャッシュ済みの古い応答が紛れても前日のデータを
-  // 「当日サマリー」として返さないよう、ここでも日付で検証する
-  const hours = weather.hours
-    .map(buildHourForecast)
-    .filter((hour) => dateOf(hour.time) === date);
-  if (hours.length === 0) {
-    throw new UpstreamError(`対象日（${date}）の気象データがありません`);
-  }
-  const day = buildDayForecast(date, hours);
+  // レスポンス契約の「日本時間の当日」で絞る（対象日が空のときの上流エラー化を含めて
+  // requireDayForecastが担う）
+  const day = requireDayForecast(weather.hours, date);
   return {
     name: city.name,
     latitude: city.lat,
@@ -49,8 +42,7 @@ async function fetchCitySummary(
   date: string,
 ): Promise<NationalCitySummary | null> {
   try {
-    // fetchWeatherBaseは位置引数のため、第5引数dateへ届けるだけの目的で既定のfetchを明示している
-    return buildCitySummary(city, await fetchWeatherBase(city.lat, city.lon, 1, fetch, date), date);
+    return buildCitySummary(city, await fetchWeatherForDate(city.lat, city.lon, date), date);
   } catch (error) {
     console.error('全国天気の取得に失敗:', city.name, error);
     return null;
@@ -67,7 +59,7 @@ export async function handleNational(request: Request): Promise<Response> {
 
   let cities: NationalCitySummary[];
   let model: string;
-  if (new URL(request.url).searchParams.get('demo') === '1') {
+  if (isDemoRequest(new URL(request.url).searchParams)) {
     // デモは上流を呼ばず、全都市同一の気象データで応答する（表示確認用）
     const weather = demoWeather(date);
     cities = NATIONAL_CITIES.map((city) => buildCitySummary(city, weather, date));

@@ -77,11 +77,7 @@ export function buildHtmlCsp(nonce: string): string {
  *   （リンクカードへの当日判定表示。src/ogp.tsのogSummaryForが組み立てる。
  *   setAttributeは属性値をエスケープするため、文言に判定ラベル等を含めても安全）
  */
-export async function withNonce(
-  asset: Response,
-  nonce: string,
-  og?: OgSummary,
-): Promise<Response> {
+export function withNonce(asset: Response, nonce: string, og?: OgSummary): Response {
   let rewriter = new HTMLRewriter()
     .on('script', {
       element(element): void {
@@ -98,28 +94,21 @@ export async function withNonce(
 
   if (og) {
     const { title, description } = og;
-    // HTMLRewriterはカンマ区切りセレクタに対応しないため、4タグを個別に登録する
-    rewriter = rewriter
-      .on('meta[property="og:title"]', {
+    // HTMLRewriterはカンマ区切りセレクタに対応しないため、タグごとに個別登録する
+    // （セレクタと差し込む値の対応表に畳み、同形ハンドラの複製を避ける）
+    const metaTargets: ReadonlyArray<readonly [string, string]> = [
+      ['meta[property="og:title"]', title],
+      ['meta[property="og:description"]', description],
+      ['meta[name="twitter:title"]', title],
+      ['meta[name="twitter:description"]', description],
+    ];
+    for (const [selector, content] of metaTargets) {
+      rewriter = rewriter.on(selector, {
         element(element): void {
-          element.setAttribute('content', title);
-        },
-      })
-      .on('meta[property="og:description"]', {
-        element(element): void {
-          element.setAttribute('content', description);
-        },
-      })
-      .on('meta[name="twitter:title"]', {
-        element(element): void {
-          element.setAttribute('content', title);
-        },
-      })
-      .on('meta[name="twitter:description"]', {
-        element(element): void {
-          element.setAttribute('content', description);
+          element.setAttribute('content', content);
         },
       });
+    }
   }
 
   const rewritten = rewriter.transform(asset);

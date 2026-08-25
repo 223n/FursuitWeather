@@ -9,7 +9,7 @@ FursuitWeather（着ぐるみ天気予報）の開発ドキュメントです。
 | ドキュメント | 内容 |
 |--------------|------|
 | [判定ロジック](logic.md) | WBGT・着衣補正・低温判定・冷房要否・洗濯乾燥指数の仕組みと根拠 |
-| [API仕様](api.md) | `GET /api/forecast`・`GET /api/geocode`・`GET /api/national` のパラメータ・レスポンス・エラーの仕様（機械可読な[OpenAPI定義](openapi.yaml)あり） |
+| [API仕様](api.md) | `GET /api/forecast`・`GET /api/geocode`・`GET /api/national`・`GET /api/events.ics`・`GET /api/badge.svg`・`GET /api/alert` のパラメータ・レスポンス・エラーの仕様（機械可読な[OpenAPI定義](openapi.yaml)あり） |
 | [アーキテクチャ](architecture.md) | システム構成、ソースコード構成、キャッシュ設計、エラー処理方針、プライバシー設計 |
 | [開発ガイド](development.md) | セットアップ、テスト、ビルド、CI/CD、カスタムドメイン |
 | [リリース手順](release.md) | バージョニング方針、タグ作成、GitHubリリースの自動作成 |

@@ -815,6 +815,20 @@ describe('fetchWeather（大気質の合流）', () => {
     );
   });
 
+  it('レスポンスの形式異常（timeが配列でない）も空のMapとして扱う', async () => {
+    // hourlyはあるがtimeが配列でない場合（collect側の検証で弾かれる経路）
+    const fetchImpl = routeWithAirQuality(
+      () => new Response(JSON.stringify({ hourly: { time: 'not-array' } }), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.airQuality.size).toBe(0);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '大気質APIレスポンスの形式異常:',
+      expect.stringContaining('/v1/air-quality'),
+      expect.stringContaining('not-array'),
+    );
+  });
+
   it('接続失敗は空のMapに落とし、原因をログに残す', async () => {
     const fetchImpl = (async (input: RequestInfo | URL) => {
       if (String(input).includes('/v1/air-quality')) {

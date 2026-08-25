@@ -1,0 +1,51 @@
+name: バグ報告
+description: 表示や動作の不具合を報告する
+title: "[バグ] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。わかる範囲の記入で構いません。
+        判定・警戒アラート・応急対応ページなど**安全に関わる表示の不具合**は、その旨を「発生した問題」に書いていただけると優先して確認します。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 発生した問題
+      description: 何が、どうなりましたか
+      placeholder: 例：時間別予報の屋外判定の列が表示されない
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 問題が起きるまでの操作を順番に書いてください
+      placeholder: |
+        1. トップページで「検索」タブを開く
+        2. 「◯◯」を検索する
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動き
+      description: 本来はどうなるはずだと思いますか
+  - type: input
+    id: environment
+    attributes:
+      label: 環境
+      description: ブラウザ・OS・端末（わかる範囲で）
+      placeholder: 例：iOS 26のSafari / iPhone 15
+  - type: input
+    id: url
+    attributes:
+      label: 表示していたURL
+      description: 共有URLの座標は約1km単位に丸められていますが、自宅など知られたくない地点のURLは貼らないでください
+      placeholder: 例：https://fursuit-weather.223n.tech/?lat=35.69&lon=139.69&name=東京
+  - type: textarea
+    id: extra
+    attributes:
+      label: 補足
+      description: スクリーンショットやエラーメッセージなど（画像はこの欄へドラッグ&ドロップで添付できます）

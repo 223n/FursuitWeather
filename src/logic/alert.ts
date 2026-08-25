@@ -12,6 +12,7 @@
 // 想定した列が見つからないときは解析失敗として扱う（呼び出し側が非表示へ落とす）
 
 import { PREFECTURE_POINTS, type PrefecturePoint } from '../constants';
+import { nearestPoint } from './geo';
 
 /** 解析済みの1府県予報区分の発表状況 */
 export interface AlertRegionRow {
@@ -115,9 +116,5 @@ export function alertForPrefecture(
 
 /** 表示地点に最も近い代表点の都道府県を返す */
 export function nearestPrefecture(latitude: number, longitude: number): PrefecturePoint {
-  return PREFECTURE_POINTS.reduce((a, b) => {
-    const distA = (latitude - a.lat) ** 2 + (longitude - a.lon) ** 2;
-    const distB = (latitude - b.lat) ** 2 + (longitude - b.lon) ** 2;
-    return distB < distA ? b : a;
-  });
+  return nearestPoint(latitude, longitude, PREFECTURE_POINTS).point;
 }

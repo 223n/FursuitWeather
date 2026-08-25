@@ -13,6 +13,19 @@ const BADGE_WIDTH = 216;
 const BADGE_HEIGHT = 24;
 const LEFT_WIDTH = 94;
 
+/** 雪結晶マーク（6本腕のアスタリスク）の中心x座標（右セグメントの左端寄り。
+ * 低温側の最長ラベル「✕ 低温警戒」の中央揃え文字列と重ならない位置） */
+const SNOWFLAKE_CX = LEFT_WIDTH + 12;
+
+/** 低温側判定に添える雪結晶マーク（形の区別）
+ * 文字（❄等）はフォント・絵文字化が環境依存のため、SVGパスで直接描く */
+function snowflakeMark(stroke: string): string {
+  return (
+    `<path d="M${SNOWFLAKE_CX - 5} 12h10M${SNOWFLAKE_CX - 2.5} 7.7l5 8.6M${SNOWFLAKE_CX - 2.5} 16.3l5 -8.6" ` +
+    `stroke="${stroke}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`
+  );
+}
+
 /** XML属性・テキストのエスケープ */
 function escapeXml(text: string): string {
   return text
@@ -33,9 +46,12 @@ export function badgeStatusText(worst: LevelSummary): string {
 
 /** 当日の最も厳しい屋外判定からバッジSVGを組み立てる */
 export function buildBadgeSvg(worst: LevelSummary): string {
-  const surface = BADGE.gradeSurfaces[worst.grade];
-  const textColor = BADGE.gradeTexts[worst.grade];
-  const accent = BADGE.gradeAccents[worst.grade];
+  // 低温側（levelのcold接頭辞。app.js・style.cssと同じ判定基準）は青系配色+
+  // 雪結晶マークで暑熱側と区別する（「色+形」の二重符号を埋め込み先でも維持する）
+  const cold = worst.level.startsWith('cold');
+  const surface = cold ? BADGE.cold.surface : BADGE.gradeSurfaces[worst.grade];
+  const textColor = cold ? BADGE.cold.text : BADGE.gradeTexts[worst.grade];
+  const accent = cold ? BADGE.cold.accent : BADGE.gradeAccents[worst.grade];
   const status = escapeXml(badgeStatusText(worst));
   const leftLabel = escapeXml(BADGE.leftLabel);
   const description = `${leftLabel}: ${status}`;
@@ -54,6 +70,7 @@ export function buildBadgeSvg(worst: LevelSummary): string {
     `<rect x="${LEFT_WIDTH}" width="${BADGE_WIDTH - LEFT_WIDTH}" height="${BADGE_HEIGHT}" fill="${surface}"/>` +
     '</g>' +
     `<rect x="0.5" y="0.5" width="${BADGE_WIDTH - 1}" height="${BADGE_HEIGHT - 1}" rx="4" fill="none" stroke="${accent}"/>` +
+    (cold ? snowflakeMark(accent) : '') +
     `<g font-family="${fontFamily}" font-size="12" text-anchor="middle">` +
     `<text x="${LEFT_WIDTH / 2}" y="16.5" fill="#FFFFFF">${leftLabel}</text>` +
     `<text x="${rightCenter}" y="16.5" fill="${textColor}" font-weight="bold">${status}</text>` +

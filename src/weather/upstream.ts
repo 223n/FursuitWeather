@@ -57,6 +57,18 @@ function upstreamErrorMessage(subject: string, status: number): string {
 }
 
 /**
+ * 上流リクエストの文言セット（ログラベルと利用者向けの固定日本語文）
+ * 全上流クライアント（openMeteo・geocoding・alert）が共有する契約のため、
+ * 名前付きの型を提供元のここで所有する
+ */
+export interface UpstreamMessages {
+  logLabel: string;
+  failure: string;
+  /** タイムアウト専用の文言（省略時はfailureに合流する） */
+  timeout?: string;
+}
+
+/**
  * 破棄する応答の本文を読み切り、ログ用に先頭200字を返す
  * 本文を消費することで、未読ストリームが上流接続を保持するのを防ぐ
  */
@@ -75,7 +87,7 @@ export async function fetchUpstream(
   url: string,
   cacheTtlSeconds: number,
   fetchImpl: typeof fetch,
-  messages: { logLabel: string; failure: string; timeout?: string },
+  messages: UpstreamMessages,
 ): Promise<Response> {
   try {
     return await fetchImpl(url, upstreamInit(cacheTtlSeconds));

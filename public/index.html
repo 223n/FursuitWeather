@@ -178,8 +178,11 @@
             <option value="">イベント情報を読み込んでいます…</option>
           </select>
           <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+          <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
         </div>
-        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。開催の詳細は主催者の告知をご確認ください。</p>
+        <!-- 「選択中のイベントだけ登録」はイベントの選択後にapp.jsが表示し、
+             リンク先（/api/events.ics?event=イベント名）を選択に追随させる -->
+        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル・全件）できます。<span id="event-ics-single" hidden><a id="event-ics-link" href="/api/events.ics" download="fursuit-weather-events.ics">選択中のイベントだけ登録</a>もできます。</span>「固定リンクをコピー」は、開くと選んだイベントの予報が表示されるURLです（告知への掲載用）。告知ページに当日判定を貼れるSVGバッジもあります（<a href="/about#badge">使い方はサイトについて</a>）。開催の詳細は主催者の告知をご確認ください。イベントの掲載を希望する主催者の方は<a href="https://github.com/223n/FursuitWeather/issues/new?template=event_request.yml" rel="noopener">GitHubリポジトリのissue（イベント掲載依頼フォーム）</a>からご連絡ください。</p>
       </div>
       <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
         <div class="control-row">
@@ -209,6 +212,9 @@
       <div class="displayed-location">
         <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
         <p id="location-label" class="location-label"></p>
+        <!-- 地点ラベル直下の常設注記（開催日が予報範囲外のイベント表示など）。
+             一過性の#statusと違い「予報を更新」で消えない（表示制御はapp.js） -->
+        <p id="location-note" class="location-note" hidden></p>
         <div class="control-row" role="group" aria-label="表示中の地点の操作">
           <button type="button" id="reload-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-arrows-rotate"/></svg>予報を更新</button>
           <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>
@@ -222,7 +228,9 @@
           <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
         </div>
         <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
-        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、見ている日付とプランナーの時間帯を含める</label>
+        <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
+             未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
+        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
       </div>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
@@ -275,6 +283,9 @@
         <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
+      <!-- 開始できない理由（着用中止・予報未読込）の近接表示。ページ上部の#statusは
+           ボタン位置から画面外になり得るため（当日ボード等と同じannounceNearの先例） -->
+      <p id="timer-start-status" class="hint" role="status"></p>
       <!-- 見守りモード: 表示中の地点の予報を10分ごとに自動再取得し、「いまの判定」の
            変化を画面内ハイライトと短いチャイムで知らせる（ハンドラー・アテンド向け）。
            再取得間隔はブラウザキャッシュ（10分）と同じため上流コールは増えない。
@@ -287,6 +298,31 @@
           バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
         </p>
       </div>
+      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
+           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
+           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
+           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない）。
+           着る前に目に入るよう、着用開始の動線（判定カード・タイマー）の近くに置く -->
+      <details class="condition-check">
+        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
+        <p class="hint">
+          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
+          当てはまるものにチェックすると、今日の心構えを表示します。
+          回答はこの端末にも保存されず、どこにも送信されません。
+        </p>
+        <ul class="condition-list">
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+        </ul>
+        <p id="condition-note" class="condition-note" role="status"></p>
+        <p class="hint">
+          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
+          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
+        </p>
+      </details>
       <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
            （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
       <div id="wear-log-section" class="wear-log-section" hidden>
@@ -295,6 +331,9 @@
         <div class="control-row">
           <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
         </div>
+        <!-- 操作結果の近接表示: ページ上部の#statusはこの位置から画面外になるため、
+             ボタンの直近にも同じ結果を出す（実測WBGTタブの#wbgt-log-statusと同じ先例） -->
+        <p id="wear-log-status" class="hint" role="status"></p>
         <p class="hint">
           着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
           前回できた長さを、今日の目安を緩める根拠にしないでください。
@@ -309,12 +348,15 @@
         <p class="hint">
           画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
           記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
+          終日の運用では、予報の変化を取りこぼさないよう見守りモード（10分ごとに自動更新）をONにしてください。
         </p>
         <div class="control-row">
           <label for="board-name-input">ニックネーム</label>
-          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ">
+          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ" enterkeyhint="done">
           <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
         </div>
+        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
+        <p id="board-status" class="hint" role="status"></p>
         <fieldset class="board-limit-row">
           <legend>連続活動の上限の目安</legend>
           <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
@@ -335,30 +377,6 @@
         </div>
         <p class="hint">
           これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
-        </p>
-      </details>
-      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
-           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
-           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
-           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない） -->
-      <details class="condition-check">
-        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
-        <p class="hint">
-          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
-          当てはまるものにチェックすると、今日の心構えを表示します。
-          回答はこの端末にも保存されず、どこにも送信されません。
-        </p>
-        <ul class="condition-list">
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
-          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
-        </ul>
-        <p id="condition-note" class="condition-note" role="status"></p>
-        <p class="hint">
-          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
-          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
         </p>
       </details>
     </section>
@@ -435,9 +453,9 @@
     <section id="planner-section" role="tabpanel" aria-labelledby="tab-planner" tabindex="0" hidden>
       <h2 id="planner-heading">活動プランナー</h2>
       <p class="hint">
-        日付と活動する時間帯を選ぶと、その時間帯の判定と、
-        休憩を挟んだ着用計画の目安を表示します。終了に選んだ時刻の行は
-        含みません（例: 終了を16時にすると15時台まで）。
+        日付と活動する時間帯を選んで「計画を立てる」を押すと、
+        その時間帯の判定と、休憩を挟んだ着用計画の目安を表示します。
+        終了に選んだ時刻の行は含みません（例: 終了を16時にすると15時台まで）。
       </p>
       <div class="control-row">
         <label for="plan-date">日付</label>
@@ -465,6 +483,8 @@
           <button type="button" id="packing-add-button">追加</button>
           <button type="button" id="packing-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>リストをコピー</button>
         </div>
+        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
+        <p id="packing-status" class="hint" role="status"></p>
         <p class="hint">チェックと追加した持ち物はこの端末にのみ保存されます。「リストをコピー」でグループチャットへ貼れます。</p>
       </div>
 
@@ -654,6 +674,13 @@
         <button type="button" id="timer-rest-button">休憩開始</button>
         <button type="button" id="timer-stop-button">タイマー終了</button>
       </div>
+      <!-- 応急対応への常設導線: 異変が起きる可能性が最も高いのは着用中
+           （このダイアログ表示中）で、背面ページはinert化され触れないため、
+           ダイアログ内から直接たどれるようにする（タイマー状態は保存されて
+           いるので、遷移して戻っても復元される） -->
+      <p class="timer-emergency-link">
+        <a id="timer-emergency-link" href="/emergency">もしものとき（熱中症の応急対応）</a>
+      </p>
       <p class="hint">
         対応端末では表示中に画面が消灯しません。残り5分と超過は表示でお知らせし、
         対応端末では音・バイブも鳴ります（消音設定の端末では鳴りません）。

@@ -6,17 +6,16 @@
 // ユニーク座標ごとに上流キャッシュキーを分けてしまい、Open-Meteoの無料枠を
 // 第三者が直接圧迫できてしまう（本体サービスの巻き添え502を防ぐための制限）
 
-import { NATIONAL_CITIES, RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
+import { NATIONAL_CITIES } from '../constants';
 import { buildBadgeSvg } from '../logic/badge';
-import { buildDayForecast, buildHourForecast } from '../logic/forecast';
-import { dateOf, todayInJst } from '../logic/time';
-import type { LevelSummary } from '../types';
+import { listValidEvents } from '../logic/events';
+import { todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
 import { fetchGeocoding } from '../weather/geocoding';
-import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
-import { UpstreamError } from '../weather/upstream';
-import { jsonError } from './http';
-import { listValidEvents, type AssetsEnv } from './events';
+import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
+import { fetchEventsJson, type AssetsEnv } from './assets';
+import { requireDayForecast } from './daySummary';
+import { apiHeaders, isDemoRequest, jsonError } from './http';
 
 /** イベント名の指定を受け付ける上限長（イベント名の実長より十分大きい定数） */
 const EVENT_NAME_MAX_LENGTH = 100;
@@ -43,11 +42,9 @@ async function resolveLocation(
   if (eventName === '' || (eventName ?? '').length > EVENT_NAME_MAX_LENGTH) {
     return jsonError(400, 'eventはイベント一覧に登録されている名前で指定してください');
   }
-  const asset = await env.ASSETS.fetch(new Request(new URL('/events.json', url).toString()));
-  if (!asset.ok) {
-    throw new Error(`events.jsonを読み込めませんでした（HTTP ${asset.status}）`);
-  }
-  const event = listValidEvents(await asset.json()).find((entry) => entry.name === eventName);
+  const event = listValidEvents(await fetchEventsJson(url, env)).find(
+    (entry) => entry.name === eventName,
+  );
   if (event === undefined) {
     return jsonError(404, '指定されたイベントは登録されていません');
   }
@@ -62,18 +59,6 @@ async function resolveLocation(
   return { latitude: place.latitude, longitude: place.longitude };
 }
 
-/** 気象データから当日の最も厳しい屋外判定を取り出す */
-function todayOutdoorWorst(weather: WeatherResult, date: string): LevelSummary {
-  const hours = weather.hours
-    .map(buildHourForecast)
-    .filter((hour) => dateOf(hour.time) === date);
-  if (hours.length === 0) {
-    // 上流キャッシュの日付またぎで当日分が空になり得る（/api/nationalと同じ扱い）
-    throw new UpstreamError(`対象日（${date}）の気象データがありません`);
-  }
-  return buildDayForecast(date, hours).outdoorWorst;
-}
-
 /**
  * GET /api/badge.svg?city=東京
  * GET /api/badge.svg?event=けもケット17
@@ -84,7 +69,7 @@ export async function handleBadge(request: Request, env: AssetsEnv): Promise<Res
   const date = todayInJst(new Date());
 
   let weather: WeatherResult;
-  if (url.searchParams.get('demo') === '1') {
+  if (isDemoRequest(url.searchParams)) {
     weather = demoWeather(date);
   } else {
     const location = await resolveLocation(url, env);
@@ -92,19 +77,21 @@ export async function handleBadge(request: Request, env: AssetsEnv): Promise<Res
       return location;
     }
     // /api/nationalと同じ日付固定の取得（当日1日分。エッジキャッシュも共有される）
-    weather = await fetchWeatherBase(location.latitude, location.longitude, 1, fetch, date);
+    weather = await fetchWeatherForDate(location.latitude, location.longitude, date);
   }
 
-  const svg = buildBadgeSvg(todayOutdoorWorst(weather, date));
+  // 当日の最も厳しい屋外判定をバッジに描く（対象日が空のときの上流エラー化を含めて
+  // requireDayForecastが担う）
+  const svg = buildBadgeSvg(requireDayForecast(weather.hours, date).outdoorWorst);
   return new Response(svg, {
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff',
-      // 直接開かれてもスクリプトを実行させない（組み立てたSVGに実行要素はないが多層防御）
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
-      // 埋め込み先のPVごとに上流へ向かわないよう、予報APIと同じブラウザキャッシュを付ける
-      'Cache-Control': `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`,
-    },
+    // 共通ヘッダー（CORS・nosniff・キャッシュ）はapiHeadersへ集約。
+    // 埋め込み先のPVごとに上流へ向かわないよう、予報APIと同じブラウザキャッシュを付ける
+    headers: apiHeaders('image/svg+xml; charset=utf-8', {
+      cacheable: true,
+      extra: {
+        // 直接開かれてもスクリプトを実行させない（組み立てたSVGに実行要素はないが多層防御）
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+      },
+    }),
   });
 }

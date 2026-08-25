@@ -6,12 +6,14 @@
 // 全リクエストで上流を呼ぶとエッジ配信の速さを損なうだけで益がない）。
 // 取得はベストエフォート: 失敗時はnullを返し、静的タグのまま配信する
 
+import { isDemoRequest, parseLatLonParams } from './api/http';
 import { NATIONAL_CITIES } from './constants';
-import { buildDayForecast, buildHourForecast } from './logic/forecast';
-import { dateOf, todayInJst } from './logic/time';
+import { buildDayForecastFor } from './logic/forecast';
+import { nearestPoint } from './logic/geo';
+import { todayInJst } from './logic/time';
 import type { DayForecast } from './types';
 import { demoWeather } from './weather/demoData';
-import { fetchWeatherBase } from './weather/openMeteo';
+import { fetchWeatherForDate } from './weather/openMeteo';
 
 /** OGタグへ差し込む動的サマリー */
 export interface OgSummary {
@@ -53,14 +55,9 @@ export function isPreviewBot(userAgent: string | null): boolean {
  * 「◯◯付近」、それ以外は座標表記にする
  */
 export function ogLocationLabel(latitude: number, longitude: number): string {
-  const nearest = NATIONAL_CITIES.reduce((a, b) => {
-    const distA = (latitude - a.lat) ** 2 + (longitude - a.lon) ** 2;
-    const distB = (latitude - b.lat) ** 2 + (longitude - b.lon) ** 2;
-    return distB < distA ? b : a;
-  });
-  const distance = (latitude - nearest.lat) ** 2 + (longitude - nearest.lon) ** 2;
-  if (distance <= NEARBY_DISTANCE_SQUARED) {
-    return `${nearest.name}付近`;
+  const { point, distanceSquared } = nearestPoint(latitude, longitude, NATIONAL_CITIES);
+  if (distanceSquared <= NEARBY_DISTANCE_SQUARED) {
+    return `${point.name}付近`;
   }
   return `緯度${latitude.toFixed(2)}・経度${longitude.toFixed(2)}`;
 }
@@ -87,15 +84,6 @@ export function buildOgSummary(day: DayForecast, locationLabel: string): OgSumma
   };
 }
 
-/** 座標クエリパラメータを解析する。欠落・非数値・範囲外はnull */
-function parseCoordinate(raw: string | null, limit: number): number | null {
-  if (raw === null || raw.trim() === '') {
-    return null;
-  }
-  const value = Number(raw);
-  return Number.isFinite(value) && value >= -limit && value <= limit ? value : null;
-}
-
 /**
  * リクエストに応じた動的OGサマリーを返す
  * 対象パス（トップページ）×クローラーUA×有効な座標が揃ったときだけ上流を呼ぶ。
@@ -114,29 +102,28 @@ export async function ogSummaryFor(
   if (!isPreviewBot(request.headers.get('user-agent'))) {
     return null;
   }
-  const latitude = parseCoordinate(url.searchParams.get('lat'), 90);
-  const longitude = parseCoordinate(url.searchParams.get('lon'), 180);
-  if (latitude === null || longitude === null) {
+  // 座標の解析・検証はAPI群と同じ基準（parseLatLonParams）を使い、
+  // エラーレスポンスは返さずnull（=静的タグのまま）へ読み替える
+  const coords = parseLatLonParams(url.searchParams);
+  if (coords instanceof Response) {
     return null;
   }
+  const { latitude, longitude } = coords;
 
   try {
     // /api/nationalと同じ日付固定の取得にする（当日1日分・エッジキャッシュも共有される）。
     // demo=1は上流なしのデモデータで応答する（/api/forecastと同じ死活確認手段）
     const date = todayInJst(new Date());
-    const weather =
-      url.searchParams.get('demo') === '1'
-        ? demoWeather(date)
-        : await fetchWeatherBase(latitude, longitude, 1, fetchImpl, date);
-    const hours = weather.hours
-      .map(buildHourForecast)
-      .filter((hour) => dateOf(hour.time) === date);
-    if (hours.length === 0) {
+    const weather = isDemoRequest(url.searchParams)
+      ? demoWeather(date)
+      : await fetchWeatherForDate(latitude, longitude, date, fetchImpl);
+    const day = buildDayForecastFor(weather.hours, date);
+    if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する
       console.error('OGPサマリー: 対象日の気象データがありません:', date, url.search);
       return null;
     }
-    return buildOgSummary(buildDayForecast(date, hours), ogLocationLabel(latitude, longitude));
+    return buildOgSummary(day, ogLocationLabel(latitude, longitude));
   } catch (error) {
     // カードが静的表示になるだけで実害は小さいが、上流異常の検知のためログには残す
     console.error('OGPサマリーの取得に失敗:', url.search, error);
