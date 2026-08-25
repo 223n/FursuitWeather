@@ -1590,3 +1590,56 @@ section h3 {
   border-color: var(--level-cold-accent);
   background-color: var(--level-cold-surface);
 }
+
+/* 当日コンディションチェック（回答は保存しない）。
+   注意の帯は2段階: 通常の該当は黄系、発熱・下痢は警戒の赤系で区別する */
+.condition-check {
+  margin-top: 1rem;
+}
+
+.condition-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.condition-list li {
+  margin: 0.4rem 0;
+}
+
+.condition-list input {
+  margin-right: 0.4em;
+}
+
+/* 注意の帯の出現でチェック欄が動かないよう高さを事前確保する（CLS対策） */
+.condition-note {
+  min-height: 3.4rem;
+  margin: 0.5rem 0;
+}
+
+.condition-note .fa-icon {
+  margin-right: 0.35rem;
+}
+
+.condition-note-warning {
+  border: 2px solid var(--level-1-accent);
+  border-radius: 8px;
+  background-color: var(--level-1-surface);
+  color: var(--level-1-text);
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+}
+
+.condition-note-severe {
+  border: 2px solid var(--level-3-accent);
+  border-radius: 8px;
+  background-color: var(--level-3-surface);
+  color: var(--level-3-text);
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+}
+
+/* 暑熱順化の啓発パネル（プランナータブ内の静的テキスト） */
+.acclimatization-note {
+  margin-top: 1rem;
+}

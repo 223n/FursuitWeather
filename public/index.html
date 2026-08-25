@@ -274,6 +274,30 @@
         <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
+      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
+           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
+           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
+           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない） -->
+      <details class="condition-check">
+        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
+        <p class="hint">
+          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
+          当てはまるものにチェックすると、今日の心構えを表示します。
+          回答はこの端末にも保存されず、どこにも送信されません。
+        </p>
+        <ul class="condition-list">
+          <li><label><input type="checkbox" class="condition-item"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+        </ul>
+        <p id="condition-note" class="condition-note" role="status"></p>
+        <p class="hint">
+          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
+          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
+        </p>
+      </details>
     </section>
 
     <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
@@ -380,6 +404,24 @@
         </div>
         <p class="hint">チェックと追加した持ち物はこの端末にのみ保存されます。「リストをコピー」でグループチャットへ貼れます。</p>
       </div>
+
+      <!-- 暑熱順化（暑さへの体の慣れ）の啓発パネル。動的な記録・警告は持たず、
+           知識の提供と「間が空いたら短めに」の一般注意に留める（静的テキストのみ） -->
+      <details class="acclimatization-note">
+        <summary>しばらく着ていない人へ（暑熱順化について）</summary>
+        <p>
+          体が暑さに慣れる「暑熱順化」は、7日以上かけて暑さにさらされる時間を
+          少しずつ延ばすことで得られ、おおむね4日以上暑さから離れると失われ始めます
+          （厚生労働省「職場における熱中症予防基本対策要綱」より）。
+          シーズン最初のイベントや数週間ぶりの活動では、真夏と同じ感覚で着ると
+          熱中症のリスクが高くなります。
+        </p>
+        <p>
+          再開の初日は計画の目安のおよそ半分から始め、数回かけて段階的に延ばすのが
+          安全です（米国の労働安全衛生機関（NIOSH/OSHA）の再順化スケジュール
+          （初日は通常の50%から漸増）に基づく目安です）。
+        </p>
+      </details>
     </section>
 
     <!-- 実測WBGTから判定: 会場でWBGT計を持っている人が、予報ではなく実測値で

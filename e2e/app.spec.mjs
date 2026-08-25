@@ -859,6 +859,40 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await expect(page.locator('#timer-overlay')).toBeHidden();
 });
 
+test('当日コンディションチェック: 2段階の注意が出て、回答はどこにも保存されない', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.getByText('今日のコンディションチェック').click();
+  // 通常の該当（睡眠不足）→「1段階慎重に」の黄系注意
+  await page.getByText('睡眠が6時間未満だった', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toContainText('1段階慎重に');
+  await expect(page.locator('#condition-note')).toHaveClass(/condition-note-warning/);
+
+  // 発熱・下痢の該当 →「活動の見送りを検討」の赤系警戒（他の該当より優先）
+  await page.getByText('発熱・下痢など体調不良がある', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toContainText('見送りを検討');
+  await expect(page.locator('#condition-note')).toHaveClass(/condition-note-severe/);
+
+  // 全部外すと帯は消える
+  await page.getByText('睡眠が6時間未満だった', { exact: true }).click();
+  await page.getByText('発熱・下痢など体調不良がある', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toBeEmpty();
+
+  // プライバシー: 回答はlocalStorageのどこにも保存されない
+  const stored = await page.evaluate(() => Object.keys(window.localStorage).join(','));
+  expect(stored).not.toContain('ondition');
+
+  // 暑熱順化: プランナーの計画（デモは暑熱日）に慣らしの注意と啓発パネルが出る
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#plan-result')).toContainText('目安のおよそ半分から段階的に');
+  await page.getByText('しばらく着ていない人へ').click();
+  await expect(page.locator('.acclimatization-note')).toContainText('暑熱順化');
+});
+
 test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の手順・保冷剤を出さない', async ({
   page,
 }) => {
@@ -892,6 +926,8 @@ test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の
   await expect(page.locator('.rest-guide')).not.toContainText('冷房の効いた室内');
   await expect(page.locator('#packing-list')).not.toContainText('保冷剤');
   await expect(page.locator('#packing-list')).toContainText('カイロ');
+  // 暑熱順化の慣らし注意は暑熱リスクのある計画のみ（冬の計画には出さない）
+  await expect(page.locator('#plan-result')).not.toContainText('目安のおよそ半分');
 });
 
 test('着用タイマー: 判定が「着用中止」のときは開始できない', async ({ page }) => {

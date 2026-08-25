@@ -2159,6 +2159,15 @@
         notes.appendChild(sunsetNote);
       }
     }
+    // 暑熱リスクのある計画では、間が空いたときの慣らし（暑熱順化）を促す
+    // （詳細は同じタブ内の啓発パネル。冬の計画には出さない）
+    if (worstGradeOf(hours, false) >= 1) {
+      const acclimatizationNote = document.createElement('li');
+      acclimatizationNote.textContent =
+        'しばらく（2週間以上）着ていないときは、初日は目安のおよそ半分から段階的に。' +
+        '詳しくは下の「暑熱順化について」をご覧ください。';
+      notes.appendChild(acclimatizationNote);
+    }
     const generalNote = document.createElement('li');
     generalNote.textContent =
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
@@ -3097,6 +3106,40 @@
   const storedTimerState = readTimerState();
   if (storedTimerState) {
     openTimer(storedTimerState);
+  }
+
+  // ---- 当日コンディションチェック ----
+  // 環境側の予報に対して、着用者側の体調リスクを自覚するための任意チェック。
+  // 回答はどこにも保存しない（localStorage・URLへ書かないことが実装上の不変条件）。
+  // 発熱・下痢（厚労省要綱では作業から外す判断の対象）は「活動見送りの検討」、
+  // それ以外は「1段階慎重に」の2段階に分け、判定のしきい値・記号・色は変えない
+
+  const conditionItems = [...document.querySelectorAll('.condition-item')];
+  const conditionNote = document.getElementById('condition-note');
+
+  /** チェック状態から注意の帯を更新する（未チェックなら空にする） */
+  function updateConditionNote() {
+    const severe = conditionItems.some((box) => box.checked && box.dataset.severe === 'true');
+    const anyChecked = conditionItems.some((box) => box.checked);
+    conditionNote.classList.toggle('condition-note-severe', severe);
+    conditionNote.classList.toggle('condition-note-warning', !severe && anyChecked);
+    if (!anyChecked) {
+      conditionNote.replaceChildren();
+      return;
+    }
+    conditionNote.replaceChildren(
+      faIcon('triangle-exclamation'),
+      srOnlySpan('注意: '),
+      document.createTextNode(
+        severe
+          ? '発熱・下痢など体調不良があるときは、今日の活動の見送りを検討してください。脱水が進みやすく、熱中症の危険が大きく高まります。回復を最優先に。'
+          : '該当がある日は、表示の判定より1段階慎重に。連続着用は目安より短めにし、休憩と水分・塩分補給を増やしてください。',
+      ),
+    );
+  }
+
+  for (const box of conditionItems) {
+    box.addEventListener('change', updateConditionNote);
   }
 
   // ---- 見やすさ設定（文字サイズ） ----
