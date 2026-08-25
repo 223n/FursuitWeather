@@ -1694,3 +1694,104 @@ section h3 {
   margin: 0.25rem 0;
   font-weight: 700;
 }
+
+/* 当日ボード（複数着用者の見守り）。掲示ボードとして離れた場所からも
+   読めるよう、カードの名前と状況は大きめ・太字にする */
+.board-section {
+  margin-top: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-surface);
+}
+
+.board-section summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.board-limit-row {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.board-limit-row legend {
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+
+.board-manual-label input {
+  width: 4.5rem;
+}
+
+.board-limit-note {
+  font-weight: 700;
+}
+
+#board-groups h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.board-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-background);
+}
+
+.board-card-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.board-card-status {
+  font-weight: 700;
+}
+
+.board-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* 交代が近い・上限超過の強調。判定バッジと同じCUDトークンで、
+   色だけに依存しないよう文言（残り約n分・交代してください）を併記している */
+.board-card-soon {
+  border-color: var(--level-1-accent);
+  background-color: var(--level-1-surface);
+}
+
+.board-card-over {
+  border-color: var(--level-4-accent);
+  border-width: 2px;
+  background-color: var(--level-4-surface);
+}
+
+.board-card-over .board-card-status {
+  color: var(--level-4-text);
+}
+
+.board-empty {
+  border: none;
+  padding: 0.2rem 0;
+}

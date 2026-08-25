@@ -412,6 +412,74 @@ test('見守りモード: 10分ごとに自動再取得し、判定の変化を�
   await expect(page.locator('#now-card')).not.toHaveClass(/watch-changed/);
 });
 
+test('当日ボード: 追加・状態移動・上限超過の強調と、ニックネームの非漏洩', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+
+  // 上限は手動20分に設定し、予報の内容に依存しない決定的なテストにする
+  await page.check('input[name="board-limit-mode"][value="manual"]');
+  await page.fill('#board-manual-limit', '20');
+  await page.dispatchEvent('#board-manual-limit', 'change');
+  await expect(page.locator('#board-limit-note')).toHaveText('目安: 20分（手動）');
+
+  await page.fill('#board-name-input', 'ポチ');
+  await page.click('#board-add-button');
+  await expect(page.locator('#board-waiting .board-card-name')).toHaveText('ポチ');
+
+  await page.click('#board-waiting .board-card-actions button:has-text("出演開始")');
+  await expect(page.locator('#board-wearing .board-card-status')).toContainText(
+    '経過0分／上限20分',
+  );
+
+  // 21分経過 → 超過の強調と交代を促す文言（色だけに依存しない）
+  await page.clock.fastForward(21 * 60 * 1000);
+  await expect(page.locator('#board-wearing .board-card')).toHaveClass(/board-card-over/);
+  await expect(page.locator('#board-wearing .board-card-status')).toContainText(
+    '交代してください',
+  );
+
+  // 休憩へ → 経過の上向きカウントのみ表示する（休憩の下限時間は発明しない）
+  await page.click('#board-wearing .board-card-actions button:has-text("休憩へ")');
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect(page.locator('#board-resting .board-card-status')).toContainText('休憩10分');
+
+  // ニックネームは共有URLにも会場表示モードのリンクにも載らない（プライバシー契約）
+  expect(page.url()).not.toContain('ポチ');
+  expect(page.url()).not.toContain(encodeURIComponent('ポチ'));
+  const displayHref = (await page.locator('#display-link').getAttribute('href')) ?? '';
+  expect(displayHref).not.toContain('ポチ');
+  expect(displayHref).not.toContain(encodeURIComponent('ポチ'));
+
+  // リロード後も当日の間はこの端末に保持される
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+  await expect(page.locator('#board-resting .board-card-name')).toHaveText('ポチ');
+});
+
+test('当日ボード: 日付が変わると自動でリセットされる', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'fursuitweatherDayBoard',
+      JSON.stringify({
+        date: '2000-01-01',
+        limitMode: 'auto',
+        manualLimitMinutes: 30,
+        wearers: [{ name: '昨日の人', state: 'waiting', since: 0, warnedOver: false }],
+      }),
+    );
+  });
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+  await expect(page.locator('#board-waiting')).toContainText('なし');
+  await expect(page.locator('#board-waiting')).not.toContainText('昨日の人');
+});
+
 test('埋め込みバッジ（/api/badge.svg）がデモデータのSVGを返す', async ({ page }) => {
   await page.goto('/');
   const response = await page.request.get('/api/badge.svg?demo=1');

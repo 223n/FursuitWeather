@@ -1422,6 +1422,11 @@
     clearPlan();
     // 着用タイマーの開始ボタンの表示と、表示中のタイマーの判定バッジを合わせる
     updateTimerButton();
+    // 当日ボードの自動の上限は「いまの判定」に連動するため、予報の描画と同時に更新する
+    // （boardStateは初期化前のみnull。初期化後は常に最新の判定を反映する）
+    if (boardState) {
+      renderBoard();
+    }
 
     if (selectedDate) {
       renderHours();
@@ -3399,6 +3404,279 @@
   for (const box of conditionItems) {
     box.addEventListener('change', updateConditionNote);
   }
+
+  // ---- 当日ボード（複数着用者の見守り） ----
+  // 1台の画面点灯した端末で「誰がいつから出ていて、誰がそろそろ休憩か」を
+  // 一覧する掲示ボード。データはこの端末のlocalStorageのみで、当日限り
+  // （日付が変わると自動リセット）。ニックネームは共有URL・会場表示モードへ
+  // 一切載せない。休憩の下限時間という新しいしきい値は発明せず、休憩中は
+  // 経過の上向きカウントのみ表示する
+
+  const BOARD_STORAGE_KEY = 'fursuitweatherDayBoard';
+  const BOARD_WEARER_LIMIT = 20;
+  /** 交代が近い表示に切り替える残り分数（着用タイマーの5分前警告と同じ間隔） */
+  const BOARD_SOON_MINUTES = 5;
+  const boardNameInput = document.getElementById('board-name-input');
+  const boardManualLimitInput = document.getElementById('board-manual-limit');
+  const boardLimitNote = document.getElementById('board-limit-note');
+  const boardLists = {
+    wearing: document.getElementById('board-wearing'),
+    resting: document.getElementById('board-resting'),
+    waiting: document.getElementById('board-waiting'),
+  };
+
+  /** 当日ボードの状態（読み込みはinitBoardで行う） */
+  let boardState = null;
+
+  /** 空のボード状態を作る */
+  function emptyBoardState() {
+    return {
+      date: nowInJst().date,
+      limitMode: 'auto',
+      manualLimitMinutes: 30,
+      wearers: [],
+    };
+  }
+
+  /** 保存済みのボード状態を読む（壊れた保存・別の日の保存は空へリセット） */
+  function readBoardState() {
+    const state = readStorageJson(BOARD_STORAGE_KEY);
+    if (
+      !state ||
+      state.date !== nowInJst().date ||
+      !Array.isArray(state.wearers) ||
+      (state.limitMode !== 'auto' && state.limitMode !== 'manual') ||
+      !Number.isFinite(state.manualLimitMinutes)
+    ) {
+      return emptyBoardState();
+    }
+    const validStates = ['wearing', 'resting', 'waiting'];
+    state.wearers = state.wearers.filter(
+      (wearer) =>
+        wearer &&
+        typeof wearer.name === 'string' &&
+        wearer.name !== '' &&
+        validStates.includes(wearer.state) &&
+        Number.isFinite(wearer.since),
+    );
+    return state;
+  }
+
+  /** ボード状態を保存する（保存できない環境ではこのタブの表示中だけ動く） */
+  function writeBoardState() {
+    writeStorageJson(BOARD_STORAGE_KEY, boardState);
+  }
+
+  /** 現在の上限の目安（分）。自動は予報のいまの判定から。判定できないときはnull */
+  function boardLimitMinutes() {
+    if (boardState.limitMode === 'manual') {
+      return boardState.manualLimitMinutes;
+    }
+    if (!currentForecast) {
+      return null;
+    }
+    const entry = currentHourEntry();
+    return entry ? entry.outdoor.activityMinutes : null;
+  }
+
+  /** 経過分（切り捨て） */
+  function boardElapsedMinutes(wearer) {
+    return Math.max(0, Math.floor((Date.now() - wearer.since) / 60000));
+  }
+
+  /** 出演中カードの状況テキストと強調区分（'over'・'soon'・null）を作る */
+  function boardWearingStatus(wearer, limit) {
+    const elapsed = boardElapsedMinutes(wearer);
+    if (limit === null) {
+      return { text: `経過${elapsed}分（上限の目安なし）`, emphasis: null };
+    }
+    if (limit <= 0) {
+      return { text: `経過${elapsed}分・着用中止の判定です。直ちに交代を`, emphasis: 'over' };
+    }
+    const remaining = limit - elapsed;
+    if (remaining <= 0) {
+      return { text: `上限${limit}分を超過（経過${elapsed}分）・交代してください`, emphasis: 'over' };
+    }
+    if (remaining <= BOARD_SOON_MINUTES) {
+      return { text: `経過${elapsed}分／上限${limit}分・残り約${remaining}分`, emphasis: 'soon' };
+    }
+    return { text: `経過${elapsed}分／上限${limit}分`, emphasis: null };
+  }
+
+  /** 状態変更ボタンを作る */
+  function boardActionButton(label, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  /** 着用者の状態を変える（経過は移動時点から数え直し、超過チャイムも再武装する） */
+  function moveBoardWearer(wearer, nextState) {
+    wearer.state = nextState;
+    wearer.since = Date.now();
+    wearer.warnedOver = false;
+    writeBoardState();
+    renderBoard();
+  }
+
+  /** 1人分のカードを作る */
+  function boardCard(wearer, limit) {
+    const item = document.createElement('li');
+    item.className = 'board-card';
+    const name = document.createElement('span');
+    name.className = 'board-card-name';
+    name.textContent = wearer.name;
+    item.appendChild(name);
+
+    const status = document.createElement('span');
+    status.className = 'board-card-status';
+    if (wearer.state === 'wearing') {
+      const { text, emphasis } = boardWearingStatus(wearer, limit);
+      status.textContent = text;
+      if (emphasis) {
+        item.classList.add(`board-card-${emphasis}`);
+      }
+    } else if (wearer.state === 'resting') {
+      status.textContent = `休憩${boardElapsedMinutes(wearer)}分`;
+    } else {
+      status.textContent = '待機中';
+    }
+    item.appendChild(status);
+
+    const actions = document.createElement('span');
+    actions.className = 'board-card-actions';
+    if (wearer.state !== 'wearing') {
+      actions.appendChild(boardActionButton('出演開始', () => moveBoardWearer(wearer, 'wearing')));
+    }
+    if (wearer.state === 'wearing') {
+      actions.appendChild(boardActionButton('休憩へ', () => moveBoardWearer(wearer, 'resting')));
+    }
+    if (wearer.state !== 'waiting') {
+      actions.appendChild(boardActionButton('待機へ', () => moveBoardWearer(wearer, 'waiting')));
+    }
+    actions.appendChild(
+      boardActionButton('削除', () => {
+        boardState.wearers = boardState.wearers.filter((entry) => entry !== wearer);
+        writeBoardState();
+        renderBoard();
+      }),
+    );
+    item.appendChild(actions);
+    return item;
+  }
+
+  /** 上限の目安の表示を更新する */
+  function renderBoardLimitNote(limit) {
+    if (boardState.limitMode === 'manual') {
+      boardLimitNote.textContent = `目安: ${boardState.manualLimitMinutes}分（手動）`;
+    } else if (limit === null) {
+      boardLimitNote.textContent = '目安: 予報の取得後に表示されます';
+    } else if (limit <= 0) {
+      boardLimitNote.textContent = '目安: 着用中止の判定です';
+    } else {
+      boardLimitNote.textContent = `目安: ${limit}分（いまの判定から自動）`;
+    }
+  }
+
+  /** ボード全体を描画し、上限超過のチャイムを鳴らす（画面表示中のみ）。
+   * 出演中は残り時間の少ない順に並べ、次に交代させる人が先頭に来るようにする */
+  function renderBoard() {
+    // 日付が変わったら当日ボードの約束どおりリセットする（深夜運用のまたぎ対策）
+    if (boardState.date !== nowInJst().date) {
+      boardState = emptyBoardState();
+      writeBoardState();
+    }
+    const limit = boardLimitMinutes();
+    renderBoardLimitNote(limit);
+
+    const groups = { wearing: [], resting: [], waiting: [] };
+    for (const wearer of boardState.wearers) {
+      groups[wearer.state].push(wearer);
+    }
+    groups.wearing.sort((a, b) => a.since - b.since);
+    for (const state of ['wearing', 'resting', 'waiting']) {
+      boardLists[state].replaceChildren(
+        ...groups[state].map((wearer) => boardCard(wearer, limit)),
+      );
+      if (groups[state].length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'board-empty hint';
+        empty.textContent = 'なし';
+        boardLists[state].appendChild(empty);
+      }
+    }
+
+    // 上限超過のチャイム（1回だけ。休憩・待機へ動かすと再武装される）。
+    // 画面点灯前提のボードのため、前面表示中以外では鳴らさない
+    if (document.visibilityState === 'visible') {
+      for (const wearer of groups.wearing) {
+        const { emphasis } = boardWearingStatus(wearer, limit);
+        if (emphasis === 'over' && !wearer.warnedOver) {
+          wearer.warnedOver = true;
+          writeBoardState();
+          timerAlert(3);
+          srAnnounce.textContent = `当日ボード: ${wearer.name}が連続活動の上限を超えています。交代してください。`;
+        }
+      }
+    }
+  }
+
+  document.getElementById('board-add-button').addEventListener('click', () => {
+    prepareTimerAudio();
+    const name = boardNameInput.value.trim();
+    if (name === '') {
+      setStatus('ニックネームを入力してから追加してください。', true);
+      return;
+    }
+    if (boardState.wearers.length >= BOARD_WEARER_LIMIT) {
+      setStatus(`登録は${BOARD_WEARER_LIMIT}人までです。使い終わったカードを削除してください。`, true);
+      return;
+    }
+    boardState.wearers.push({
+      // idは使い捨て（並び・削除はオブジェクト参照で行う）。名前の重複は許す
+      name,
+      state: 'waiting',
+      since: Date.now(),
+      warnedOver: false,
+    });
+    boardNameInput.value = '';
+    writeBoardState();
+    renderBoard();
+  });
+
+  for (const radio of document.querySelectorAll('input[name="board-limit-mode"]')) {
+    radio.addEventListener('change', () => {
+      boardState.limitMode = radio.value === 'manual' ? 'manual' : 'auto';
+      writeBoardState();
+      renderBoard();
+    });
+  }
+
+  boardManualLimitInput.addEventListener('change', () => {
+    const value = Number(boardManualLimitInput.value);
+    if (Number.isFinite(value) && value >= 5 && value <= 120) {
+      boardState.manualLimitMinutes = Math.round(value);
+    }
+    boardManualLimitInput.value = String(boardState.manualLimitMinutes);
+    writeBoardState();
+    renderBoard();
+  });
+
+  /** 保存済みの状態をUIへ反映してボードを開始する */
+  function initBoard() {
+    boardState = readBoardState();
+    const manualRadio = document.querySelector('input[name="board-limit-mode"][value="manual"]');
+    const autoRadio = document.querySelector('input[name="board-limit-mode"][value="auto"]');
+    (boardState.limitMode === 'manual' ? manualRadio : autoRadio).checked = true;
+    boardManualLimitInput.value = String(boardState.manualLimitMinutes);
+    renderBoard();
+    // 経過表示は分単位のため30秒ごとの再描画で十分（1分ずれの半分以下に収まる）
+    setInterval(renderBoard, 30 * 1000);
+  }
+
+  initBoard();
 
   // ---- 見やすさ設定（文字サイズ） ----
   // 押すたびに標準→大→特大と切り替え、この端末へ保存する。適用は全ページ共通の

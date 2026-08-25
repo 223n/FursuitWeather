@@ -300,6 +300,43 @@
           前回できた長さを、今日の目安を緩める根拠にしないでください。
         </p>
       </div>
+      <!-- 当日ボード: 複数の着用者を1台の端末で見守る掲示ボード（ハンドラー・救護スタッフ向け）。
+           データはこの端末のlocalStorageのみで、翌日に自動リセットされる。
+           ニックネームは共有URL・会場表示モードへ一切載せない（E2Eで担保）。
+           上限の目安の判定ソースは予報（自動）と手動（実測WBGTタブの結果の転記）を選べる -->
+      <details class="board-section">
+        <summary>当日ボード（複数着用者の見守り・この端末のみ）</summary>
+        <p class="hint">
+          画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
+          記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
+        </p>
+        <div class="control-row">
+          <label for="board-name-input">ニックネーム</label>
+          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ">
+          <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
+        </div>
+        <fieldset class="board-limit-row">
+          <legend>連続活動の上限の目安</legend>
+          <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
+          <label><input type="radio" name="board-limit-mode" value="manual"> 手動</label>
+          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30"> 分</label>
+          <span id="board-limit-note" class="board-limit-note" role="status"></span>
+        </fieldset>
+        <p class="hint">
+          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。
+        </p>
+        <div id="board-groups">
+          <h3>出演中</h3>
+          <ul id="board-wearing" class="board-list"></ul>
+          <h3>休憩中</h3>
+          <ul id="board-resting" class="board-list"></ul>
+          <h3>待機</h3>
+          <ul id="board-waiting" class="board-list"></ul>
+        </div>
+        <p class="hint">
+          これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
+        </p>
+      </details>
       <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
            自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
            作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
