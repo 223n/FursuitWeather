@@ -6,7 +6,7 @@
 // ユニーク座標ごとに上流キャッシュキーを分けてしまい、Open-Meteoの無料枠を
 // 第三者が直接圧迫できてしまう（本体サービスの巻き添え502を防ぐための制限）
 
-import { NATIONAL_CITIES, RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
+import { NATIONAL_CITIES } from '../constants';
 import { buildBadgeSvg } from '../logic/badge';
 import { listValidEvents } from '../logic/events';
 import { todayInJst } from '../logic/time';
@@ -15,7 +15,7 @@ import { fetchGeocoding } from '../weather/geocoding';
 import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
 import { fetchEventsJson, type AssetsEnv } from './assets';
 import { requireDayForecast } from './daySummary';
-import { jsonError } from './http';
+import { apiHeaders, isDemoRequest, jsonError } from './http';
 
 /** イベント名の指定を受け付ける上限長（イベント名の実長より十分大きい定数） */
 const EVENT_NAME_MAX_LENGTH = 100;
@@ -69,7 +69,7 @@ export async function handleBadge(request: Request, env: AssetsEnv): Promise<Res
   const date = todayInJst(new Date());
 
   let weather: WeatherResult;
-  if (url.searchParams.get('demo') === '1') {
+  if (isDemoRequest(url.searchParams)) {
     weather = demoWeather(date);
   } else {
     const location = await resolveLocation(url, env);
@@ -84,14 +84,14 @@ export async function handleBadge(request: Request, env: AssetsEnv): Promise<Res
   // requireDayForecastが担う）
   const svg = buildBadgeSvg(requireDayForecast(weather.hours, date).outdoorWorst);
   return new Response(svg, {
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff',
-      // 直接開かれてもスクリプトを実行させない（組み立てたSVGに実行要素はないが多層防御）
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
-      // 埋め込み先のPVごとに上流へ向かわないよう、予報APIと同じブラウザキャッシュを付ける
-      'Cache-Control': `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`,
-    },
+    // 共通ヘッダー（CORS・nosniff・キャッシュ）はapiHeadersへ集約。
+    // 埋め込み先のPVごとに上流へ向かわないよう、予報APIと同じブラウザキャッシュを付ける
+    headers: apiHeaders('image/svg+xml; charset=utf-8', {
+      cacheable: true,
+      extra: {
+        // 直接開かれてもスクリプトを実行させない（組み立てたSVGに実行要素はないが多層防御）
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+      },
+    }),
   });
 }

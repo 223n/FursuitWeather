@@ -169,6 +169,27 @@ describe('fetchGeocoding（郵便番号）', () => {
     expect(calls[1]).toContain(`name=${encodeURIComponent('蒲郡市')}`);
   });
 
+  it('カタカナ長音を含む地名は長音のまま検索する（郵便番号用のハイフン正規化を適用しない）', async () => {
+    // 「オホーツク」の長音をハイフン化すると上流の地名検索が0件になる回帰の防止
+    const calls: string[] = [];
+    const impl = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return new Response(
+        JSON.stringify({
+          results: [
+            { name: 'オホーツク', admin1: '北海道', latitude: 44.0, longitude: 143.0, country_code: 'JP' },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const results = await fetchGeocoding('オホーツク', impl);
+    expect(results).toHaveLength(1);
+    expect(calls[0]).toContain(encodeURIComponent('オホーツク'));
+    expect(calls[0]).not.toContain(encodeURIComponent('オホ-ツク'));
+  });
+
   it('zipcloudで住所が引けない場合はハイフン有無の両形式で直接検索する', async () => {
     const { impl, calls } = routePostal({
       zipcloud: () =>

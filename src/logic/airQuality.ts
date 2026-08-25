@@ -4,16 +4,12 @@
 
 import { AIR_QUALITY, AIR_QUALITY_ADVICE, AIR_QUALITY_LABELS } from '../constants';
 import type { AirQualityAssessment, AirQualityLevelId } from '../types';
+import { round1 } from './round';
 
 /** 1日分の大気質の生値（時間別の並び。欠測時間は含めない） */
 export interface AirQualityValues {
   pm25: readonly number[];
   dust: readonly number[];
-}
-
-/** 小数1桁へ丸める */
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
 }
 
 /** PM2.5の日平均と黄砂の最大濃度からレベルを判定する（欠測側は判定に使わない） */

@@ -5,25 +5,43 @@
 import { RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
 import { UpstreamError } from '../weather/upstream';
 
+/**
+ * 全APIエンドポイント共通のレスポンスヘッダーを組み立てる
+ * （CORS・nosniff・キャッシュ方針の単一情報源。JSONのほかSVG・iCalの応答も使う）
+ *
+ * @param extra CSP・Content-Dispositionなどエンドポイント固有の追加ヘッダー
+ */
+export function apiHeaders(
+  contentType: string,
+  options: { cacheable?: boolean; extra?: Record<string, string> } = {},
+): Record<string, string> {
+  const { cacheable = false, extra = {} } = options;
+  return {
+    'Content-Type': contentType,
+    // 個人開発の公開APIとして他サイトからの利用も許可する
+    'Access-Control-Allow-Origin': '*',
+    // Content-Typeを無視した推測実行を防ぐ（静的アセット側はpublic/_headersで設定）
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': cacheable ? `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}` : 'no-store',
+    ...extra,
+  };
+}
+
+/** デモモード指定（?demo=1）か。デモフラグの仕様（パラメータ名・値）の単一情報源 */
+export function isDemoRequest(params: URLSearchParams): boolean {
+  return params.get('demo') === '1';
+}
+
 /** JSONレスポンスを生成する */
 export function json(
   body: unknown,
   options: { status?: number; cacheable?: boolean } = {},
 ): Response {
   const { status = 200, cacheable = false } = options;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json; charset=utf-8',
-    // 個人開発の公開APIとして他サイトからの利用も許可する
-    'Access-Control-Allow-Origin': '*',
-    // Content-Typeを無視した推測実行を防ぐ（静的アセット側はpublic/_headersで設定）
-    'X-Content-Type-Options': 'nosniff',
-  };
-  if (cacheable) {
-    headers['Cache-Control'] = `public, max-age=${RESPONSE_CACHE_MAX_AGE_SECONDS}`;
-  } else {
-    headers['Cache-Control'] = 'no-store';
-  }
-  return new Response(JSON.stringify(body), { status, headers });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: apiHeaders('application/json; charset=utf-8', { cacheable }),
+  });
 }
 
 /** エラーレスポンスを生成する（cacheableを渡さないことでエラー=no-storeの契約を保つ） */

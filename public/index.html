@@ -210,6 +210,9 @@
       <div class="displayed-location">
         <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
         <p id="location-label" class="location-label"></p>
+        <!-- 地点ラベル直下の常設注記（開催日が予報範囲外のイベント表示など）。
+             一過性の#statusと違い「予報を更新」で消えない（表示制御はapp.js） -->
+        <p id="location-note" class="location-note" hidden></p>
         <div class="control-row" role="group" aria-label="表示中の地点の操作">
           <button type="button" id="reload-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-arrows-rotate"/></svg>予報を更新</button>
           <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>

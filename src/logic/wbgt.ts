@@ -2,6 +2,7 @@
 // 小野ら（2014）の推定式を使用する。環境省の実況推定値・予測値と同一の手法
 
 import { INDOOR_WIND_SPEED, ONO_2014 } from '../constants';
+import { round1 } from './round';
 
 /**
  * 屋外WBGTを推定する
@@ -45,7 +46,7 @@ export function estimateIndoorWbgt(temperature: number, humidity: number): numbe
   return estimateOutdoorWbgt(temperature, humidity, 0, INDOOR_WIND_SPEED);
 }
 
-/** 小数1桁に丸める（表示・比較用） */
+/** 小数1桁に丸める（表示・比較用。実装はlogic/round.tsの単一定義へ委譲する） */
 export function roundWbgt(value: number): number {
-  return Math.round(value * 10) / 10;
+  return round1(value);
 }

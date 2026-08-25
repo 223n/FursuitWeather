@@ -9,7 +9,7 @@ import { demoWeather } from '../weather/demoData';
 import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
 import { requireDayForecast } from './daySummary';
-import { json } from './http';
+import { isDemoRequest, json } from './http';
 
 /** 気象データから1都市分の当日サマリーを組み立てる */
 function buildCitySummary(
@@ -59,7 +59,7 @@ export async function handleNational(request: Request): Promise<Response> {
 
   let cities: NationalCitySummary[];
   let model: string;
-  if (new URL(request.url).searchParams.get('demo') === '1') {
+  if (isDemoRequest(new URL(request.url).searchParams)) {
     // デモは上流を呼ばず、全都市同一の気象データで応答する（表示確認用）
     const weather = demoWeather(date);
     cities = NATIONAL_CITIES.map((city) => buildCitySummary(city, weather, date));

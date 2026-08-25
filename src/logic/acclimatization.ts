@@ -5,6 +5,7 @@
 
 import { SUDDEN_HEAT } from '../constants';
 import type { HourlyWeather, SuddenHeatWarning } from '../types';
+import { round1 } from './round';
 import { dateOf } from './time';
 
 /**
@@ -61,7 +62,7 @@ export function assessSuddenHeat(
 
   return {
     date: targetDate,
-    recentAverageMax: Math.round(average * 10) / 10,
+    recentAverageMax: round1(average),
     targetMax,
   };
 }

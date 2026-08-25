@@ -8,7 +8,7 @@ import { dateOf, todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
-import { json, jsonError, parseLatLonParams } from './http';
+import { isDemoRequest, json, jsonError, parseLatLonParams } from './http';
 
 /**
  * GET /api/forecast?lat=35.68&lon=139.68&days=4
@@ -22,7 +22,7 @@ export async function handleForecast(request: Request): Promise<Response> {
   let weather: WeatherResult;
   let model: string;
 
-  if (params.get('demo') === '1') {
+  if (isDemoRequest(params)) {
     weather = demoWeather(todayInJst(now));
     model = 'demo';
   } else {

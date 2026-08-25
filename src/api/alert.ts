@@ -6,7 +6,7 @@
 
 import { fetchAlertFor, type AlertResult } from '../weather/alert';
 import { todayInJst } from '../logic/time';
-import { json, parseLatLonParams } from './http';
+import { isDemoRequest, json, parseLatLonParams } from './http';
 
 /**
  * GET /api/alert?lat=35.68&lon=139.68
@@ -18,7 +18,7 @@ export async function handleAlert(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const date = todayInJst(new Date());
 
-  if (params.get('demo') === '1') {
+  if (isDemoRequest(params)) {
     const alert: AlertResult = { prefectureName: '東京都', special: false, targetDate: date };
     return json({ alert }, { cacheable: true });
   }

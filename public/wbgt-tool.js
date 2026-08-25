@@ -147,6 +147,17 @@
     );
 
     resultArea.replaceChildren(list);
+    // 低温側の注記: 低温判定（汗冷え・凍結）は体感温度ベースのため、WBGTの
+    // 実測値からは判定できない。低い実測値で暑熱側の「ほぼ安全（45分）」だけを
+    // 見て危険側に楽観しないよう、予報画面の低温判定への導線を添える
+    // （しきい値15はsrc/constants.tsのCOLD_SWITCH_TEMPERATUREと同じ目安）
+    if (suitWbgt < 15) {
+      const coldNote = document.createElement('p');
+      coldNote.className = 'hint';
+      coldNote.textContent =
+        '低温側の判定（汗冷え・凍結のリスク）はこのツールでは行いません。寒い環境では予報画面の低温判定も併せて確認してください。';
+      resultArea.appendChild(coldNote);
+    }
     // 厳重警戒（grade 3）以上は応急対応ページへの導線を結果の直下に出す
     // （判定カード（now-card）と同じ方針。実測で危険と分かった瞬間に手順を探させない）
     if (band.grade >= 3) {
@@ -250,8 +261,14 @@
       remove.textContent = '削除';
       remove.setAttribute('aria-label', `${formatLogTime(entry.at)}の記録を削除`);
       remove.addEventListener('click', () => {
+        // 記録の同定は描画時のインデックスではなく内容（記録時刻at）で行う。
+        // 別タブでの追加・削除により保存内容が描画後に変わっていても、
+        // 位置ずれで意図しない記録を消さない（同時刻の重複は先頭の1件を消す）
         const latest = readLog().filter(isValidEntry);
-        latest.splice(i, 1);
+        const target = latest.findIndex((candidate) => candidate.at === entry.at);
+        if (target >= 0) {
+          latest.splice(target, 1);
+        }
         writeLog(latest);
         renderLog();
         // 押した削除ボタンは表の再描画で消えるため、フォーカスを迷子にしない

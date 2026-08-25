@@ -171,12 +171,20 @@ async function searchByNameWithCitySuffixes(
   return searchFirstMatch(retryQueries, '地点検索の接尾辞補完を時間切れで打ち切り:', query, fetchImpl);
 }
 
-/** 全角の数字・ハイフン類を半角へ正規化する */
+/** 全角の数字を半角へ正規化する
+ * 長音「ー」などのハイフン類はここでは触らない（地名検索にも使う文字列のため。
+ * 「オホーツク」のようなカタカナ地名の長音をハイフン化すると検索が0件になる） */
 function normalizeQuery(query: string): string {
   return query
     .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
-    .replace(/[ー−‐―ｰ]/g, '-')
     .trim();
+}
+
+/** 郵便番号判定用に数字だけを取り出す
+ * IME入力の「123ー4567」（カタカナ長音）や全角ハイフンの救済は、
+ * 郵便番号のこの判定に限定する（地名検索の文字列には適用しない） */
+function zipDigitsOf(normalized: string): string {
+  return normalized.replace(/[ー−‐―ｰ-]/g, '');
 }
 
 /** zipcloudから得た住所のうち、地点検索に使う部分 */
@@ -293,7 +301,7 @@ export async function fetchGeocoding(
   fetchImpl: typeof fetch = fetch,
 ): Promise<GeocodeResult[]> {
   const normalized = normalizeQuery(query);
-  const digits = normalized.replace(/-/g, '');
+  const digits = zipDigitsOf(normalized);
 
   if (!/^\d{7}$/.test(digits)) {
     return searchByNameWithCitySuffixes(normalized, fetchImpl);

@@ -77,11 +77,7 @@ export function buildHtmlCsp(nonce: string): string {
  *   （リンクカードへの当日判定表示。src/ogp.tsのogSummaryForが組み立てる。
  *   setAttributeは属性値をエスケープするため、文言に判定ラベル等を含めても安全）
  */
-export async function withNonce(
-  asset: Response,
-  nonce: string,
-  og?: OgSummary,
-): Promise<Response> {
+export function withNonce(asset: Response, nonce: string, og?: OgSummary): Response {
   let rewriter = new HTMLRewriter()
     .on('script', {
       element(element): void {

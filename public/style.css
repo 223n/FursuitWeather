@@ -577,6 +577,22 @@ input[type='number'] {
   vertical-align: -0.15em;
 }
 
+/* 地点ラベル直下の常設注記（開催日の予報ではない、など）。
+   #statusの注意状態と同じ「注意」レベルの配色+△!アイコンで、
+   「予報を更新」でステータスが流れても画面に残り続ける */
+.location-note {
+  background-color: var(--level-1-surface);
+  border-left: 4px solid var(--level-1-accent);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.location-note > .fa-icon {
+  color: var(--level-1-accent);
+  margin-right: 0.4rem;
+  vertical-align: -0.15em;
+}
+
 /* エラーの△!アイコン（注意状態と同形式。色だけに頼らせない） */
 #status-error > .fa-icon {
   color: var(--color-red);
@@ -1480,9 +1496,12 @@ section h3 {
    サイト名が読めなくなる。印刷時は背景を外し、本文と同じ濃色文字で出す
    （「背景も印刷する」設定でも濃色文字on青帯の低コントラストにならない） */
 /* コントラスト強化の希望（prefers-contrast: more）へ自動で追随する。
-   薄めの境界・控えめな文字色を、それぞれ濃い側のトークンへ寄せる */
+   薄めの境界・控えめな文字色を、それぞれ濃い側のトークンへ寄せる。
+   セレクタを:root:root（詳細度0,2,0）にするのは、ダークモードのトークン定義
+   （:root:not([data-theme='light'])、同0,2,0）に詳細度で負けないため。
+   同詳細度なら後勝ちでこのブロックが適用され、ライト・ダーク両方で強化が効く */
 @media (prefers-contrast: more) {
-  :root {
+  :root:root {
     --color-border-subtle: var(--color-border);
     --color-text-muted: var(--color-text);
   }

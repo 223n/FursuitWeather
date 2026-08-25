@@ -6,7 +6,7 @@
 // 全リクエストで上流を呼ぶとエッジ配信の速さを損なうだけで益がない）。
 // 取得はベストエフォート: 失敗時はnullを返し、静的タグのまま配信する
 
-import { parseLatLonParams } from './api/http';
+import { isDemoRequest, parseLatLonParams } from './api/http';
 import { NATIONAL_CITIES } from './constants';
 import { buildDayForecastFor } from './logic/forecast';
 import { nearestPoint } from './logic/geo';
@@ -114,10 +114,9 @@ export async function ogSummaryFor(
     // /api/nationalと同じ日付固定の取得にする（当日1日分・エッジキャッシュも共有される）。
     // demo=1は上流なしのデモデータで応答する（/api/forecastと同じ死活確認手段）
     const date = todayInJst(new Date());
-    const weather =
-      url.searchParams.get('demo') === '1'
-        ? demoWeather(date)
-        : await fetchWeatherForDate(latitude, longitude, date, fetchImpl);
+    const weather = isDemoRequest(url.searchParams)
+      ? demoWeather(date)
+      : await fetchWeatherForDate(latitude, longitude, date, fetchImpl);
     const day = buildDayForecastFor(weather.hours, date);
     if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する

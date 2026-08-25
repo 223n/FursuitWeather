@@ -545,7 +545,16 @@
       // この取得より後に設定が変わっている（古い結果は捨てる）
       return;
     }
-    extraSummaries = results.filter(Boolean);
+    // 一時的な取得失敗（会場Wi-Fiの不調など）の都市は前回のサマリーを引き継ぐ。
+    // 他の取得系（地点予報・全国・公式発表）と同じ「失敗時は前回データを保持」の
+    // 方針で、次のポーリングまで約31分スライドから黙って消えるのを防ぐ
+    extraSummaries = results.map((result, index) => {
+      if (result) {
+        return result;
+      }
+      const extra = settings.extras[index];
+      return extraSummaries.find((summary) => summary.name === extra.name) ?? null;
+    }).filter(Boolean);
   }
 
   /** 追加都市の変更後の共通後処理: サマリーを取り直し、全国スライド表示中なら
@@ -1473,6 +1482,9 @@
       // ブラウザキャッシュ（10分）に残る前日データを避けて取り直す
       refreshForecast(true);
       refreshNational();
+      // 環境省の公式発表も取り直す。取得に失敗してもrefreshAlert内の対象日
+      // チェックが走り、前日の警戒帯が最大31分残り続けるのを防ぐ（終夜運転対策）
+      refreshAlert();
       renderShared();
       renderCurrentSlide();
     }
