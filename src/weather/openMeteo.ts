@@ -44,6 +44,18 @@ interface OpenMeteoResponse {
   longitude: number;
   timezone: string;
   hourly: { time: string[] } & Record<(typeof HOURLY_FIELDS)[number], (number | null)[]>;
+  /** 日の出・日の入り（daily=sunrise,sunset指定時のみ。補助情報のため無くてもよい） */
+  daily?: {
+    time?: unknown;
+    sunrise?: unknown;
+    sunset?: unknown;
+  };
+}
+
+/** 1日分の日の出・日の入り時刻（HH:mm、欠測はnull） */
+export interface SunTimes {
+  sunrise: string | null;
+  sunset: string | null;
 }
 
 /**
@@ -72,6 +84,8 @@ export function buildForecastUrl(
     // 急な暑さ（暑熱順化前）の判定用に、直近の実績も同じ応答で受け取る
     // （上流コール数は増えない。日付固定の取得（/api/national）には付けない）
     params.set('past_days', String(SUDDEN_HEAT.baselineDays));
+    // 日の出・日の入りも同じ応答で受け取る（補助情報。欠けても本体は成功させる）
+    params.set('daily', 'sunrise,sunset');
   } else {
     params.set('start_date', date);
     params.set('end_date', date);
@@ -145,6 +159,37 @@ export interface WeatherResult {
   latitude: number;
   longitude: number;
   timezone: string;
+  /** 日付（YYYY-MM-DD）→日の出・日の入り。daily未取得・形式異常時は空のMap */
+  sunTimes: Map<string, SunTimes>;
+}
+
+/** 日の出・日の入りのローカル時刻文字列（YYYY-MM-DDTHH:mm）からHH:mmを取り出す */
+function timeOfDayOf(value: unknown): string | null {
+  return typeof value === 'string' && TIME_PATTERN.test(value) ? value.slice(11, 16) : null;
+}
+
+/**
+ * dailyブロックから日付→日の出・日の入りのMapを作る（ベストエフォート）
+ * 補助情報のため、形式異常は黙って空のMapに落とす（本体の応答を巻き込まない）
+ */
+function parseSunTimes(daily: OpenMeteoResponse['daily']): Map<string, SunTimes> {
+  const sunTimes = new Map<string, SunTimes>();
+  const dates = daily?.time;
+  const sunrises = daily?.sunrise;
+  const sunsets = daily?.sunset;
+  if (!Array.isArray(dates) || !Array.isArray(sunrises) || !Array.isArray(sunsets)) {
+    return sunTimes;
+  }
+  for (let i = 0; i < dates.length; i += 1) {
+    const date = dates[i];
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      sunTimes.set(date, {
+        sunrise: timeOfDayOf(sunrises[i]),
+        sunset: timeOfDayOf(sunsets[i]),
+      });
+    }
+  }
+  return sunTimes;
 }
 
 /**
@@ -184,6 +229,7 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
     latitude: candidate.latitude,
     longitude: candidate.longitude,
     timezone: candidate.timezone,
+    sunTimes: parseSunTimes(candidate.daily),
   };
 }
 

@@ -941,6 +941,14 @@ tbody tr.night {
   color: var(--level-2-accent);
 }
 
+/* 時間別テーブルの日の入りマーク（時刻セル内の小さな注記） */
+.sunset-note {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-icon-warm);
+  white-space: nowrap;
+}
+
 /* 時間別テーブルの強風セル（色だけに頼らず風アイコンを併記する） */
 .wind-caution {
   color: var(--level-2-accent);

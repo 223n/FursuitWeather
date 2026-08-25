@@ -255,6 +255,12 @@ components:
         temperatureMax: { type: number }
         weatherCode: { type: integer, description: 日中の代表天気コード }
         weatherLabel: { type: string }
+        sunrise:
+          type: [string, 'null']
+          description: 日の出時刻（HH:mm）。上流が提供しない・欠測時はnull
+        sunset:
+          type: [string, 'null']
+          description: 日の入り時刻（HH:mm）。上流が提供しない・欠測時はnull
         outdoorWorst: { $ref: '#/components/schemas/LevelSummary' }
         outdoorBest: { $ref: '#/components/schemas/LevelSummary' }
         recommendedHours:

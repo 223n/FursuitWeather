@@ -85,5 +85,10 @@ export function demoWeather(startDate: string): WeatherResult {
     latitude: 35.6785,
     longitude: 139.6823,
     timezone: 'Asia/Tokyo',
+    // 真夏の東京の典型的な日の出・日の入り（デモでも日没表示を確認できるようにする）
+    sunTimes: new Map([
+      [startDate, { sunrise: '05:00', sunset: '18:30' }],
+      [nextDate, { sunrise: '05:01', sunset: '18:29' }],
+    ]),
   };
 }

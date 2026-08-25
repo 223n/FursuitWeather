@@ -609,6 +609,11 @@
       }
       addRow('最大風速', windValue);
     }
+    // 日の入り（上流が提供しない場合は行ごと出さない）。イベントの終了時刻の
+    // 判断や撤収計画に使えるよう、日の出も括弧書きで添える
+    if (day.sunset) {
+      addRow('日の入り', day.sunrise ? `${day.sunset}（日の出 ${day.sunrise}）` : day.sunset);
+    }
     const laundryValue = badgeWithText(
       { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
       null,
@@ -908,6 +913,10 @@
     hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
     hoursBody.replaceChildren();
 
+    // 日の入りの区切りマーク用（その日のデータが無ければ出さない）
+    const selectedDay = currentForecast.days.find((d) => d.date === selectedDate);
+    const sunset = selectedDay ? selectedDay.sunset : null;
+
     for (const hour of hours) {
       const row = document.createElement('tr');
       const hourNumber = hourNumberOf(hour.time);
@@ -926,6 +935,14 @@
       const timeHeader = document.createElement('th');
       timeHeader.scope = 'row';
       timeHeader.textContent = `${String(hourNumber).padStart(2, '0')}:00`;
+      // 日の入りを含む時間帯の行に目印を付ける（照明・撤収準備の目安）
+      if (sunset && hourNumber === Number(sunset.slice(0, 2))) {
+        const sunsetNote = document.createElement('span');
+        sunsetNote.className = 'sunset-note';
+        sunsetNote.textContent = `日の入り ${sunset}`;
+        timeHeader.appendChild(document.createElement('br'));
+        timeHeader.appendChild(sunsetNote);
+      }
       row.appendChild(timeHeader);
       addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
@@ -1864,6 +1881,23 @@
         ),
       );
       notes.appendChild(rainNote);
+    }
+    // 終了時刻が日の入りの後なら、暗さ・冷え込みへの備えを促す
+    const planDay = currentForecast.days.find((d) => d.date === planDateValue);
+    if (planDay && planDay.sunset) {
+      const sunsetMinutes =
+        Number(planDay.sunset.slice(0, 2)) * 60 + Number(planDay.sunset.slice(3, 5));
+      if (end * 60 > sunsetMinutes) {
+        const sunsetNote = document.createElement('li');
+        sunsetNote.appendChild(faIcon('sun', 'btn-icon'));
+        sunsetNote.appendChild(
+          document.createTextNode(
+            `終了に選んだ${end}時は日の入り（${planDay.sunset}）の後です。` +
+              '照明の準備と、日没後の冷え込み・視界の悪化にご注意ください。',
+          ),
+        );
+        notes.appendChild(sunsetNote);
+      }
     }
     const generalNote = document.createElement('li');
     generalNote.textContent =

@@ -100,6 +100,7 @@ WBGT計算に必要な気象値（気温・湿度・体感温度・風速・日�
 | `date` | string | 日付（YYYY-MM-DD） |
 | `temperatureMin`・`temperatureMax` | number | 最低・最高気温（℃） |
 | `weatherCode`・`weatherLabel` | number・string | 日中の代表天気 |
+| `sunrise`・`sunset` | string・null | 日の出・日の入り時刻（`HH:mm`）。上流が提供しない場合・欠測時は`null` |
 | `outdoorWorst`・`outdoorBest` | object | 日中（9〜18時）の最も厳しい／穏やかな屋外判定（`level`・`label`・`grade`） |
 | `recommendedHours` | string[] | 屋外活動に適した時間帯（`HH:00`形式）。日中（9〜18時）のうち深刻度1以下かつ降水量0の時間帯が対象 |
 | `coolingRequired` | boolean | 日中に冷房必須となる時間があるか |

@@ -115,6 +115,10 @@ export interface DayForecast {
   /** 日中の代表天気コード（日中データがない日は全時間帯で代替） */
   weatherCode: number;
   weatherLabel: string;
+  /** 日の出時刻（HH:mm）。上流が提供しない・欠測時はnull */
+  sunrise: string | null;
+  /** 日の入り時刻（HH:mm）。上流が提供しない・欠測時はnull */
+  sunset: string | null;
   /** 日中（9〜18時）の最も厳しい屋外判定（日中データがない日は全時間帯で代替） */
   outdoorWorst: LevelSummary;
   /** 日中（9〜18時）の最も穏やかな屋外判定（日中データがない日は全時間帯で代替） */

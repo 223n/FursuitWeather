@@ -32,8 +32,19 @@ export function buildHourForecast(weather: HourlyWeather): HourForecast {
   };
 }
 
-/** 日別サマリーを組み立てる */
-export function buildDayForecast(date: string, hours: readonly HourForecast[]): DayForecast {
+/** 1日分の日の出・日の入り（HH:mm、欠測はnull）。src/weather/openMeteo.tsのSunTimesと同形 */
+export interface DaySunTimes {
+  sunrise: string | null;
+  sunset: string | null;
+}
+
+/** 日別サマリーを組み立てる
+ * @param sun 日の出・日の入り（補助情報。取得できなかった日はnullのまま） */
+export function buildDayForecast(
+  date: string,
+  hours: readonly HourForecast[],
+  sun?: DaySunTimes,
+): DayForecast {
   const temperatures = hours.map((h) => h.weather.temperature);
   const daytime = filterByHourRange(hours, DAYTIME_START_HOUR, DAYTIME_END_HOUR);
   // 日中データがない日（取得初日の夜間のみなど）は全時間帯で代替する
@@ -64,6 +75,8 @@ export function buildDayForecast(date: string, hours: readonly HourForecast[]): 
     temperatureMax: Math.max(...temperatures),
     weatherCode: representative.weather.weatherCode,
     weatherLabel: representative.weatherLabel,
+    sunrise: sun?.sunrise ?? null,
+    sunset: sun?.sunset ?? null,
     outdoorWorst: toSummary(worst),
     outdoorBest: toSummary(best),
     recommendedHours,
@@ -83,6 +96,7 @@ export function buildForecast(
   location: ForecastLocation,
   model: string,
   generatedAt: string,
+  sunTimes: ReadonlyMap<string, DaySunTimes> = new Map(),
 ): ForecastResponse {
   const hours = weatherHours.map(buildHourForecast);
 
@@ -98,7 +112,7 @@ export function buildForecast(
   }
 
   const days = [...byDate.entries()].map(([date, dayHours]) =>
-    buildDayForecast(date, dayHours),
+    buildDayForecast(date, dayHours, sunTimes.get(date)),
   );
 
   return {
