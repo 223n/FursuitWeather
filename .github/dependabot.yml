@@ -14,6 +14,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # typescript 7系はtypescript-eslintが未対応（対応範囲>=4.8.4 <6.1.0、PR #66参照）
+    # のためlintが起動できない。typescript-eslintの対応後にこのignoreを外して追従する
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
