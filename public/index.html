@@ -241,8 +241,9 @@
       <div id="status-error" class="status-box" role="alert"></div>
     </div>
 
-    <!-- 前回見た予報との差分バナー（3時間以上あいた再訪で判定が変わったときだけ表示） -->
-    <div id="diff-banner" class="diff-banner" hidden></div>
+    <!-- 前回見た予報との差分バナー（3時間以上あいた再訪で判定が変わったときだけ表示）。
+         role=statusで判定の変化（悪化を含む）をスクリーンリーダーにも通知する -->
+    <div id="diff-banner" class="diff-banner" role="status" hidden></div>
 
     <!-- タブ: 主要コンテンツを切り替えて縦の長さを抑える（WAI-ARIAタブパターン、
          矢印キーで移動+自動選択）。時間別の3タブは同じパネルを日付を変えて共有する -->
@@ -405,7 +406,10 @@
         </div>
       </div>
       <div id="wbgt-log-section" class="wbgt-log-section" hidden>
-        <h3 id="wbgt-log-heading">会場ログ（この端末に保存）</h3>
+        <!-- 見出しは行削除後のフォーカスの返し先（tabindex=-1でスクリプトからのみ受け取る） -->
+        <h3 id="wbgt-log-heading" tabindex="-1">会場ログ（この端末に保存）</h3>
+        <!-- 記録・削除の完了通知（判定結果の表示を上書きしないよう別領域にする） -->
+        <p id="wbgt-log-status" class="hint" role="status"></p>
         <div class="table-wrapper">
           <table id="wbgt-log-table" aria-labelledby="wbgt-log-heading">
             <caption class="sr-only">実測WBGTの記録。行ごとに記録時刻、場所、実測値、補正後の値、判定、削除ボタンを示します。</caption>
@@ -546,8 +550,9 @@
         <button type="button" id="timer-stop-button">タイマー終了</button>
       </div>
       <p class="hint">
-        対応端末では表示中に画面が消灯しません。着用中は残り5分と超過を音・バイブ・表示でお知らせします。
-        判定は約10分ごとに最新の予報で更新されます。
+        対応端末では表示中に画面が消灯しません。残り5分と超過は表示でお知らせし、
+        対応端末では音・バイブも鳴ります（消音設定の端末では鳴りません）。
+        判定は約10分ごとに、開始時の地点の最新の予報で更新されます。
       </p>
     </div>
   </div>

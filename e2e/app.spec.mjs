@@ -855,6 +855,41 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await expect(page.locator('#timer-overlay')).toBeHidden();
 });
 
+test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の手順・保冷剤を出さない', async ({
+  page,
+}) => {
+  // 全時間帯を低温警戒（grade 2）へ差し替える（デモデータは夏日のため）
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    body.hours = body.hours.map((hour) => ({
+      ...hour,
+      outdoor: {
+        ...hour.outdoor,
+        level: 'coldWarning',
+        label: '低温警戒',
+        grade: 2,
+        activityMinutes: 20,
+        advice: '防寒と休憩を優先してください。',
+      },
+    }));
+    await route.fulfill({ json: body });
+  });
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+
+  // 低温警戒（grade 2）で熱中症向けの冷却手順が混ざらないこと
+  await expect(page.locator('.rest-guide')).toContainText('温かい飲み物');
+  await expect(page.locator('.rest-guide')).not.toContainText('冷たい水');
+  await expect(page.locator('.rest-guide')).not.toContainText('冷房の効いた室内');
+  await expect(page.locator('#packing-list')).not.toContainText('保冷剤');
+  await expect(page.locator('#packing-list')).toContainText('カイロ');
+});
+
 test('着用タイマー: 判定が「着用中止」のときは開始できない', async ({ page }) => {
   // 昼14時（危険レベル・着用中止）に固定する
   await mockForecastFixedHour(page, '14');

@@ -131,18 +131,22 @@ describe('静的HTMLとconstantsの同期', () => {
   });
 
   it('文字サイズの対応表はprefs.js（適用）とapp.js（切り替えUI）で一致する', () => {
-    // 片側だけの変更で「選んだサイズと適用されるサイズが食い違う」のを防ぐ
+    // 片側だけの変更で「選んだサイズと適用されるサイズが食い違う」のを防ぐ。
+    // 期待値の再ハードコードではなく両ファイルの定義を抽出して突き合わせ、
+    // サイズの追加・削除時の同期漏れも検出できるようにする
     const sizes = appJs.match(/const FONT_SIZES = \[([\s\S]*?)\];/);
     expect(sizes).not.toBeNull();
-    for (const [id, size] of [
-      ['standard', '100%'],
-      ['large', '115%'],
-      ['xlarge', '130%'],
-    ]) {
-      expect(sizes![1]).toContain(`id: '${id}'`);
-      expect(sizes![1]).toContain(`size: '${size}'`);
-      expect(prefsJs).toContain(`${id}: '${size}'`);
-    }
+    const appPairs = [
+      ...(sizes![1] ?? '').matchAll(/id: '(\w+)', label: '[^']+', size: '(\d+%)'/g),
+    ].map((m) => [m[1], m[2]]);
+    const prefsBlock = prefsJs.match(/const SIZES = \{([\s\S]*?)\};/);
+    expect(prefsBlock).not.toBeNull();
+    const prefsPairs = [...(prefsBlock![1] ?? '').matchAll(/(\w+): '(\d+%)'/g)].map((m) => [
+      m[1],
+      m[2],
+    ]);
+    expect(appPairs.length).toBeGreaterThanOrEqual(3);
+    expect(prefsPairs).toEqual(appPairs);
   });
 
   it('強風・雷のしきい値の複製（app.js）はconstantsと一致する', () => {
