@@ -7,6 +7,7 @@ import { buildForecast } from '../logic/forecast';
 import { dateOf, todayInJst } from '../logic/time';
 import { demoWeather } from '../weather/demoData';
 import { fetchWeather, type WeatherResult } from '../weather/openMeteo';
+import { UpstreamError } from '../weather/upstream';
 import { json, jsonError } from './http';
 
 /** 数値クエリパラメータを解析する。欠落・非数値はnullを返す */
@@ -64,6 +65,14 @@ export async function handleForecast(request: Request): Promise<Response> {
   const today = todayInJst(now);
   const pastHours = weather.hours.filter((hour) => dateOf(hour.time) < today);
   const currentHours = weather.hours.filter((hour) => dateOf(hour.time) >= today);
+
+  // JSTの日付またぎ×上流エッジキャッシュ（30分）の窓では、キャッシュ済み応答の
+  // 全時間が「過去」に分類され得る。空の予報を200+キャッシュ可で返すと
+  // 空画面が最大10分残るため、上流異常と同じ扱い（502・no-store）で失敗させる
+  if (currentHours.length === 0) {
+    console.error('予報データが日付またぎで全て過去に分類されました:', today, weather.hours.length);
+    throw new UpstreamError('気象データの取得に失敗しました。時間をおいて再度お試しください');
+  }
 
   const forecast = buildForecast(
     currentHours,

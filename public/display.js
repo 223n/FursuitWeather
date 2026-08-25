@@ -310,13 +310,14 @@
       message: '',
     };
 
-  /** もしものときスライドを表示するか（設定ON、または現在判定が厳重警戒以上） */
+  /** もしものときスライドを表示するか（設定ON、または現在判定が厳重警戒以上）。
+   * 低温側の危険（coldDanger）はgradeが同値でも熱中症の手順ではないため自動表示しない */
   function emergencySlideActive() {
     if (settings.emergency) {
       return true;
     }
     const target = currentHourTarget();
-    return Boolean(target) && target.outdoor.grade >= 3;
+    return Boolean(target) && target.outdoor.grade >= 3 && !target.outdoor.level.startsWith('cold');
   }
 
   /** 表示対象のスライド（設定で絞り込んだもの。空にはならない） */
@@ -823,17 +824,21 @@
     ];
     const list = document.createElement('ol');
     list.className = 'display-emergency-steps';
-    for (const [title, detail] of steps) {
+    steps.forEach(([title, detail], index) => {
       const item = document.createElement('li');
+      // 番号はCSSカウンターではなくDOMに置き、読み上げにも順序が伝わるようにする
+      const number = document.createElement('span');
+      number.className = 'display-emergency-number';
+      number.textContent = String(index + 1);
       const heading = document.createElement('span');
       heading.className = 'display-emergency-title';
       heading.textContent = title;
       const note = document.createElement('span');
       note.className = 'display-emergency-detail';
       note.textContent = detail;
-      item.replaceChildren(heading, note);
+      item.replaceChildren(number, heading, note);
       list.appendChild(item);
-    }
+    });
     const link = document.createElement('p');
     link.className = 'display-emergency-link';
     link.textContent = '詳しい手順: fursuit-weather.223n.tech/emergency';
@@ -1417,6 +1422,12 @@
   function tick() {
     const now = Date.now();
     updateClock();
+    // 判定の変化でactiveSlidesから外れたスライド（自動追加のもしものとき等）を
+    // 表示し続けない。1枚構成では自動送りが止まるため、ここで先頭へ寄せないと
+    // 外れたスライドが出たまま固まる
+    if (!activeSlides().some((slide) => slide.key === currentKey)) {
+      showSlide(currentSlide().key, true);
+    }
     if (
       !paused &&
       !settingsOpen &&

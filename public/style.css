@@ -451,7 +451,8 @@ input[type='number'] {
  * 実データ4行分（時刻・判定・アドバイス・屋内）の高さを常に確保する
  * （スケルトンはこの高さに収まる行数にしてある） */
 .now-card {
-  min-height: 9.5rem;
+  /* CLS対策の高さ確保。雷・応急対応の追加行（厳重警戒以上・雷予想時）を見込む */
+  min-height: 11rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -461,7 +462,7 @@ input[type='number'] {
 /* 狭い画面ではアドバイス文が折り返して縦に伸びるため、その分を確保する */
 @media (max-width: 48rem) {
   .now-card {
-    min-height: 11rem;
+    min-height: 12.5rem;
   }
 }
 
@@ -864,6 +865,16 @@ th {
   margin-right: 0.3em;
 }
 
+/* 横スクロール中も時刻列（行見出し）を左端に固定する（列が増えて表を
+   横にずらすと時刻が見えなくなる対策）。thは地色付きのため下の列は透けない。
+   collapseした罫線はstickyに追従しないため、右端の区切りはbox-shadowで描く */
+#hours-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--color-border-table);
+}
+
 tbody tr.night {
   background-color: var(--color-night-row);
 }
@@ -900,7 +911,8 @@ tbody tr.night {
 }
 
 #notices-list li {
-  margin-bottom: 0.4rem;
+  /* 色枠の注意（alert/caution）が複数並んでも読み分けられる間隔にする */
+  margin-bottom: 0.6rem;
 }
 
 /* 熱中症警戒アラート基準相当の注意（注意事項欄の先頭で枠付きで目立たせる） */
@@ -1101,6 +1113,12 @@ section h3 {
 .emergency-call-button:hover,
 .emergency-call-button:focus {
   text-decoration: underline;
+}
+
+/* リンクだがボタン相当の操作のため、サイト標準のフォーカスリングを付ける */
+.emergency-call-button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 /* 手順リスト（番号はマーカーではなく見出し内の丸数字で示し、枠と対応づける） */

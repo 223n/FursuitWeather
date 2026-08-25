@@ -26,6 +26,7 @@ export function assessSuddenHeat(
 
   // 過去分を日付ごとの最高気温へ集約する（対象日以降が紛れても除外する）
   const maxByDate = new Map<string, number>();
+  const samplesByDate = new Map<string, number>();
   for (const hour of pastHours) {
     const date = dateOf(hour.time);
     if (date >= targetDate) {
@@ -36,6 +37,15 @@ export function assessSuddenHeat(
       date,
       current === undefined ? hour.temperature : Math.max(current, hour.temperature),
     );
+    samplesByDate.set(date, (samplesByDate.get(date) ?? 0) + 1);
+  }
+
+  // 部分欠測の日（例: 夜間の数時間だけ残った日）は「その日の最高気温」が
+  // 実際より大きく低くなり、平均の過小→警告の出し過ぎにつながるため除外する
+  for (const [date, samples] of samplesByDate) {
+    if (samples < SUDDEN_HEAT.minSamplesPerDay) {
+      maxByDate.delete(date);
+    }
   }
 
   // 欠測が多いときは判定しない（不確かな比較で注意を出すより黙る方が安全）

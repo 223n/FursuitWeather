@@ -562,6 +562,11 @@
     const weatherContent = weatherWithLabel(day.weatherCode, day.weatherLabel);
     weatherContent.appendChild(createTemperatureRange(day.temperatureMin, day.temperatureMax));
     weatherLine.appendChild(weatherContent);
+    // 代表天気が雷でなくても、その日に雷を含む時間帯があれば天気行で知らせる
+    // （中止級の情報を注意欄まで読み進めなくても気付けるようにする）
+    if (hoursOnDate(day.date).some((h) => h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN)) {
+      weatherLine.appendChild(createWarningNote('雷予想あり'));
+    }
     card.appendChild(weatherLine);
 
     const list = document.createElement('dl');
@@ -602,7 +607,7 @@
       if (day.maxWindSpeed >= WIND_CAUTION_SPEED) {
         windValue.appendChild(createWarningNote('看板・テントの固定を確認'));
       }
-      addRow('最大風速（1時間平均）', windValue);
+      addRow('最大風速', windValue);
     }
     const laundryValue = badgeWithText(
       { ...(LAUNDRY_BADGES[day.laundry.level] ?? { grade: 2 }), label: day.laundry.label },
@@ -863,9 +868,24 @@
     indoor.appendChild(coolingBadge(target.indoor.cooling, target.indoor.coolingLabel));
 
     const children = [timeLine, headline, advice, indoor];
+    // 今日の予報に雷を含む天気があるときは、下部の注意欄より先に判定カードで知らせる
+    // （中止級の情報を上部だけ見て見落とさないため）
+    const thunderToday = currentForecast.hours.some(
+      (h) => h.time.slice(0, 10) === now.date && h.weather.weatherCode >= THUNDER_WEATHER_CODE_MIN,
+    );
+    if (thunderToday) {
+      const thunder = document.createElement('p');
+      thunder.className = 'now-emergency';
+      thunder.appendChild(faIcon('cloud-bolt', 'btn-icon'));
+      thunder.appendChild(
+        document.createTextNode('今日は雷が予想されています。雷鳴が聞こえたらすぐ中止を。'),
+      );
+      children.push(thunder);
+    }
     // 厳重警戒（grade 3）以上の時間帯は、応急対応ページへの導線を判定カード内に出す
-    // （体調不良が起きやすい状況で、手順を探させない）
-    if (target.outdoor.grade >= 3) {
+    // （体調不良が起きやすい状況で、手順を探させない）。
+    // 低温側の危険（coldDanger）はgradeが同値でも熱中症手順ではないため出さない
+    if (target.outdoor.grade >= 3 && !target.outdoor.level.startsWith('cold')) {
       const emergency = document.createElement('p');
       emergency.className = 'now-emergency';
       emergency.appendChild(faIcon('triangle-exclamation', 'btn-icon'));
@@ -997,20 +1017,22 @@
         'alert-notice',
         'cloud-bolt',
         `${thunderDays.join('、')}は雷を伴う天気が予想されています。` +
-          '雷鳴が聞こえたら屋外の着ぐるみ活動をすぐ中止し、建物の中へ避難してください。',
+          '雷鳴が聞こえたら屋外の着ぐるみ活動をすぐ中止し、建物か車の中へ避難してください' +
+          '（テント・木の下は危険です）。',
       );
     }
 
-    // 急な暑さ（暑熱順化前）: サーバーの判定（suddenHeat）があるときだけ表示する（黄枠）
+    // 急な暑さ（暑熱順化前）: サーバーの判定（suddenHeat）があるときだけ表示する（黄枠）。
+    // 「ここ数日」= 直近7日のうち十分なデータがある日の平均（欠測日は除外されるため
+    // 「1週間の平均」と言い切らない）。数値はconstants.tsのSUDDEN_HEATと同期
     const suddenHeat = currentForecast.suddenHeat;
     if (suddenHeat && typeof suddenHeat.recentAverageMax === 'number') {
       addNoticeItem(
         'caution-notice',
         'temperature-high',
         `${formatDate(suddenHeat.date)}は最高${suddenHeat.targetMax}℃と、` +
-          `ここ1週間の平均（${suddenHeat.recentAverageMax}℃）より5℃以上高くなる見込みです。` +
-          '体が暑さに慣れていない時期は熱中症になりやすいため、' +
-          '着用時間を普段より短くし、休憩と水分補給を増やしてください（暑熱順化の目安）。',
+          `ここ数日の平均（${suddenHeat.recentAverageMax}℃）より5℃以上高い見込みです。` +
+          '暑さに体が慣れていない時期は、着用時間を短くし休憩と水分補給を増やしてください。',
       );
     }
 
@@ -1022,9 +1044,8 @@
       addNoticeItem(
         'caution-notice',
         'wind',
-        `${windyDays.join('、')}は風速${WIND_CAUTION_SPEED}m/s以上（やや強い風）の時間帯があります。` +
-          '瞬間的にはさらに強く吹くことがあります。看板・テント・のぼりの固定と、' +
-          'ヘッド着用時の足元・視界にご注意ください。',
+        `${windyDays.join('、')}は風速${WIND_CAUTION_SPEED}m/s以上（「やや強い風」以上）の時間帯があります。` +
+          '瞬間的にはさらに強く吹くため、看板・テントの固定と視界にご注意ください。',
       );
     }
 

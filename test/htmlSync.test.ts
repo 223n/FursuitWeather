@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
+import readmeMd from '../README.md?raw';
 import apiMd from '../docs/api.md?raw';
 import logicMd from '../docs/logic.md?raw';
 import openapiYaml from '../docs/openapi.yaml?raw';
@@ -435,7 +436,32 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     expect(openapiYaml).toContain(
       `直近${SUDDEN_HEAT.baselineDays}日の`,
     );
+    expect(openapiYaml).toContain(`${SUDDEN_HEAT.temperatureRise}℃以上上回り`);
+    expect(openapiYaml).toContain(`${SUDDEN_HEAT.minTargetMax}℃以上のときに付く`);
     expect(openapiYaml).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
+    // app.jsの注意文の数値（フロントは定数を参照できないため文字列で検証する）
+    expect(appJs).toContain(`より${SUDDEN_HEAT.temperatureRise}℃以上高い見込み`);
+    // 凡例の強風マーク説明（index.html）
+    expect(html).toContain(`風速${WIND_CAUTION_SPEED}m/s以上（気象庁の「やや強い風」以上）`);
+    // READMEの機能説明の数値
+    expect(readmeMd).toContain(`強風（${WIND_CAUTION_SPEED}m/s以上）`);
+    expect(readmeMd).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を${SUDDEN_HEAT.temperatureRise}℃以上上回り`,
+    );
+    expect(readmeMd).toContain(`${SUDDEN_HEAT.minTargetMax}℃以上の日`);
+    // 部分欠測日の除外ルール（docs/logic.md）
+    expect(logicMd).toContain(`1日あたり${SUDDEN_HEAT.minSamplesPerDay}時間分以上`);
+  });
+
+  it('about.htmlのAPI仕様に新フィールド（suddenHeat・maxWbgt・maxWindSpeed）が記載されている', () => {
+    // docs/api.mdだけ更新されてaboutページが取り残されるのを防ぐ
+    for (const field of ['suddenHeat', 'recentAverageMax', 'maxWbgt', 'maxWindSpeed']) {
+      expect(aboutHtml).toContain(`<code>${field}</code>`);
+    }
+    expect(aboutHtml).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を${SUDDEN_HEAT.temperatureRise}℃以上上回り`,
+    );
+    expect(aboutHtml).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
   });
 
   it('判定ロジックの解説（docs/logic.md）のしきい値・係数はconstantsと一致する', () => {

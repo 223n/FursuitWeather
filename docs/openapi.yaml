@@ -135,7 +135,7 @@ components:
           description: 利用者向けの日本語メッセージ
     ForecastResponse:
       type: object
-      required: [location, generatedAt, model, attribution, notices, hours, days]
+      required: [location, generatedAt, model, attribution, notices, suddenHeat, hours, days]
       properties:
         location:
           type: object

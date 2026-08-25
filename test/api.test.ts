@@ -18,8 +18,9 @@ vi.mock('../src/weather/openMeteo', { spy: true });
 
 /** モックの気象データの対象日（実行時の日本時間の当日。
  * handleForecastが過去分を分離する（past_days対応）ため、固定日付だと
- * 実行日によっては全時間が「過去」に分類されてしまう） */
-const MOCK_DATE = todayInJst(new Date());
+ * 実行日によっては全時間が「過去」に分類されてしまう。
+ * JST 0時またぎの実行でのフレークを避けるため、テストごとに取り直す */
+let MOCK_DATE = todayInJst(new Date());
 
 /** Open-Meteoレスポンスのモックを作る */
 function openMeteoBody(): unknown {
@@ -73,6 +74,7 @@ function routeUpstream(
 }
 
 beforeEach(() => {
+  MOCK_DATE = todayInJst(new Date());
   // 上流エラー経路はconsole.errorへログするため、テスト出力を汚さないよう差し替える
   // （ログ内容のアサーションにも使う）
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -151,7 +153,8 @@ describe('handleForecast', () => {
       const past = new Date(new Date(`${MOCK_DATE}T00:00:00Z`).getTime() - day * 86400000)
         .toISOString()
         .slice(0, 10);
-      for (const hour of [9, 15]) {
+      // 比較対象の日として数えられる最少時間数（minSamplesPerDay=12）を満たす
+      for (let hour = 18; hour >= 7; hour -= 1) {
         body.hourly.time.unshift(`${past}T${String(hour).padStart(2, '0')}:00`);
         body.hourly['temperature_2m']!.unshift(23);
         body.hourly['relative_humidity_2m']!.unshift(65);
@@ -191,6 +194,30 @@ describe('handleForecast', () => {
       recentAverageMax: 23,
       targetMax: 30,
     });
+  });
+
+  it('全時間が過去の応答（日付またぎのキャッシュヒット）は空の200を返さず上流エラーにする', async () => {
+    // JST 0時またぎでエッジキャッシュ（30分）に前日の応答が残る窓では、
+    // 過去分の分離後にhoursが空になる。空予報を200+キャッシュ可で返すと
+    // 空画面が残るため、UpstreamError（502・no-store）へ倒す
+    const body = openMeteoBody() as { hourly: { time: string[] } };
+    const yesterday = new Date(new Date(`${MOCK_DATE}T00:00:00Z`).getTime() - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    body.hourly.time = body.hourly.time.map((time) => time.replace(MOCK_DATE, yesterday));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+    );
+
+    await expect(
+      handleForecast(new Request('https://example.com/api/forecast?lat=35.68&lon=139.68')),
+    ).rejects.toThrow(UpstreamError);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '予報データが日付またぎで全て過去に分類されました:',
+      MOCK_DATE,
+      24,
+    );
   });
 
   it('過去分がない応答ではsuddenHeatはnull（欠測時は黙って抑制）', async () => {

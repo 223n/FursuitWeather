@@ -330,7 +330,6 @@
 
 .display-emergency-steps {
   list-style: none;
-  counter-reset: display-emergency;
   margin: 0;
   padding: 0;
   display: flex;
@@ -340,7 +339,6 @@
 }
 
 .display-emergency-steps > li {
-  counter-increment: display-emergency;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -351,8 +349,8 @@
   padding: clamp(0.25rem, 0.9vh, 0.7rem) clamp(0.5rem, 1.2vw, 1.2rem);
 }
 
-.display-emergency-steps > li::before {
-  content: counter(display-emergency);
+/* 手順番号はDOMのspan（読み上げ対象）。丸数字の見た目にする */
+.display-emergency-number {
   flex-shrink: 0;
   align-self: center;
   display: inline-flex;

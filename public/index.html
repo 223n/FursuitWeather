@@ -405,6 +405,11 @@
           <p>低温側は温度計マーク付き。凍結・汗冷えに注意。</p>
         </div>
       </div>
+      <!-- しきい値はsrc/constants.tsのWIND_CAUTION_SPEEDと同期（htmlSyncテストが検証） -->
+      <p class="hint">
+        時間別予報の風速は、風速10m/s以上（気象庁の「やや強い風」以上）のとき
+        <svg class="fa-icon" aria-hidden="true"><use href="#fa-wind"/></svg>マークと太字で強調します。
+      </p>
       </details>
     </section>
 
