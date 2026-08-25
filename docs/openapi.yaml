@@ -101,6 +101,25 @@ paths:
               schema: { $ref: '#/components/schemas/NationalResponse' }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '502': { $ref: '#/components/responses/UpstreamError' }
+  /api/events.ics:
+    get:
+      summary: 登録済みイベントをiCalendar形式で取得する
+      description: |
+        登録済みイベント（トップページのイベントタブと同じ一覧）を
+        iCalendar（RFC 5545）形式で返します（カレンダーアプリへの取り込み用）。
+        形式が不正な項目・終了済みイベントは載せません。単日開催で
+        開始・終了時刻が揃っているイベントは時刻付き（UTC表記）、
+        それ以外は終日予定です。通知（VALARM）は含めません。
+        取り込んだ予定は自動更新されないため、最新のイベント一覧と予報は
+        サイト側が正です。正常レスポンスは`Cache-Control: public, max-age=600`で
+        10分間ブラウザキャッシュされます。
+      responses:
+        '200':
+          description: iCalendar文書（`Content-Disposition`のファイル名は`fursuit-weather-events.ics`）
+          content:
+            text/calendar:
+              schema: { type: string }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
 components:
   responses:
     BadRequest:

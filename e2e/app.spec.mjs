@@ -347,6 +347,25 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   await expect(page.locator('#event-button')).toBeDisabled();
 });
 
+test('イベント: カレンダー登録リンクからiCalendar（/api/events.ics）を取得できる', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#picker-tab-event');
+  await expect(page.locator('#picker-event a[href="/api/events.ics"]')).toBeVisible();
+
+  // 実ファイル（public/events.json）の内容に依存しない構造の検証に留める
+  // （page.requestはWorkerの実エンドポイントへ届く）
+  const response = await page.request.get('/api/events.ics');
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('text/calendar');
+  expect(response.headers()['content-disposition']).toContain('fursuit-weather-events.ics');
+  const body = await response.text();
+  expect(body.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
+  expect(body.endsWith('END:VCALENDAR\r\n')).toBe(true);
+});
+
 test('エラー時: 固定の日本語文が表示され、生の英語メッセージを出さない', async ({ page }) => {
   await page.unroute('**/api/forecast*');
   await page.route('**/api/forecast*', (route) => route.abort());

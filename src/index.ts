@@ -2,6 +2,7 @@
 // /api/* とHTMLページを本Workerが処理し、それ以外は静的アセット（public/）が
 // 配信される（wrangler.jsoncのassets.run_worker_first設定による）
 
+import { handleEventsCalendar } from './api/events';
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
 import { handleNational } from './api/national';
@@ -19,10 +20,11 @@ export interface Env {
  * （メソッド制約・CORSプリフライトはルーターが一括適用する）。
  * ハンドラはUpstreamErrorをそのまま投げてよい（502変換もルーターの責務）
  */
-const API_ROUTES = new Map<string, (request: Request) => Promise<Response>>([
+const API_ROUTES = new Map<string, (request: Request, env: Env) => Promise<Response>>([
   ['/api/forecast', handleForecast],
   ['/api/geocode', handleGeocode],
   ['/api/national', handleNational],
+  ['/api/events.ics', handleEventsCalendar],
 ]);
 
 export default {
@@ -39,7 +41,7 @@ export default {
       // 返し、公開APIの契約を守る
       // （awaitなしのreturnでは非同期の失敗を捕捉できないため必ずawaitする）
       try {
-        return await route(request);
+        return await route(request, env);
       } catch (error) {
         const upstream = upstreamErrorResponse(error, url);
         if (upstream) {

@@ -47,6 +47,21 @@ describe('Workerルーティング', () => {
     expect(body.cities.length).toBeGreaterThan(0);
   });
 
+  it('/api/events.ics はhandleEventsCalendarに委譲する（envのASSETSが渡る）', async () => {
+    const env = {
+      ASSETS: {
+        fetch: vi.fn(async () => new Response(JSON.stringify({ events: [] }), { status: 200 })),
+      },
+    } as unknown as Env;
+    const response = await worker.fetch(
+      new Request('https://example.com/api/events.ics'),
+      env,
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
+  });
+
   it('/api/geocode はhandleGeocodeに委譲する', async () => {
     vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
       new Response(JSON.stringify({ results: [] }), { status: 200 }),
