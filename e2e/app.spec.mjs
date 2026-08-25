@@ -366,6 +366,52 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
   expect(body.endsWith('END:VCALENDAR\r\n')).toBe(true);
 });
 
+test('見守りモード: 10分ごとに自動再取得し、判定の変化をハイライトで知らせる', async ({
+  page,
+}) => {
+  await page.clock.install();
+  let forecastCalls = 0;
+  // beforeEachのデモモックより後に登録したこちらが先に評価される。
+  // 2回目以降の応答で全時間の屋外判定を反転させ、「判定帯の変化」を作る
+  await page.route('**/api/forecast*', async (route) => {
+    forecastCalls += 1;
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    if (forecastCalls >= 2) {
+      for (const hour of body.hours) {
+        hour.outdoor =
+          hour.outdoor.level === 'danger'
+            ? { ...hour.outdoor, level: 'safe', label: 'ほぼ安全', grade: 0 }
+            : { ...hour.outdoor, level: 'danger', label: '危険', grade: 4 };
+      }
+    }
+    await route.fulfill({ json: body });
+  });
+
+  await page.goto('/');
+  await waitForForecast(page);
+  // 前面制約の明記（バックグラウンドで鳴る前提の誤解を防ぐ約束の文言）
+  await expect(page.locator('.watch-mode .hint')).toContainText(
+    'バックグラウンド・画面ロック中は更新も音も止まります',
+  );
+
+  await page.check('#watch-toggle');
+  await expect(page.locator('#watch-status')).toContainText('見守り中・最終更新');
+  expect(forecastCalls).toBe(1);
+
+  // 10分経過 → 自動再取得され、判定変化がハイライトされる
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect(page.locator('#now-card')).toHaveClass(/watch-changed/);
+  expect(forecastCalls).toBeGreaterThanOrEqual(2);
+
+  // OFFで状態表示とハイライトが消える
+  await page.uncheck('#watch-toggle');
+  await expect(page.locator('#watch-status')).toBeHidden();
+  await expect(page.locator('#now-card')).not.toHaveClass(/watch-changed/);
+});
+
 test('埋め込みバッジ（/api/badge.svg）がデモデータのSVGを返す', async ({ page }) => {
   await page.goto('/');
   const response = await page.request.get('/api/badge.svg?demo=1');

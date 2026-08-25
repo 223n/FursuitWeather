@@ -482,6 +482,38 @@ input[type='number'] {
   }
 }
 
+/* 見守りモード（いまの判定タブ）。状態表示はトグルと同じ行に出すため
+   表示切り替えで縦のレイアウトシフトが起きない */
+.watch-mode {
+  margin: 0.8rem 0 0.4rem;
+}
+
+.watch-status {
+  margin-left: 0.6rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* 判定変化のハイライト: 色だけに依存しないよう、変化はチャイム+読み上げ+
+   この枠線強調の複数手段で伝える。点滅は視差効果を減らす設定では行わない
+   （枠線は静的に残る） */
+.now-card.watch-changed {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .now-card.watch-changed {
+    animation: watch-pulse 1s ease-in-out 3;
+  }
+
+  @keyframes watch-pulse {
+    50% {
+      outline-color: transparent;
+    }
+  }
+}
+
 .now-headline {
   display: flex;
   align-items: center;

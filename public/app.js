@@ -866,13 +866,23 @@
     return currentForecast.hours.filter((h) => h.time.startsWith(date));
   }
 
+  /** 表示中の予報から「現在の時間帯」の行を取り出す
+   * （現在時刻のデータがなければ当日の直近未来で代替。該当なしはnull。
+   *   now-cardと見守りモードの変化検知が同じ規則を共有する） */
+  function currentHourEntry() {
+    const now = nowInJst();
+    const todayHours = hoursOnDate(now.date);
+    return (
+      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
+      null
+    );
+  }
+
   /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
   function renderNowCard() {
     const now = nowInJst();
-    const todayHours = hoursOnDate(now.date);
-    const target =
-      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-      todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+    const target = currentHourEntry();
     if (!target) {
       nowCard.replaceChildren(
         hintParagraph('本日のこれからの時間帯の予報データがありません。「3日間の天気」タブで日別の予報をご確認ください。'),
@@ -1451,6 +1461,122 @@
       loadForecast(lastQuery, lastLocationName, lastOptions ?? {});
     } else {
       loadSelectedCity();
+    }
+  });
+
+  // 見守りモード: 表示中の地点を10分ごとに自動再取得し、「いまの判定」の変化を
+  // 画面内ハイライトと短いチャイムで知らせる。検知は判定帯の変化のみで、
+  // 独自のしきい値は持ち込まない。トグルは意図しない自動取得ループを避けるため
+  // 記憶しない（開くたびに明示的にONにする）
+  const watchToggle = document.getElementById('watch-toggle');
+  const watchStatus = document.getElementById('watch-status');
+  /** 再取得間隔（ブラウザキャッシュの10分と一致させ、上流コールを増やさない） */
+  const WATCH_INTERVAL_MS = 10 * 60 * 1000;
+  let watchTimer = null;
+  /** 前回の「いまの判定」のレベルID（変化検知用。データなしはnull） */
+  let watchLastLevel = null;
+  /** 最後に再取得へ成功した時刻（ミリ秒。バックグラウンド復帰時の即時更新の判断に使う） */
+  let watchLastUpdatedMs = 0;
+  let watchHighlightTimer = null;
+
+  /** 見守りの状態表示を更新する */
+  function updateWatchStatus(text) {
+    watchStatus.textContent = text;
+    watchStatus.hidden = false;
+  }
+
+  /** 「HH:MM」表記（見守りの最終更新表示用） */
+  function watchClockText(date) {
+    return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** 判定変化の通知（画面内ハイライト+短いチャイム+読み上げ）。
+   * 前面で開いているときだけ呼ばれる（バックグラウンドでは再取得自体を止める） */
+  function notifyWatchChange(label) {
+    nowCard.classList.remove('watch-changed');
+    // 再フローを挟んでクラスを付け直し、CSSアニメーションを再発火させる
+    // （連続変化でも毎回光る。getBoundingClientRectは同期レイアウトの強制目的）
+    nowCard.getBoundingClientRect();
+    nowCard.classList.add('watch-changed');
+    clearTimeout(watchHighlightTimer);
+    watchHighlightTimer = setTimeout(() => nowCard.classList.remove('watch-changed'), 6000);
+    timerAlert(2);
+    srAnnounce.textContent = `見守り: いまの判定が「${label}」に変わりました。`;
+  }
+
+  /**
+   * 見守りの自動再取得
+   * 明示操作（loadForecast）とは独立に動き、開始後に明示操作・地点変更・OFFが
+   * あれば結果を黙って破棄する（requestSeqを増やさず「最後の明示操作が勝つ」を
+   * 崩さない）。URL・記憶・共有状態も更新しない（表示中の地点の再取得のため）
+   */
+  async function watchRefresh() {
+    if (document.visibilityState !== 'visible' || !displayedQuery) {
+      return;
+    }
+    const seq = requestSeq;
+    const query = displayedQuery;
+    try {
+      const { response, body } = await fetchJsonBody(
+        `/api/forecast?${query}&days=${FORECAST_DAYS}`,
+        '通信に失敗しました。',
+      );
+      if (watchTimer === null || seq !== requestSeq || query !== displayedQuery) {
+        return;
+      }
+      throwIfHttpError(response, body, '予報の取得');
+      if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours) || !Array.isArray(body.notices)) {
+        throw new Error('形式異常');
+      }
+      currentForecast = body;
+      // 選択中の日を維持する（「予報を更新」と同じ配慮）
+      const dates = body.days.map((d) => d.date);
+      selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
+      renderForecast();
+      const entry = currentHourEntry();
+      const level = entry ? entry.outdoor.level : null;
+      const changed = watchLastLevel !== null && level !== null && level !== watchLastLevel;
+      watchLastLevel = level;
+      watchLastUpdatedMs = Date.now();
+      updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
+      if (changed) {
+        notifyWatchChange(entry.outdoor.label);
+      }
+    } catch {
+      if (watchTimer === null) {
+        return;
+      }
+      // ベストエフォート: 画面は前回の予報のまま残し、次の周期で再試行する
+      updateWatchStatus('見守り中・更新できませんでした（次の更新で再試行します）');
+    }
+  }
+
+  watchToggle.addEventListener('change', () => {
+    // チャイムの自動再生制限はユーザー操作の中で解いておく
+    prepareTimerAudio();
+    if (watchToggle.checked) {
+      const entry = currentForecast ? currentHourEntry() : null;
+      watchLastLevel = entry ? entry.outdoor.level : null;
+      watchLastUpdatedMs = Date.now();
+      watchTimer = setInterval(watchRefresh, WATCH_INTERVAL_MS);
+      updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
+    } else {
+      clearInterval(watchTimer);
+      watchTimer = null;
+      watchStatus.hidden = true;
+      nowCard.classList.remove('watch-changed');
+    }
+  });
+
+  // バックグラウンド中は再取得を止めているため、復帰時に前回から10分以上
+  // 経っていればすぐ取り直す（次の周期まで最大10分古いまま待たせない）
+  document.addEventListener('visibilitychange', () => {
+    if (
+      document.visibilityState === 'visible' &&
+      watchTimer !== null &&
+      Date.now() - watchLastUpdatedMs >= WATCH_INTERVAL_MS
+    ) {
+      watchRefresh();
     }
   });
 

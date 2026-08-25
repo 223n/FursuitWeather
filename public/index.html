@@ -275,6 +275,18 @@
         <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
+      <!-- 見守りモード: 表示中の地点の予報を10分ごとに自動再取得し、「いまの判定」の
+           変化を画面内ハイライトと短いチャイムで知らせる（ハンドラー・アテンド向け）。
+           再取得間隔はブラウザキャッシュ（10分）と同じため上流コールは増えない。
+           バックグラウンド・画面ロック中は動かない制約の明記は必須（app.js） -->
+      <div class="watch-mode">
+        <label class="watch-toggle-label"><input type="checkbox" id="watch-toggle"> 見守りモード（10分ごとに自動更新）</label>
+        <span id="watch-status" class="watch-status" role="status" hidden></span>
+        <p class="hint">
+          この画面を前面で開いている間だけ動作し、いまの判定が変わると画面のハイライトと短いチャイムで知らせます。
+          バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
+        </p>
+      </div>
       <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
            （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
       <div id="wear-log-section" class="wear-log-section" hidden>
