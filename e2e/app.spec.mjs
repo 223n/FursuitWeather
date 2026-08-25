@@ -728,3 +728,32 @@ test('印刷用シート: 発行情報が用意され、印刷専用ブロック
   expect(meta).toContain('東京');
   await expect(page.locator('#print-button')).toBeVisible();
 });
+
+test('見やすさ設定・音声ボタン・ホーム画面案内が動く', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  // Aaボタンで標準→大。root font-sizeが変わり、別ページでも適用される（prefs.js）
+  await page.click('#font-size-button');
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 大');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('115%');
+  await page.goto('/about');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('115%');
+
+  // 戻っても選択が保持され、特大→標準まで巡回する
+  await page.goto('/');
+  await waitForForecast(page);
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 大');
+  await page.click('#font-size-button');
+  await page.click('#font-size-button');
+  await expect(page.locator('#font-size-button')).toHaveText('Aa 標準');
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe('');
+
+  // 音声読み上げボタン（Chromiumは音声合成対応のため表示される）
+  await expect(page.locator('#speak-button')).toBeVisible();
+  await expect(page.locator('#speak-button')).toHaveText('今日の要点を聞く');
+
+  // ホーム画面追加の案内（この環境では一般的な文言が出る）
+  await page.getByText('ホーム画面に追加して毎日見る').click();
+  await expect(page.locator('#a2hs-generic')).toBeVisible();
+});

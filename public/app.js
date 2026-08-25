@@ -2283,6 +2283,127 @@
 
   planButton.addEventListener('click', renderPlan);
 
+  // ---- 見やすさ設定（文字サイズ） ----
+  // 押すたびに標準→大→特大と切り替え、この端末へ保存する。適用は全ページ共通の
+  // prefs.jsが担う（サイズの対応表はprefs.jsのSIZESと同期。htmlSyncテストが検証する）
+
+  const FONT_SIZE_KEY = 'fursuitweatherFontSize';
+  const FONT_SIZES = [
+    { id: 'standard', label: '標準', size: '100%' },
+    { id: 'large', label: '大', size: '115%' },
+    { id: 'xlarge', label: '特大', size: '130%' },
+  ];
+  const fontSizeButton = document.getElementById('font-size-button');
+
+  /** 保存済みの文字サイズの添字（読めない・未設定は標準） */
+  function currentFontSizeIndex() {
+    try {
+      const stored = localStorage.getItem(FONT_SIZE_KEY);
+      const index = FONT_SIZES.findIndex((entry) => entry.id === stored);
+      return index >= 0 ? index : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** 文字サイズを適用・保存し、ボタンの表記を合わせる */
+  function applyFontSize(index) {
+    const entry = FONT_SIZES[index];
+    document.documentElement.style.fontSize = entry.id === 'standard' ? '' : entry.size;
+    fontSizeButton.textContent = `Aa ${entry.label}`;
+    try {
+      localStorage.setItem(FONT_SIZE_KEY, entry.id);
+    } catch {
+      // 保存できない環境では、このページ表示中だけ適用される
+    }
+  }
+
+  fontSizeButton.textContent = `Aa ${FONT_SIZES[currentFontSizeIndex()].label}`;
+  fontSizeButton.addEventListener('click', () => {
+    const next = (currentFontSizeIndex() + 1) % FONT_SIZES.length;
+    applyFontSize(next);
+    setStatus(`文字の大きさを「${FONT_SIZES[next].label}」にしました。`, false);
+  });
+
+  // ---- 音声で聞く今日の要点 ----
+  // #sr-announce用に生成している要点文を、端末内蔵の音声合成で読み上げる。
+  // 通信・上流コストはゼロ。非対応環境ではボタンを出さない
+
+  const speakButton = document.getElementById('speak-button');
+  let speaking = false;
+
+  /** 再生状態に応じてボタンの表記を切り替える（2状態ボタン） */
+  function updateSpeakButton() {
+    speakButton.textContent = speaking ? '読み上げを停止' : '今日の要点を聞く';
+  }
+
+  if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance === 'function') {
+    speakButton.hidden = false;
+    updateSpeakButton();
+    speakButton.addEventListener('click', () => {
+      if (speaking) {
+        window.speechSynthesis.cancel();
+        speaking = false;
+        updateSpeakButton();
+        return;
+      }
+      if (!currentForecast) {
+        setStatus('先に予報を読み込んでください。', true);
+        return;
+      }
+      // 読み上げ文はスクリーンリーダー向けサマリーと同一（時刻の読みも変換済み）
+      const utterance = new SpeechSynthesisUtterance(
+        srAnnounce.textContent || buildSpokenSummary(currentForecast, displayedName || ''),
+      );
+      utterance.lang = 'ja-JP';
+      const finish = () => {
+        speaking = false;
+        updateSpeakButton();
+      };
+      utterance.addEventListener('end', finish);
+      utterance.addEventListener('error', finish);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      speaking = true;
+      updateSpeakButton();
+    });
+  }
+
+  // ---- ホーム画面追加のかんたん案内 ----
+  // Android Chrome系はbeforeinstallpromptを捕まえてワンタップの追加ボタンを出し、
+  // iOS Safariは操作手順の案内を出す。どちらでもない環境は一般的な文言のまま
+
+  const a2hsAndroid = document.getElementById('a2hs-android');
+  const a2hsIos = document.getElementById('a2hs-ios');
+  const a2hsGeneric = document.getElementById('a2hs-generic');
+  /** 捕捉したインストールプロンプト（対応ブラウザのみ。1回使うと無効になる） */
+  let installPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    a2hsAndroid.hidden = false;
+    a2hsGeneric.hidden = true;
+  });
+  document.getElementById('a2hs-install-button').addEventListener('click', async () => {
+    if (!installPrompt) {
+      return;
+    }
+    const prompt = installPrompt;
+    installPrompt = null;
+    a2hsAndroid.hidden = true;
+    a2hsGeneric.hidden = false;
+    await prompt.prompt();
+  });
+  // iOS Safari（スタンドアロン起動中は案内不要）
+  if (
+    /iPhone|iPad|iPod/.test(navigator.userAgent) &&
+    !window.matchMedia('(display-mode: standalone)').matches
+  ) {
+    a2hsIos.hidden = false;
+    a2hsGeneric.hidden = true;
+  }
+
   // 初期表示の優先順位: (1)デモ指定 (2)共有URLの座標 (3)イベント固定リンク
   // (4)記憶した地点 (5)既定の都市
   const pageParams = new URLSearchParams(window.location.search);

@@ -29,6 +29,8 @@
   <link rel="stylesheet" href="/style.css">
   <!-- 初期表示（東京）の予報を先読みして、JS読み込み→API取得の直列チェーンを短縮する -->
   <link rel="preload" href="/api/forecast?lat=35.68&lon=139.68&days=3" as="fetch" crossorigin>
+  <!-- 見やすさ設定の適用はdeferなしで先に実行し、文字サイズのちらつきを防ぐ -->
+  <script src="/prefs.js"></script>
   <script src="/app.js" defer></script>
   <!-- 実測WBGTタブの判定ツール（app.jsとは独立。予報の取得に失敗しても動く） -->
   <script src="/wbgt-tool.js" defer></script>
@@ -124,6 +126,9 @@
   <header class="site-header">
     <h1><svg class="fa-icon" aria-hidden="true"><use href="#fa-paw"/></svg> FursuitWeather</h1>
     <p class="tagline">着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報します</p>
+    <!-- 見やすさ設定: 押すたびに文字サイズが標準→大→特大と切り替わる。
+         選択はこの端末に保存され、全ページへ適用される（prefs.js） -->
+    <button type="button" id="font-size-button" class="font-size-button" aria-label="文字の大きさを切り替え（標準・大・特大）">Aa 標準</button>
   </header>
 
   <main id="main">
@@ -259,6 +264,11 @@
       <div id="now-card" class="now-card">
         <div class="skeleton-line w40"></div>
         <div class="skeleton-line w80"></div>
+      </div>
+      <!-- 音声で聞く今日の要点: 端末内蔵の音声合成（speechSynthesis）で読み上げる。
+           非対応の環境ではapp.jsがボタンを出さない（hiddenのまま） -->
+      <div class="control-row">
+        <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
     </section>
 
@@ -466,6 +476,25 @@
         <a href="/about">判定の仕組み・API仕様・免責事項の詳細はこちら</a><br>
         <a href="/emergency">もしものとき（熱中症の応急対応）</a>
       </p>
+      <!-- ホーム画面追加のかんたん案内: 環境に応じてapp.jsが該当する案内だけを表示する -->
+      <details class="legend-details">
+        <summary>ホーム画面に追加して毎日見る（かんたん案内）</summary>
+        <div class="control-note">
+          <p id="a2hs-android" hidden>
+            <button type="button" id="a2hs-install-button">ホーム画面に追加</button>
+            を押すと、追加の確認が表示されます。
+          </p>
+          <ol id="a2hs-ios" hidden>
+            <li>画面下の共有ボタン（四角に上向き矢印）を押す</li>
+            <li>「ホーム画面に追加」を選ぶ</li>
+            <li>右上の「追加」を押す</li>
+          </ol>
+          <p id="a2hs-generic">
+            お使いのブラウザのメニューから「ホーム画面に追加」（または「アプリをインストール」）を選ぶと、
+            アプリのように1タップで開けるようになります。
+          </p>
+        </div>
+      </details>
     </section>
   </main>
 

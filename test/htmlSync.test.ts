@@ -20,6 +20,7 @@ import aboutHtml from '../public/about.html?raw';
 import emergencyHtml from '../public/emergency.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
+import prefsJs from '../public/prefs.js?raw';
 import llmsTxt from '../public/llms.txt?raw';
 import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
@@ -121,6 +122,21 @@ describe('静的HTMLとconstantsの同期', () => {
     expect(caption).not.toBeNull();
     for (const column of ['時刻', '天気', '気温', '湿度', '降水確率', '風速', '暑さ指数', '屋外判定', '屋内判定']) {
       expect(caption![1]).toContain(column);
+    }
+  });
+
+  it('文字サイズの対応表はprefs.js（適用）とapp.js（切り替えUI）で一致する', () => {
+    // 片側だけの変更で「選んだサイズと適用されるサイズが食い違う」のを防ぐ
+    const sizes = appJs.match(/const FONT_SIZES = \[([\s\S]*?)\];/);
+    expect(sizes).not.toBeNull();
+    for (const [id, size] of [
+      ['standard', '100%'],
+      ['large', '115%'],
+      ['xlarge', '130%'],
+    ]) {
+      expect(sizes![1]).toContain(`id: '${id}'`);
+      expect(sizes![1]).toContain(`size: '${size}'`);
+      expect(prefsJs).toContain(`${id}: '${size}'`);
     }
   });
 

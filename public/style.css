@@ -152,6 +152,21 @@ body {
   background-color: var(--color-header-bg);
   color: var(--color-header-text);
   padding: 1.25rem 1rem;
+  position: relative;
+}
+
+/* 見やすさ設定（文字サイズ切り替え）のボタン。ヘッダー右上に固定表示する。
+   ヘッダー帯の上で読めるよう、白地+濃色文字の独立した配色にする */
+.font-size-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
 }
 
 .site-header h1 {
@@ -1394,6 +1409,15 @@ section h3 {
 /* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって
    サイト名が読めなくなる。印刷時は背景を外し、本文と同じ濃色文字で出す
    （「背景も印刷する」設定でも濃色文字on青帯の低コントラストにならない） */
+/* コントラスト強化の希望（prefers-contrast: more）へ自動で追随する。
+   薄めの境界・控えめな文字色を、それぞれ濃い側のトークンへ寄せる */
+@media (prefers-contrast: more) {
+  :root {
+    --color-border-subtle: var(--color-border);
+    --color-text-muted: var(--color-text);
+  }
+}
+
 /* 印刷専用の補足（画面では出さない。@media printで表示する） */
 .print-only {
   display: none;
