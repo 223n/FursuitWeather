@@ -34,6 +34,7 @@ const styleCss = readFileSync(new URL('../public/style.css', import.meta.url), '
 import {
   AIR_QUALITY,
   AIR_QUALITY_LABELS,
+  BADGE,
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   HEAT_STROKE_ALERT_WBGT,
@@ -624,6 +625,36 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     expect(symbolsOf(displayJs)).toBe(symbolsOf(appJs));
     // wbgt-tool.jsも同じ判定記号を複製しているため併せて検証する
     expect(symbolsOf(wbgtTool)).toBe(symbolsOf(appJs));
+  });
+
+  it('埋め込みバッジ（/api/badge.svg）の記号はapp.jsのGRADE_SYMBOLSと一致する', () => {
+    // grade 0〜3の文字記号を比較する。grade 4はサイトでは禁止マークのアイコン
+    // （Font Awesome）のため対象外（SVG側はフォント依存を避けて✕で代替。
+    // 経緯はsrc/constants.tsのBADGEのコメントを参照）
+    const match = appJs.match(
+      /const GRADE_SYMBOLS = \[\['(.)'\], \['(.)'\], \['(.)'\], \['(.)'\], \[\{ icon: 'ban' \}\]\];/,
+    );
+    expect(match, 'app.jsのGRADE_SYMBOLSの形式が想定と異なる').not.toBeNull();
+    expect(BADGE.gradeSymbols.slice(0, 4)).toEqual(match!.slice(1, 5));
+  });
+
+  it('埋め込みバッジ（/api/badge.svg）の配色はstyle.cssのレベル別トークンと一致する', () => {
+    // SVGはCSS変数を参照できないためconstants.tsが色を複製している。
+    // シェア画像（SHARE_GRADE_COLORS）と同様、ライト側の:rootと突き合わせる
+    const token = (name: string): string => {
+      const match = styleCss.match(new RegExp(`--${name}: (#[0-9A-F]{6});`));
+      expect(match, `--${name}がstyle.cssに見つからない`).not.toBeNull();
+      return match![1] ?? '';
+    };
+    BADGE.gradeSurfaces.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-surface`));
+    });
+    BADGE.gradeTexts.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-text`));
+    });
+    BADGE.gradeAccents.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-accent`));
+    });
   });
 
   it('天気コード→アイコンの対応規則はapp.jsと一致する', () => {

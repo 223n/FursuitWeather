@@ -73,6 +73,8 @@ src/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
 │   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
 │   ├── national.ts     /api/national ハンドラ（全国主要都市の当日サマリー）
+│   ├── events.ts       /api/events.ics ハンドラ（イベントのカレンダー配信）
+│   ├── badge.ts        /api/badge.svg ハンドラ（埋め込みバッジ。地点は主要都市+イベント限定）
 │   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
@@ -85,6 +87,8 @@ src/
 │   ├── laundry.ts      洗濯乾燥指数
 │   ├── staticElectricity.ts 静電気指数（乾燥期の帯電の起きやすさ）
 │   ├── airQuality.ts   空気のよごれ指数（黄砂・PM2.5）
+│   ├── ical.ts         iCalendar（RFC 5545）の組み立て（折返し・エスケープ・時刻変換）
+│   ├── badge.ts        埋め込みバッジのSVG組み立て（記号+文字併記・CUD配色）
 │   ├── time.ts         時刻文字列の切り出しと時間帯フィルタ
 │   └── forecast.ts     予報レスポンスの組み立て（純粋ロジック）
 ├── constants.ts        係数・しきい値の集約（出典コメント付き）

@@ -479,6 +479,32 @@ export const NATIONAL_CITIES: readonly NationalCity[] = [
 ];
 
 /**
+ * 埋め込みバッジ（/api/badge.svg）の描画定数
+ *
+ * 記号・配色はサイト本体の判定バッジの複製（記号はpublic/app.jsのGRADE_SYMBOLS、
+ * 配色はpublic/style.cssのCUD配色トークン--level-N-*。ずれはhtmlSyncテストが検出する）。
+ * アクセシビリティ方針（判定を色だけに依存させず記号+文字を併記）も
+ * 埋め込み先でそのまま維持する。
+ * grade 4の記号だけはサイトでは禁止マークのアイコン（Font Awesome）だが、
+ * SVGテキストではフォント依存の絵文字を避けて「✕」を使う（ラベル文字で区別できる）
+ */
+export const BADGE = {
+  /** 左セグメントの固定ラベル */
+  leftLabel: '着ぐるみ判定',
+  /** gradeごとの記号（0〜3はapp.jsのGRADE_SYMBOLSと同一） */
+  gradeSymbols: ['◎', '○', '△', '✕', '✕'],
+  /** gradeごとの背景色（style.cssの--level-N-surface） */
+  gradeSurfaces: ['#E5F5EF', '#FCF0D8', '#FDE8D7', '#FBE3DD', '#F6D7D0'],
+  /** gradeごとの文字色（style.cssの--level-N-text。surface上でコントラスト確保済み） */
+  gradeTexts: ['#006147', '#6B4700', '#7A3100', '#99260C', '#6E1100'],
+  /** gradeごとの強調色（style.cssの--level-N-accent。枠線に使う） */
+  gradeAccents: ['#009E73', '#A66E00', '#B34700', '#CC3311', '#8A1500'],
+  /** 暑熱の「危険」だけに付ける明示文（HEAT_BANDSのadviceの要点。埋め込み先でも
+   * 「着用中止」が文字で伝わるようにする。低温側はラベル自体が低温危険のため付けない） */
+  dangerSuffix: '・着用中止',
+} as const;
+
+/**
  * APIレスポンスの帰属表示（Open-Meteoの利用規約により表示時の出典明記が必要。
  * CC BY 4.0。https://open-meteo.com/en/license）
  */

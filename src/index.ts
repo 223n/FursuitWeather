@@ -2,6 +2,7 @@
 // /api/* とHTMLページを本Workerが処理し、それ以外は静的アセット（public/）が
 // 配信される（wrangler.jsoncのassets.run_worker_first設定による）
 
+import { handleBadge } from './api/badge';
 import { handleEventsCalendar } from './api/events';
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
@@ -25,6 +26,7 @@ const API_ROUTES = new Map<string, (request: Request, env: Env) => Promise<Respo
   ['/api/geocode', handleGeocode],
   ['/api/national', handleNational],
   ['/api/events.ics', handleEventsCalendar],
+  ['/api/badge.svg', handleBadge],
 ]);
 
 export default {

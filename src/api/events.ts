@@ -57,12 +57,13 @@ function isValidEvent(entry: unknown): entry is Omit<CalendarEvent, 'endDate'> &
 }
 
 /**
- * events.jsonの内容から掲載対象イベントを取り出す
- * 形式が不正な項目は黙って除外し、終了済みイベントも載せない
- * （フロントの一覧と同じ基準。定義はtest/events.test.tsがCIで検証するため、
- * ここでの除外は配信中の定義ミスへの防御）
+ * events.jsonの内容から形式が有効なイベントを取り出す
+ * 不正な項目は黙って除外する（フロントの一覧と同じ基準。定義は
+ * test/events.test.tsがCIで検証するため、ここでの除外は配信中の定義ミスへの防御）。
+ * 開催終了によるフィルタは行わない（バッジ（/api/badge.svg）は告知ページに
+ * 貼られたまま残るため、終了後も開催地の解決に使う）
  */
-export function parseCalendarEvents(body: unknown, today: string): CalendarEvent[] {
+export function listValidEvents(body: unknown): CalendarEvent[] {
   const rawEvents =
     typeof body === 'object' && body !== null && Array.isArray((body as { events?: unknown }).events)
       ? ((body as { events: unknown[] }).events)
@@ -70,7 +71,16 @@ export function parseCalendarEvents(body: unknown, today: string): CalendarEvent
   return rawEvents
     .filter(isValidEvent)
     .map((event) => ({ ...event, endDate: event.endDate ?? event.startDate }))
-    .filter((event) => event.endDate >= event.startDate && event.endDate >= today)
+    .filter((event) => event.endDate >= event.startDate);
+}
+
+/**
+ * events.jsonの内容からカレンダー掲載対象イベントを取り出す
+ * 有効なイベントのうち終了済みを除き、開催が近い順に並べる（フロントの一覧と同じ基準）
+ */
+export function parseCalendarEvents(body: unknown, today: string): CalendarEvent[] {
+  return listValidEvents(body)
+    .filter((event) => event.endDate >= today)
     .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
 }
 

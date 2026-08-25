@@ -366,6 +366,16 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
   expect(body.endsWith('END:VCALENDAR\r\n')).toBe(true);
 });
 
+test('埋め込みバッジ（/api/badge.svg）がデモデータのSVGを返す', async ({ page }) => {
+  await page.goto('/');
+  const response = await page.request.get('/api/badge.svg?demo=1');
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
+  const body = await response.text();
+  expect(body).toContain('<svg');
+  expect(body).toContain('着ぐるみ判定');
+});
+
 test('エラー時: 固定の日本語文が表示され、生の英語メッセージを出さない', async ({ page }) => {
   await page.unroute('**/api/forecast*');
   await page.route('**/api/forecast*', (route) => route.abort());

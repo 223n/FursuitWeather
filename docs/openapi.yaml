@@ -120,6 +120,47 @@ paths:
             text/calendar:
               schema: { type: string }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
+  /api/badge.svg:
+    get:
+      summary: 当日判定の埋め込みSVGバッジを取得する
+      description: |
+        当日（日本時間）の最も厳しい屋外判定を、`<img>`で埋め込める
+        SVGバッジで返します。受け付ける地点は主要12都市（city）と
+        登録済みイベントの開催地（event）に限定されます（任意座標は
+        受け付けません。埋め込み経由の上流無料枠の圧迫対策）。
+        暑熱の「危険」判定では「着用中止」を文字で明示します。
+        正常レスポンスは`Cache-Control: public, max-age=600`で
+        10分間ブラウザキャッシュされます。
+      parameters:
+        - name: city
+          in: query
+          required: false
+          description: 主要12都市名（トップページの地点セレクトと同じ。cityとeventのどちらか一方が必須）
+          schema: { type: string, example: 東京 }
+        - name: event
+          in: query
+          required: false
+          description: events.jsonに登録済みのイベント名（開催地を郵便番号から解決する）
+          schema: { type: string, maxLength: 100 }
+        - name: demo
+          in: query
+          required: false
+          description: '`1`で上流を呼ばずデモデータで応答（表示確認用。city・eventは不要）'
+          schema: { type: string, enum: ['1'] }
+      responses:
+        '200':
+          description: 判定バッジのSVG
+          content:
+            image/svg+xml:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404':
+          description: 未登録のイベント名・開催地の座標を解決できない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
 components:
   responses:
     BadRequest:

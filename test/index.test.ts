@@ -62,6 +62,16 @@ describe('Workerルーティング', () => {
     expect(response.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
   });
 
+  it('/api/badge.svg はhandleBadgeに委譲する', async () => {
+    const response = await worker.fetch(
+      new Request('https://example.com/api/badge.svg?demo=1'),
+      createEnv(),
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('image/svg+xml; charset=utf-8');
+  });
+
   it('/api/geocode はhandleGeocodeに委譲する', async () => {
     vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
       new Response(JSON.stringify({ results: [] }), { status: 200 }),
