@@ -1,0 +1,78 @@
+name: イベント掲載依頼
+description: トップページ「イベント」タブへの着ぐるみイベントの掲載を依頼する（主催者向け）
+title: "[イベント掲載] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        掲載のご依頼ありがとうございます。いただいた内容は運営が`public/events.json`へ登録し、反映後にトップページの「イベント」タブと[カレンダー登録（/api/events.ics）](https://fursuit-weather.223n.tech/api/events.ics)へ表示されます。
+        項目の書式は[イベント予報の定義（docs/events.md）](https://github.com/223n/FursuitWeather/blob/main/docs/events.md)をご覧ください。
+  - type: input
+    id: event-name
+    attributes:
+      label: イベント名
+      description: 掲載名です。固定リンク（`?event=`）と判定バッジ（`/api/badge.svg?event=`）の照合キーになるため、掲載後に表記を変えると告知に貼ったリンク・バッジが壊れます
+      placeholder: 例：けもケット17
+    validations:
+      required: true
+  - type: input
+    id: place
+    attributes:
+      label: 開催場所（会場名）
+      placeholder: 例：TRC東京流通センター
+    validations:
+      required: true
+  - type: input
+    id: zip
+    attributes:
+      label: 開催地の郵便番号
+      description: 開催地の予報はこの郵便番号から求めます（`143-0006`または`1430006`の形式）
+      placeholder: 例：143-0006
+    validations:
+      required: true
+  - type: input
+    id: start-date
+    attributes:
+      label: 開催初日
+      description: YYYY-MM-DD形式
+      placeholder: 例：2026-09-20
+    validations:
+      required: true
+  - type: input
+    id: end-date
+    attributes:
+      label: 開催最終日（複数日開催のみ）
+      description: YYYY-MM-DD形式。単日開催の場合は空欄のままにしてください
+      placeholder: 例：2026-09-21
+  - type: input
+    id: start-time
+    attributes:
+      label: 開始時刻（任意）
+      description: HH:MM形式。開始時刻・終了時刻の両方を記入すると、単日開催では開催日の予報を表示したときに活動プランナーへ開催時間が自動設定されます
+      placeholder: 例：12:00
+  - type: input
+    id: end-time
+    attributes:
+      label: 終了時刻（任意）
+      description: HH:MM形式
+      placeholder: 例：17:00
+  - type: input
+    id: official-url
+    attributes:
+      label: 公式サイト・告知ページのURL
+      description: 開催情報の確認に使います（サイトには掲載されません）
+      placeholder: 例：https://example.com/kemoket17
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 確認事項
+      options:
+        - label: イベントの主催者本人、または主催者の了承を得ています
+          required: true
+        - label: 掲載後にイベント名を変更すると、告知に貼った固定リンク・判定バッジが壊れることを理解しました
+          required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 補足
+      description: 判定バッジや固定リンクの利用予定、開催情報の補足などがあればお知らせください

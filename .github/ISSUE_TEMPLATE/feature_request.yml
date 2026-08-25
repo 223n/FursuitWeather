@@ -1,0 +1,42 @@
+name: 機能要望
+description: 新しい機能や改善を提案する
+title: "[要望] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困りごと・背景
+      description: どんな場面で、何に困っていますか
+      placeholder: 例：野外イベントの待機列で、次の休憩までの目安をひと目で知りたい
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案
+      description: どうなっていると助かりますか
+    validations:
+      required: true
+  - type: dropdown
+    id: viewpoint
+    attributes:
+      label: 主な利用の立場
+      description: 当てはまるものを選んでください（複数選択できます）
+      multiple: true
+      options:
+        - 着ぐるみ着用者
+        - ハンドラー・アテンド（付き添い）
+        - イベント主催者・スタッフ
+        - イベント参加者
+        - 会場表示（サイネージ）の運用者
+        - その他
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案・いまのしのぎ方
+      description: ほかに考えた方法や、現在どう対処しているかがあれば
+  - type: textarea
+    id: extra
+    attributes:
+      label: 補足

@@ -1,0 +1,6 @@
+# issue作成画面（テンプレート選択）の設定
+blank_issues_enabled: true
+contact_links:
+  - name: 着ぐるみ天気予報（公開サイト）
+    url: https://fursuit-weather.223n.tech/about
+    about: サービス本体はこちらです。使い方・判定の仕組み・APIは「サイトについて」をご覧ください。
