@@ -231,6 +231,18 @@ test('会場表示: 短いお知らせでも複製が画面幅を埋め、途切
   await page.waitForTimeout(600);
   const after = await transformOf();
   expect(after).not.toBe(before);
+
+  // 一時停止でお知らせの流れも止まり、再開で再び流れる（WCAG 2.2.2）。
+  // Web Animations APIのpause()は次フレームで確定する（pause-pending）ため、
+  // 確定を待ってから停止位置を基準にする
+  await page.click('#display-pause');
+  await page.waitForTimeout(100);
+  const pausedAt = await transformOf();
+  await page.waitForTimeout(500);
+  expect(await transformOf()).toBe(pausedAt);
+  await page.click('#display-pause');
+  await page.waitForTimeout(500);
+  expect(await transformOf()).not.toBe(pausedAt);
 });
 
 test.describe('縦画面（スマホ）', () => {

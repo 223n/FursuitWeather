@@ -951,17 +951,29 @@
   /** お知らせの流れる速さ（px/秒）。文字数に依らず一定の読みやすい速度にする */
   const TICKER_SPEED_PX_PER_SECOND = 90;
 
+  /** 進行中のループアニメーション（Web Animations API）。停止中・非対応環境はnull */
+  let tickerAnimation = null;
+
   /**
    * お知らせ帯を設定に合わせて表示・更新する
    *
    * 文字数に関係なく途切れず流れ続けるよう、テキストを「画面幅を埋めるのに
-   * 必要な数×2グループ」複製し、トラック半分の移動でループさせる
+   * 必要な数×2グループ」複製し、トラック半分（1グループ分）の移動でループさせる
    * （半分動いた時点の並びが先頭と一致するためシームレスに繰り返す）。
    * 速度はトラック幅から所要秒数を計算して一定に保つ。
    * 動きを抑える設定の端末では複製せず1つだけ静止表示する。
-   * トラック全体は装飾扱いで、読み上げは隣の静的テキストが1回だけ担う
+   * トラック全体は装飾扱いで、読み上げは隣の静的テキストが1回だけ担う。
+   *
+   * 駆動はWeb Animations APIで行い、移動距離をピクセルで明示する。
+   * 以前のstylesheetのCSSアニメーション（translateX(-50%)+CSSOMでの
+   * animationDuration上書き）はSafari（WebKit）で流れないことがあった。
+   * 非対応環境ではdisplay.cssのCSSアニメーションがそのまま代替として働く
    */
   function applyTicker() {
+    if (tickerAnimation) {
+      tickerAnimation.cancel();
+      tickerAnimation = null;
+    }
     if (!settings.message) {
       tickerElement.hidden = true;
       tickerTrack.replaceChildren();
@@ -989,9 +1001,23 @@
       items.push(item.cloneNode(true));
     }
     tickerTrack.replaceChildren(...items);
-    // アニメーション時間はトラック半分（1グループ分）の距離÷一定速度。
+    // 移動距離は1グループ分（トラック幅の半分）、時間は距離÷一定速度。
     // element.styleへの代入はCSSOM操作のためCSPのstyle属性制限には触れない
-    tickerTrack.style.animationDuration = `${Math.max(6, (itemWidth * perGroup) / TICKER_SPEED_PX_PER_SECOND)}s`;
+    const distance = itemWidth * perGroup;
+    const durationSeconds = Math.max(6, distance / TICKER_SPEED_PX_PER_SECOND);
+    if (typeof tickerTrack.animate === 'function') {
+      // CSS側のアニメーションと二重に動かないよう無効化してからAPIで駆動する
+      tickerTrack.style.animation = 'none';
+      tickerAnimation = tickerTrack.animate(
+        [{ transform: 'translateX(0)' }, { transform: `translateX(-${distance}px)` }],
+        { duration: durationSeconds * 1000, iterations: Infinity },
+      );
+      if (paused) {
+        tickerAnimation.pause();
+      }
+    } else {
+      tickerTrack.style.animationDuration = `${durationSeconds}s`;
+    }
   }
 
   // 画面の幅が変わると必要な複製数も変わるため、落ち着いたタイミングで作り直す
@@ -1318,8 +1344,16 @@
     // 一時停止⇄再開はラベル交換の2状態ボタン（ラベル変更とaria-pressedは併用しない）
     pauseButton.textContent = paused ? '再開' : '一時停止';
     // お知らせの流れも一緒に止める（WCAG 2.2.2。クラスは速度クラスを
-    // 書き換えるtrackではなく親要素へ付ける）
+    // 書き換えるtrackではなく親要素へ付ける。クラスはCSSアニメーション代替用で、
+    // 通常はWeb Animations APIのpause/playが実際の停止・再開を担う）
     tickerElement.classList.toggle('ticker-paused', paused);
+    if (tickerAnimation) {
+      if (paused) {
+        tickerAnimation.pause();
+      } else {
+        tickerAnimation.play();
+      }
+    }
     if (!paused) {
       slideDeadline = Date.now() + currentSlide().seconds * 1000;
     }
