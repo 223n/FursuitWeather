@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/223n/FursuitWeather/actions/workflows/ci.yml/badge.svg)](https://github.com/223n/FursuitWeather/actions/workflows/ci.yml)
 [![Deploy](https://github.com/223n/FursuitWeather/actions/workflows/deploy.yml/badge.svg)](https://github.com/223n/FursuitWeather/actions/workflows/deploy.yml)
+[![Tsukuttaに掲載中](https://tsukutta.app/api/badge/4b70b5bd-afb2-401a-a0ee-350c19f6c9da?lang=ja)](https://tsukutta.app/apps/4b70b5bd-afb2-401a-a0ee-350c19f6c9da)
 
 着ぐるみ天気予報 - 気象データから着ぐるみ（fursuit）で活動するのに
 適切かどうかを予報するWebサービスです。
