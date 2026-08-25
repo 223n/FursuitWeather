@@ -28,6 +28,6 @@ export async function handleAlert(request: Request): Promise<Response> {
     return coords;
   }
 
-  const alert = await fetchAlertFor(coords.latitude, coords.longitude, date, fetch);
+  const alert = await fetchAlertFor(coords.latitude, coords.longitude, date);
   return json({ alert }, { cacheable: true });
 }

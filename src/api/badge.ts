@@ -8,15 +8,13 @@
 
 import { NATIONAL_CITIES, RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
 import { buildBadgeSvg } from '../logic/badge';
-import { buildDayForecastFor } from '../logic/forecast';
 import { listValidEvents } from '../logic/events';
 import { todayInJst } from '../logic/time';
-import type { LevelSummary } from '../types';
 import { demoWeather } from '../weather/demoData';
 import { fetchGeocoding } from '../weather/geocoding';
-import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
-import { UpstreamError } from '../weather/upstream';
+import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
 import { fetchEventsJson, type AssetsEnv } from './assets';
+import { requireDayForecast } from './daySummary';
 import { jsonError } from './http';
 
 /** イベント名の指定を受け付ける上限長（イベント名の実長より十分大きい定数） */
@@ -61,15 +59,6 @@ async function resolveLocation(
   return { latitude: place.latitude, longitude: place.longitude };
 }
 
-/** 気象データから当日の最も厳しい屋外判定を取り出す（日付またぎ防御はbuildDayForecastForを参照） */
-function todayOutdoorWorst(weather: WeatherResult, date: string): LevelSummary {
-  const day = buildDayForecastFor(weather.hours, date);
-  if (day === null) {
-    throw new UpstreamError(`対象日（${date}）の気象データがありません`);
-  }
-  return day.outdoorWorst;
-}
-
 /**
  * GET /api/badge.svg?city=東京
  * GET /api/badge.svg?event=けもケット17
@@ -88,10 +77,12 @@ export async function handleBadge(request: Request, env: AssetsEnv): Promise<Res
       return location;
     }
     // /api/nationalと同じ日付固定の取得（当日1日分。エッジキャッシュも共有される）
-    weather = await fetchWeatherBase(location.latitude, location.longitude, 1, fetch, date);
+    weather = await fetchWeatherForDate(location.latitude, location.longitude, date);
   }
 
-  const svg = buildBadgeSvg(todayOutdoorWorst(weather, date));
+  // 当日の最も厳しい屋外判定をバッジに描く（対象日が空のときの上流エラー化を含めて
+  // requireDayForecastが担う）
+  const svg = buildBadgeSvg(requireDayForecast(weather.hours, date).outdoorWorst);
   return new Response(svg, {
     headers: {
       'Content-Type': 'image/svg+xml; charset=utf-8',

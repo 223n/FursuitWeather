@@ -23,6 +23,16 @@ export interface HourlyWeather {
 }
 
 /**
+ * 1日分の日の出・日の入り時刻（HH:mm、欠測はnull）
+ * 上流の取得（src/weather/openMeteo.ts）と日別サマリーの組み立て
+ * （src/logic/forecast.ts）が共有する（それぞれが同形の型を持つ重複を防ぐ）
+ */
+export interface SunTimes {
+  sunrise: string | null;
+  sunset: string | null;
+}
+
+/**
  * 深刻度（0=快適〜4=危険、UIの色分け用）
  * フロントの`grade-0`〜`grade-4` CSSクラスとGRADE_SYMBOLSの添字に直結する
  * 閉じた値域のため、帯の追加時に範囲外の値を書くとコンパイルエラーになる

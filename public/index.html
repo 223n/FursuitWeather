@@ -296,6 +296,9 @@
         <div class="control-row">
           <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
         </div>
+        <!-- 操作結果の近接表示: ページ上部の#statusはこの位置から画面外になるため、
+             ボタンの直近にも同じ結果を出す（実測WBGTタブの#wbgt-log-statusと同じ先例） -->
+        <p id="wear-log-status" class="hint" role="status"></p>
         <p class="hint">
           着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
           前回できた長さを、今日の目安を緩める根拠にしないでください。
@@ -317,6 +320,8 @@
           <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ">
           <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
         </div>
+        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
+        <p id="board-status" class="hint" role="status"></p>
         <fieldset class="board-limit-row">
           <legend>連続活動の上限の目安</legend>
           <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
@@ -467,6 +472,8 @@
           <button type="button" id="packing-add-button">追加</button>
           <button type="button" id="packing-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>リストをコピー</button>
         </div>
+        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
+        <p id="packing-status" class="hint" role="status"></p>
         <p class="hint">チェックと追加した持ち物はこの端末にのみ保存されます。「リストをコピー」でグループチャットへ貼れます。</p>
       </div>
 

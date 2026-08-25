@@ -118,6 +118,22 @@ describe('buildBadgeSvg', () => {
     expect(svg).toContain('#CC3311');
   });
 
+  it('低温側判定は青系配色+雪結晶マークで暑熱側と区別する（色+形の二重符号）', () => {
+    const svg = buildBadgeSvg(summary({ grade: 1, level: 'coldCaution', label: '低温注意' }));
+    // 配色はサイト本体の--level-cold-*（BADGE.cold。htmlSyncテストでも同期検証）
+    expect(svg).toContain('#E1EFF8');
+    expect(svg).toContain('#005180');
+    expect(svg).toContain('#0072B2');
+    // 暑熱側のgrade 1配色にならない
+    expect(svg).not.toContain('#FCF0D8');
+    // 雪結晶マーク（形の区別。stroke付きのパス）
+    expect(svg).toContain('stroke-linecap="round"');
+    // 暑熱側には雪結晶を描かない
+    expect(
+      buildBadgeSvg(summary({ grade: 1, level: 'caution', label: '注意' })),
+    ).not.toContain('stroke-linecap');
+  });
+
   it('左ラベルと判定文を含み、role=img+aria-label+titleで読み上げに対応する', () => {
     const svg = buildBadgeSvg(summary());
     expect(svg).toContain('着ぐるみ判定');

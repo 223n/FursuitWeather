@@ -672,6 +672,10 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     BADGE.gradeAccents.forEach((color, grade) => {
       expect(color).toBe(token(`level-${grade}-accent`));
     });
+    // 低温側の配色（サイト本体の--level-cold-*と同期。青系の区別を埋め込み先でも維持）
+    expect(BADGE.cold.surface).toBe(token('level-cold-surface'));
+    expect(BADGE.cold.text).toBe(token('level-cold-text'));
+    expect(BADGE.cold.accent).toBe(token('level-cold-accent'));
   });
 
   it('天気コード→アイコンの対応規則はapp.jsと一致する', () => {

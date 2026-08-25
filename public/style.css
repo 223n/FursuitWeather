@@ -1463,6 +1463,17 @@ section h3 {
   .version-note a {
     padding: 0.8rem 0.25rem;
   }
+
+  /* 応急対応ページへの安全導線（タイマー内・判定カード内・注意欄・
+     「この予報について」内）は、手袋・視界制限の状態で使う最重要リンクのため、
+     リンク単位でタップ領域（約44px）を確保する */
+  .timer-emergency-link a,
+  .now-emergency a,
+  #notices-section p a,
+  .about p a {
+    display: inline-block;
+    padding: 0.6rem 0.25rem;
+  }
 }
 
 /* 印刷対応: ブラウザ既定では背景色が印刷されず、ヘッダーが白紙に白文字となって

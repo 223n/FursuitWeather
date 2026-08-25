@@ -16,6 +16,7 @@ import type {
   HourForecast,
   HourlyWeather,
   LevelSummary,
+  SunTimes,
 } from '../types';
 import { assessAirQuality, type AirQualityValues } from './airQuality';
 import { assessIndoor, assessOutdoor } from './fursuit';
@@ -32,12 +33,6 @@ export function buildHourForecast(weather: HourlyWeather): HourForecast {
     outdoor: assessOutdoor(weather),
     indoor: assessIndoor(weather),
   };
-}
-
-/** 1日分の日の出・日の入り（HH:mm、欠測はnull）。src/weather/openMeteo.tsのSunTimesと同形 */
-export interface DaySunTimes {
-  sunrise: string | null;
-  sunset: string | null;
 }
 
 /**
@@ -63,7 +58,7 @@ export function buildDayForecastFor(
 export function buildDayForecast(
   date: string,
   hours: readonly HourForecast[],
-  sun?: DaySunTimes,
+  sun?: SunTimes,
   air?: AirQualityValues,
 ): DayForecast {
   const temperatures = hours.map((h) => h.weather.temperature);
@@ -119,7 +114,7 @@ export function buildForecast(
   location: ForecastLocation,
   model: string,
   generatedAt: string,
-  sunTimes: ReadonlyMap<string, DaySunTimes> = new Map(),
+  sunTimes: ReadonlyMap<string, SunTimes> = new Map(),
   airQuality: ReadonlyMap<string, AirQualityValues> = new Map(),
 ): ForecastResponse {
   const hours = weatherHours.map(buildHourForecast);

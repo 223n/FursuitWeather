@@ -1092,7 +1092,11 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await expect(page.locator('#timer-limit')).toContainText('同じ長さ以上の休憩');
   await expect(page.locator('#timer-rest-button')).toHaveText('着用を再開');
 
-  // 終了で閉じ、保存も消える（リロードしても再表示されない）
+  // 終了は誤タップ防止の二度押し確認（1度目は案内、2度目で閉じて保存も消える。
+  // リロードしても再表示されない）
+  await page.click('#timer-stop-button');
+  await expect(page.locator('#timer-note')).toContainText('もう一度「タイマー終了」を押すと終了します');
+  await expect(page.locator('#timer-overlay')).toBeVisible();
   await page.click('#timer-stop-button');
   await expect(page.locator('#timer-overlay')).toBeHidden();
   await page.reload();

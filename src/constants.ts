@@ -581,6 +581,10 @@ export const BADGE = {
   gradeTexts: ['#006147', '#6B4700', '#7A3100', '#99260C', '#6E1100'],
   /** gradeごとの強調色（style.cssの--level-N-accent。枠線に使う） */
   gradeAccents: ['#009E73', '#A66E00', '#B34700', '#CC3311', '#8A1500'],
+  /** 低温側判定（levelがcold接頭辞）の配色（style.cssの--level-cold-*と同期。
+   * ずれはhtmlSyncテストが検出する）。サイト本体の「低温側は青系+形の区別」を
+   * 埋め込みバッジでも維持する（バッジでは温度計アイコンの代わりに雪結晶を描く） */
+  cold: { surface: '#E1EFF8', text: '#005180', accent: '#0072B2' },
   /** 暑熱の「危険」だけに付ける明示文（HEAT_BANDSのadviceの要点。埋め込み先でも
    * 「着用中止」が文字で伝わるようにする。低温側はラベル自体が低温危険のため付けない） */
   dangerSuffix: '・着用中止',

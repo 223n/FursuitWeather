@@ -9,10 +9,11 @@
 import { parseLatLonParams } from './api/http';
 import { NATIONAL_CITIES } from './constants';
 import { buildDayForecastFor } from './logic/forecast';
+import { nearestPoint } from './logic/geo';
 import { todayInJst } from './logic/time';
 import type { DayForecast } from './types';
 import { demoWeather } from './weather/demoData';
-import { fetchWeatherBase } from './weather/openMeteo';
+import { fetchWeatherForDate } from './weather/openMeteo';
 
 /** OGタグへ差し込む動的サマリー */
 export interface OgSummary {
@@ -54,14 +55,9 @@ export function isPreviewBot(userAgent: string | null): boolean {
  * 「◯◯付近」、それ以外は座標表記にする
  */
 export function ogLocationLabel(latitude: number, longitude: number): string {
-  const nearest = NATIONAL_CITIES.reduce((a, b) => {
-    const distA = (latitude - a.lat) ** 2 + (longitude - a.lon) ** 2;
-    const distB = (latitude - b.lat) ** 2 + (longitude - b.lon) ** 2;
-    return distB < distA ? b : a;
-  });
-  const distance = (latitude - nearest.lat) ** 2 + (longitude - nearest.lon) ** 2;
-  if (distance <= NEARBY_DISTANCE_SQUARED) {
-    return `${nearest.name}付近`;
+  const { point, distanceSquared } = nearestPoint(latitude, longitude, NATIONAL_CITIES);
+  if (distanceSquared <= NEARBY_DISTANCE_SQUARED) {
+    return `${point.name}付近`;
   }
   return `緯度${latitude.toFixed(2)}・経度${longitude.toFixed(2)}`;
 }
@@ -121,7 +117,7 @@ export async function ogSummaryFor(
     const weather =
       url.searchParams.get('demo') === '1'
         ? demoWeather(date)
-        : await fetchWeatherBase(latitude, longitude, 1, fetchImpl, date);
+        : await fetchWeatherForDate(latitude, longitude, date, fetchImpl);
     const day = buildDayForecastFor(weather.hours, date);
     if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する

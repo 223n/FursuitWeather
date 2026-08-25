@@ -179,8 +179,8 @@
     ) {
       // URL由来の地点名から制御文字・書式文字を除去する（改行による表示崩れ、
       // U+202E等の双方向制御文字による名前偽装への対策。掲示用のため
-      // ZWJ絵文字合成が崩れる副作用は許容する）
-      const urlName = (params.get('name') ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 80);
+      // ZWJ絵文字合成が崩れる副作用は許容する。除去規則はsanitizeTextに単一化）
+      const urlName = sanitizeText(params.get('name') ?? '').slice(0, 80);
       return {
         name: urlName || '指定地点',
         // URLへ書き戻す名前（サニタイズ済み。空なら書かない）。「指定地点」の

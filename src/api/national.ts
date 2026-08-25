@@ -3,12 +3,12 @@
 // 都市単位のベストエフォート: 1都市の失敗が全国全体の応答を巻き込まない
 
 import { ATTRIBUTION, NATIONAL_CITIES, WEATHER_MODEL_LABEL, type NationalCity } from '../constants';
-import { buildDayForecastFor } from '../logic/forecast';
 import { todayInJst } from '../logic/time';
 import type { NationalCitySummary, NationalResponse } from '../types';
 import { demoWeather } from '../weather/demoData';
-import { fetchWeatherBase, type WeatherResult } from '../weather/openMeteo';
+import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
+import { requireDayForecast } from './daySummary';
 import { json } from './http';
 
 /** 気象データから1都市分の当日サマリーを組み立てる */
@@ -17,11 +17,9 @@ function buildCitySummary(
   weather: WeatherResult,
   date: string,
 ): NationalCitySummary {
-  // レスポンス契約の「日本時間の当日」で絞る（日付またぎ防御はbuildDayForecastForを参照）
-  const day = buildDayForecastFor(weather.hours, date);
-  if (day === null) {
-    throw new UpstreamError(`対象日（${date}）の気象データがありません`);
-  }
+  // レスポンス契約の「日本時間の当日」で絞る（対象日が空のときの上流エラー化を含めて
+  // requireDayForecastが担う）
+  const day = requireDayForecast(weather.hours, date);
   return {
     name: city.name,
     latitude: city.lat,
@@ -44,8 +42,7 @@ async function fetchCitySummary(
   date: string,
 ): Promise<NationalCitySummary | null> {
   try {
-    // fetchWeatherBaseは位置引数のため、第5引数dateへ届けるだけの目的で既定のfetchを明示している
-    return buildCitySummary(city, await fetchWeatherBase(city.lat, city.lon, 1, fetch, date), date);
+    return buildCitySummary(city, await fetchWeatherForDate(city.lat, city.lon, date), date);
   } catch (error) {
     console.error('全国天気の取得に失敗:', city.name, error);
     return null;

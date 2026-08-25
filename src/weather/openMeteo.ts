@@ -13,7 +13,7 @@ import {
   UPSTREAM_RETRY_DELAY_MS,
 } from '../constants';
 import type { AirQualityValues } from '../logic/airQuality';
-import type { HourlyWeather } from '../types';
+import type { HourlyWeather, SunTimes } from '../types';
 import {
   fetchUpstream,
   isFiniteNumber,
@@ -54,12 +54,6 @@ interface OpenMeteoResponse {
   };
 }
 
-/** 1日分の日の出・日の入り時刻（HH:mm、欠測はnull） */
-export interface SunTimes {
-  sunrise: string | null;
-  sunset: string | null;
-}
-
 /**
  * 取得URLを組み立てる
  *
@@ -95,28 +89,41 @@ export function buildForecastUrl(
   return `${OPEN_METEO_BASE_URL}?${params.toString()}`;
 }
 
-/** 降水確率の取得URL（標準予報API）を組み立てる */
-export function buildProbabilityUrl(latitude: number, longitude: number, days: number): string {
+/**
+ * 補助上流（Open-Meteo系API）の取得URL共通部を組み立てる
+ * （座標・hourly項目・タイムゾーン・日数の構成は降水確率・大気質で同一）
+ */
+function buildAuxiliaryUrl(
+  baseUrl: string,
+  latitude: number,
+  longitude: number,
+  hourlyFields: string,
+  days: number,
+): string {
   const params = new URLSearchParams({
     latitude: latitude.toFixed(4),
     longitude: longitude.toFixed(4),
-    hourly: 'precipitation_probability',
+    hourly: hourlyFields,
     timezone: 'Asia/Tokyo',
     forecast_days: String(days),
   });
-  return `${OPEN_METEO_FORECAST_BASE_URL}?${params.toString()}`;
+  return `${baseUrl}?${params.toString()}`;
+}
+
+/** 降水確率の取得URL（標準予報API）を組み立てる */
+export function buildProbabilityUrl(latitude: number, longitude: number, days: number): string {
+  return buildAuxiliaryUrl(
+    OPEN_METEO_FORECAST_BASE_URL,
+    latitude,
+    longitude,
+    'precipitation_probability',
+    days,
+  );
 }
 
 /** 大気質（PM2.5・黄砂）の取得URL（Air Quality API）を組み立てる */
 export function buildAirQualityUrl(latitude: number, longitude: number, days: number): string {
-  const params = new URLSearchParams({
-    latitude: latitude.toFixed(4),
-    longitude: longitude.toFixed(4),
-    hourly: 'pm2_5,dust',
-    timezone: 'Asia/Tokyo',
-    forecast_days: String(days),
-  });
-  return `${OPEN_METEO_AIR_QUALITY_BASE_URL}?${params.toString()}`;
+  return buildAuxiliaryUrl(OPEN_METEO_AIR_QUALITY_BASE_URL, latitude, longitude, 'pm2_5,dust', days);
 }
 
 /**
@@ -252,104 +259,131 @@ export function parseWeatherResponse(data: unknown): WeatherResult {
 }
 
 /**
+ * 補助上流（降水確率・大気質）共通の取得骨格
+ * 「取得→非2xxはログして空Map→JSON読取→hourlyをcollectで検証・変換→
+ *   形式異常（collectがnull）はログして空Map→例外もログして空Map」を1箇所に集約する。
+ * 補助情報のため、どの失敗でも予報本体を巻き込まない（ベストエフォート）。
+ * 予報本体と同じ上流のため、瞬断の取り直し（requestUpstream）も同じ扱いにする
+ *
+ * @param subject ログ・利用者向け文言の件名（「降水確率」「大気質」）
+ * @param collect 検証済みhourlyオブジェクトからMapを作る純粋関数（形式異常はnull）
+ */
+async function fetchAuxiliaryHourly<T>(
+  url: string,
+  messages: UpstreamMessages,
+  subject: string,
+  fetchImpl: typeof fetch,
+  collect: (hourly: Record<string, unknown>) => Map<string, T> | null,
+): Promise<Map<string, T>> {
+  try {
+    const response = await requestUpstream(url, fetchImpl, messages);
+    if (!response.ok) {
+      await logUpstreamStatus(`${subject}APIエラー:`, url, response);
+      return new Map();
+    }
+    const { raw, data } = await readUpstreamJson(response, url, subject);
+    const hourly = (data as { hourly?: Record<string, unknown> } | null)?.hourly;
+    const collected = hourly && typeof hourly === 'object' ? collect(hourly) : null;
+    if (collected === null) {
+      console.error(`${subject}APIレスポンスの形式異常:`, url, raw.slice(0, 200));
+      return new Map();
+    }
+    return collected;
+  } catch (error) {
+    console.error(`${subject}の取得に失敗:`, url, error);
+    return new Map();
+  }
+}
+
+/** hourlyから時刻→降水確率のMapを作る純粋関数（形式異常はnull） */
+function collectProbabilityByTime(hourly: Record<string, unknown>): Map<string, number> | null {
+  const times = hourly.time;
+  const probabilities = hourly.precipitation_probability;
+  if (!Array.isArray(times) || !Array.isArray(probabilities)) {
+    return null;
+  }
+  const byTime = new Map<string, number>();
+  for (let i = 0; i < times.length; i += 1) {
+    const time = times[i];
+    const probability = probabilities[i];
+    if (typeof time === 'string' && isFiniteNumber(probability)) {
+      byTime.set(time, probability);
+    }
+  }
+  return byTime;
+}
+
+/** hourlyから日付→大気質の生値のMapを作る純粋関数（形式異常はnull）
+ * 日付ごとに欠測を除いた生値を集める（評価はsrc/logic/airQuality.tsの純粋関数が担う） */
+function collectAirQualityByDate(
+  hourly: Record<string, unknown>,
+): Map<string, AirQualityValues> | null {
+  const times = hourly.time;
+  const pm25Values = hourly.pm2_5;
+  const dustValues = hourly.dust;
+  if (!Array.isArray(times)) {
+    return null;
+  }
+  const byDate = new Map<string, { pm25: number[]; dust: number[] }>();
+  for (let i = 0; i < times.length; i += 1) {
+    const time = times[i];
+    if (typeof time !== 'string' || !TIME_PATTERN.test(time)) {
+      continue;
+    }
+    const date = time.slice(0, 10);
+    let values = byDate.get(date);
+    if (!values) {
+      values = { pm25: [], dust: [] };
+      byDate.set(date, values);
+    }
+    const pm25 = Array.isArray(pm25Values) ? pm25Values[i] : null;
+    const dust = Array.isArray(dustValues) ? dustValues[i] : null;
+    if (isFiniteNumber(pm25)) {
+      values.pm25.push(pm25);
+    }
+    if (isFiniteNumber(dust)) {
+      values.dust.push(dust);
+    }
+  }
+  return byDate;
+}
+
+/**
  * 降水確率を標準予報APIから取得し、時刻→確率のMapに変換する
  * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
  */
-async function fetchPrecipitationProbability(
+function fetchPrecipitationProbability(
   latitude: number,
   longitude: number,
   days: number,
   fetchImpl: typeof fetch,
 ): Promise<Map<string, number>> {
-  const url = buildProbabilityUrl(latitude, longitude, days);
-  try {
-    // 予報本体と同じ上流のため、瞬断の取り直しも同じ扱いにする
-    // （UpstreamErrorはこの関数のcatchが受け止め、空のMapに落ちる）
-    const response = await requestUpstream(url, fetchImpl, PROBABILITY_FETCH_MESSAGES);
-    if (!response.ok) {
-      await logUpstreamStatus('降水確率APIエラー:', url, response);
-      return new Map();
-    }
-    const { raw, data } = await readUpstreamJson(response, url, '降水確率');
-    const hourly = (
-      data as { hourly?: { time?: unknown; precipitation_probability?: unknown } } | null
-    )?.hourly;
-    const times = hourly?.time;
-    const probabilities = hourly?.precipitation_probability;
-    if (!Array.isArray(times) || !Array.isArray(probabilities)) {
-      console.error('降水確率APIレスポンスの形式異常:', url, raw.slice(0, 200));
-      return new Map();
-    }
-    const byTime = new Map<string, number>();
-    for (let i = 0; i < times.length; i += 1) {
-      const time = times[i];
-      const probability = probabilities[i];
-      if (typeof time === 'string' && isFiniteNumber(probability)) {
-        byTime.set(time, probability);
-      }
-    }
-    return byTime;
-  } catch (error) {
-    console.error('降水確率の取得に失敗:', url, error);
-    return new Map();
-  }
+  return fetchAuxiliaryHourly(
+    buildProbabilityUrl(latitude, longitude, days),
+    PROBABILITY_FETCH_MESSAGES,
+    '降水確率',
+    fetchImpl,
+    collectProbabilityByTime,
+  );
 }
 
 /**
  * 大気質（PM2.5・黄砂）をAir Quality APIから取得し、日付→生値のMapに変換する
  * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
  */
-async function fetchAirQuality(
+function fetchAirQuality(
   latitude: number,
   longitude: number,
   days: number,
   fetchImpl: typeof fetch,
 ): Promise<Map<string, AirQualityValues>> {
-  const url = buildAirQualityUrl(latitude, longitude, days);
-  try {
-    const response = await requestUpstream(url, fetchImpl, AIR_QUALITY_FETCH_MESSAGES);
-    if (!response.ok) {
-      await logUpstreamStatus('大気質APIエラー:', url, response);
-      return new Map();
-    }
-    const { raw, data } = await readUpstreamJson(response, url, '大気質');
-    const hourly = (
-      data as { hourly?: { time?: unknown; pm2_5?: unknown; dust?: unknown } } | null
-    )?.hourly;
-    const times = hourly?.time;
-    const pm25Values = hourly?.pm2_5;
-    const dustValues = hourly?.dust;
-    if (!Array.isArray(times)) {
-      console.error('大気質APIレスポンスの形式異常:', url, raw.slice(0, 200));
-      return new Map();
-    }
-    // 日付ごとに欠測を除いた生値を集める（評価はsrc/logic/airQuality.tsの純粋関数が担う）
-    const byDate = new Map<string, { pm25: number[]; dust: number[] }>();
-    for (let i = 0; i < times.length; i += 1) {
-      const time = times[i];
-      if (typeof time !== 'string' || !TIME_PATTERN.test(time)) {
-        continue;
-      }
-      const date = time.slice(0, 10);
-      let values = byDate.get(date);
-      if (!values) {
-        values = { pm25: [], dust: [] };
-        byDate.set(date, values);
-      }
-      const pm25 = Array.isArray(pm25Values) ? pm25Values[i] : null;
-      const dust = Array.isArray(dustValues) ? dustValues[i] : null;
-      if (isFiniteNumber(pm25)) {
-        values.pm25.push(pm25);
-      }
-      if (isFiniteNumber(dust)) {
-        values.dust.push(dust);
-      }
-    }
-    return byDate;
-  } catch (error) {
-    console.error('大気質の取得に失敗:', url, error);
-    return new Map();
-  }
+  return fetchAuxiliaryHourly(
+    buildAirQualityUrl(latitude, longitude, days),
+    AIR_QUALITY_FETCH_MESSAGES,
+    '大気質',
+    fetchImpl,
+    collectAirQualityByDate,
+  );
 }
 
 /** 上流リクエストの文言セット（fetchUpstreamへ渡すログラベルと利用者向け文言） */
@@ -417,23 +451,8 @@ async function requestUpstream(
   return requestOnce(url, fetchImpl, messages);
 }
 
-/**
- * 時間別の気象データを取得する（降水確率の補完なし）
- * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
- * 全国天気（/api/national）のように降水確率が不要な用途では、こちらを使うと
- * 標準予報APIへの補完リクエストを省ける
- *
- * @param fetchImpl テスト時にモックを注入するためのfetch実装
- * @param date 指定時はその1日へ固定して取得する（buildForecastUrlを参照）
- */
-export async function fetchWeatherBase(
-  latitude: number,
-  longitude: number,
-  days: number,
-  fetchImpl: typeof fetch = fetch,
-  date?: string,
-): Promise<WeatherResult> {
-  const url = buildForecastUrl(latitude, longitude, days, date);
+/** 組み立て済みURLから気象データを取得・検証する（fetchWeatherBase/fetchWeatherForDate共通） */
+async function fetchWeatherFromUrl(url: string, fetchImpl: typeof fetch): Promise<WeatherResult> {
   const response = await requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES);
 
   if (!response.ok) {
@@ -451,6 +470,38 @@ export async function fetchWeatherBase(
     }
     throw error;
   }
+}
+
+/**
+ * 時間別の気象データを取得する（降水確率の補完なし）
+ * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる
+ *
+ * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ */
+export function fetchWeatherBase(
+  latitude: number,
+  longitude: number,
+  days: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<WeatherResult> {
+  return fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, days), fetchImpl);
+}
+
+/**
+ * 対象日1日分の気象データを取得する（降水確率の補完なし）
+ * /api/national・/api/badge.svg・OGPの「日本時間の当日」契約用。日付入りURLは
+ * JST 0時に自然とエッジキャッシュが切り替わる（buildForecastUrlのdate分岐を参照）
+ *
+ * @param fetchImpl テスト時にモックを注入するためのfetch実装
+ */
+export function fetchWeatherForDate(
+  latitude: number,
+  longitude: number,
+  date: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<WeatherResult> {
+  // daysはdate指定時にbuildForecastUrlが使わないため、値に意味はない
+  return fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, 1, date), fetchImpl);
 }
 
 /**

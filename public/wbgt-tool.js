@@ -147,6 +147,18 @@
     );
 
     resultArea.replaceChildren(list);
+    // 厳重警戒（grade 3）以上は応急対応ページへの導線を結果の直下に出す
+    // （判定カード（now-card）と同じ方針。実測で危険と分かった瞬間に手順を探させない）
+    if (band.grade >= 3) {
+      const emergency = document.createElement('p');
+      emergency.className = 'now-emergency';
+      emergency.appendChild(faIcon('triangle-exclamation'));
+      const link = document.createElement('a');
+      link.href = '/emergency';
+      link.textContent = 'もしものとき（熱中症の応急対応）';
+      emergency.appendChild(link);
+      resultArea.appendChild(emergency);
+    }
     // 会場ログ用に直近の判定を保持し、記録ボタンを押せるようにする
     lastJudged = { measured, suitWbgt, grade: band.grade, label: band.label };
     logButton.disabled = false;

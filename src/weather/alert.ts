@@ -36,7 +36,7 @@ export async function fetchAlertFor(
   latitude: number,
   longitude: number,
   date: string,
-  fetchImpl: typeof fetch,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AlertResult | null> {
   const url = buildAlertUrl(date);
   try {
