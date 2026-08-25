@@ -2168,6 +2168,18 @@
         '詳しくは下の「暑熱順化について」をご覧ください。';
       notes.appendChild(acclimatizationNote);
     }
+    // 前回の着用実績（活動ふりかえり記録）を参考として示す。
+    // 「前回できたから今日もいける」の危険側アンカリングを避ける文言を必ず併記する
+    const lastWear = readWearLog().slice(-1)[0];
+    if (lastWear) {
+      const lastDate = new Date(lastWear.at + 9 * 60 * 60 * 1000);
+      const wearNote = document.createElement('li');
+      wearNote.textContent =
+        `参考: 前回の着用（${lastDate.getUTCMonth() + 1}月${lastDate.getUTCDate()}日）は` +
+        `${lastWear.minutes}分でした。間が空いたときは前回より短めから始めてください` +
+        '（前回できた長さを今日の目安を緩める根拠にしないでください）。';
+      notes.appendChild(wearNote);
+    }
     const generalNote = document.createElement('li');
     generalNote.textContent =
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
@@ -2711,6 +2723,14 @@
     if (!outdoor || timerState.mode !== 'wear') {
       return;
     }
+    // ふりかえり記録用に、この着用中の最高の補正後WBGTを控える
+    if (
+      Number.isFinite(outdoor.suitWbgt) &&
+      (!Number.isFinite(timerState.maxSuitWbgt) || outdoor.suitWbgt > timerState.maxSuitWbgt)
+    ) {
+      timerState.maxSuitWbgt = outdoor.suitWbgt;
+      writeTimerState();
+    }
     if (outdoor.activityMinutes < timerState.limitMinutes) {
       // 判定が悪化していたら上限を安全側へ短縮し、警告を新しい上限で出し直す
       timerState.limitMinutes = outdoor.activityMinutes;
@@ -2841,7 +2861,10 @@
       Date.now() - state.startedAt < TIMER_STATE_MAX_AGE_MS &&
       Number.isFinite(state.limitMinutes) &&
       (state.mode !== 'rest' || Number.isFinite(state.wearMinutes)) &&
-      (state.query === undefined || typeof state.query === 'string')
+      (state.query === undefined || typeof state.query === 'string') &&
+      (state.maxSuitWbgt === undefined ||
+        state.maxSuitWbgt === null ||
+        Number.isFinite(state.maxSuitWbgt))
     ) {
       return state;
     }
@@ -2967,6 +2990,10 @@
 
   /** タイマーを終了して閉じる（保存した状態も消す） */
   function stopTimer() {
+    // 着用中の終了なら、そのセッションをふりかえり記録へ残す
+    if (timerState && timerState.mode === 'wear') {
+      recordWearSession(timerState);
+    }
     clearInterval(timerTickId);
     timerTickId = null;
     timerState = null;
@@ -2986,6 +3013,88 @@
     }
     timerReturnFocus = null;
   }
+
+  // ---- 活動ふりかえり記録 ----
+  // 着用タイマーの終了・休憩切り替え時に着用セッション（時刻・長さ・その間の
+  // 最高の補正後WBGT）をこの端末にのみ自動蓄積し、当日のサマリーを表示する。
+  // 「前回できたから今日もいける」という危険側の判断材料にしないよう、
+  // 表示には常に「目安を緩める根拠にしない」注意を併記する
+
+  const WEAR_LOG_KEY = 'fursuitweatherWearLog';
+  /** 保存する着用セッションの上限（古い記録から削除する） */
+  const WEAR_LOG_LIMIT = 20;
+  const wearLogSection = document.getElementById('wear-log-section');
+  const wearLogSummary = document.getElementById('wear-log-summary');
+
+  /** ミリ秒時刻の日本時間の日付（YYYY-MM-DD） */
+  function jstDateOfMs(ms) {
+    return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  }
+
+  /** 保存済みの着用セッションを読む（壊れた保存・保存不可の環境は空） */
+  function readWearLog() {
+    const list = readStorageJson(WEAR_LOG_KEY);
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return list.filter(
+      (entry) => entry && Number.isFinite(entry.at) && Number.isFinite(entry.minutes),
+    );
+  }
+
+  /** 着用セッションを1件記録する（着用→休憩・タイマー終了の両方から呼ぶ） */
+  function recordWearSession(state) {
+    const minutes = Math.max(1, Math.round((Date.now() - state.startedAt) / 60000));
+    const entries = readWearLog();
+    entries.push({
+      at: Date.now(),
+      minutes,
+      maxSuitWbgt: Number.isFinite(state.maxSuitWbgt) ? state.maxSuitWbgt : null,
+    });
+    try {
+      localStorage.setItem(WEAR_LOG_KEY, JSON.stringify(entries.slice(-WEAR_LOG_LIMIT)));
+    } catch {
+      // 保存できない環境では表示だけ諦める（タイマー本体には影響しない）
+    }
+    renderWearLog();
+  }
+
+  /** 今日の着用記録のサマリーを描画する（今日の記録がなければ隠す） */
+  function renderWearLog() {
+    const today = nowInJst().date;
+    const todayEntries = readWearLog().filter((entry) => jstDateOfMs(entry.at) === today);
+    wearLogSection.hidden = todayEntries.length === 0;
+    if (todayEntries.length === 0) {
+      return;
+    }
+    const total = todayEntries.reduce((sum, entry) => sum + entry.minutes, 0);
+    const maxWbgt = Math.max(
+      ...todayEntries.map((entry) =>
+        Number.isFinite(entry.maxSuitWbgt) ? entry.maxSuitWbgt : Number.NEGATIVE_INFINITY,
+      ),
+    );
+    wearLogSummary.textContent =
+      `今日の記録: 着用${todayEntries.length}回・計${total}分` +
+      (Number.isFinite(maxWbgt) ? `・最高 補正後WBGT ${maxWbgt}℃` : '');
+  }
+
+  document.getElementById('wear-log-copy-button').addEventListener('click', async () => {
+    const lines = readWearLog().map((entry) => {
+      const date = new Date(entry.at + 9 * 60 * 60 * 1000);
+      return (
+        `${date.getUTCMonth() + 1}/${date.getUTCDate()} 着用${entry.minutes}分` +
+        (Number.isFinite(entry.maxSuitWbgt) ? `（最高 補正後WBGT ${entry.maxSuitWbgt}℃）` : '')
+      );
+    });
+    try {
+      await navigator.clipboard.writeText(['着用記録（FursuitWeather）', ...lines].join('\n'));
+      setStatus('着用記録をコピーしました。', false);
+    } catch {
+      setStatus('コピーできませんでした。', true);
+    }
+  });
+
+  renderWearLog();
 
   timerStartButton.addEventListener('click', () => {
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく
@@ -3013,6 +3122,8 @@
       warnedOver: false,
       // 判定の取り直しは開始時の地点で行う（表示地点の切り替えに追従させない）
       query: displayedQuery,
+      // ふりかえり記録用（この着用中の最高の補正後WBGT）
+      maxSuitWbgt: Number.isFinite(target.outdoor.suitWbgt) ? target.outdoor.suitWbgt : null,
     });
   });
 
@@ -3023,6 +3134,8 @@
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく（リロード復帰後の保険）
     prepareTimerAudio();
     if (timerState.mode === 'wear') {
+      // 着用セッションをふりかえり記録へ残してから休憩に切り替える
+      recordWearSession(timerState);
       // 休憩へ: 着用した長さを控えて「同じ長さ以上の休憩」の目安に使う
       const wearMinutes = Math.max(1, Math.round((Date.now() - timerState.startedAt) / 60000));
       timerState = {
@@ -3051,6 +3164,7 @@
         warned5: false,
         warnedOver: false,
         query: timerState.query,
+        maxSuitWbgt: Number.isFinite(target.outdoor.suitWbgt) ? target.outdoor.suitWbgt : null,
       };
       writeTimerState();
       updateTimerModeUi();

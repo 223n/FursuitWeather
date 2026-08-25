@@ -857,6 +857,18 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await page.reload();
   await waitForForecast(page);
   await expect(page.locator('#timer-overlay')).toBeHidden();
+
+  // 活動ふりかえり: 休憩切り替えで1回分の着用セッションが記録され、
+  // 当日サマリーが表示される（この端末のみの保存でリロード後も残る）
+  await expect(page.locator('#wear-log-section')).toBeVisible();
+  await expect(page.locator('#wear-log-summary')).toContainText('着用1回');
+  await expect(page.locator('#wear-log-summary')).toContainText('計1分');
+
+  // プランナーには前回実績が「短めから」の注意付きで参考表示される
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#plan-result')).toContainText('参考: 前回の着用');
+  await expect(page.locator('#plan-result')).toContainText('緩める根拠にしないでください');
 });
 
 test('当日コンディションチェック: 2段階の注意が出て、回答はどこにも保存されない', async ({

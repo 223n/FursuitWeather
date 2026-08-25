@@ -274,6 +274,19 @@
         <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
+      <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
+           （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
+      <div id="wear-log-section" class="wear-log-section" hidden>
+        <h3>今日の着用記録</h3>
+        <p id="wear-log-summary" class="wear-log-summary"></p>
+        <div class="control-row">
+          <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
+        </div>
+        <p class="hint">
+          着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
+          前回できた長さを、今日の目安を緩める根拠にしないでください。
+        </p>
+      </div>
       <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
            自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
            作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
