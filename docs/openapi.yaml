@@ -135,7 +135,7 @@ components:
           description: 利用者向けの日本語メッセージ
     ForecastResponse:
       type: object
-      required: [location, generatedAt, model, attribution, notices, hours, days]
+      required: [location, generatedAt, model, attribution, notices, suddenHeat, hours, days]
       properties:
         location:
           type: object
@@ -162,6 +162,14 @@ components:
           type: array
           items: { type: string }
           description: 通年の注意事項
+        suddenHeat:
+          oneOf:
+            - $ref: '#/components/schemas/SuddenHeatWarning'
+            - type: 'null'
+          description: >-
+            急な暑さ（暑熱順化前）の注意。初日の最高気温が直近7日の
+            平均最高気温を5℃以上上回り、かつ25℃以上のときに付く。
+            該当しない・過去データ不足で判定できないときはnull
         hours:
           type: array
           description: >-
@@ -261,7 +269,20 @@ components:
           description: >-
             素のWBGT（着衣補正前）の日最大値（℃）。33以上は環境省の
             熱中症警戒アラートの発表基準に相当
+        maxWindSpeed:
+          type: number
+          description: >-
+            その日の最大風速（m/s、1時間平均の最大。全時間帯から取る）。
+            10以上は気象庁の「やや強い風」に相当
         laundry: { $ref: '#/components/schemas/LaundryAssessment' }
+    SuddenHeatWarning:
+      type: object
+      properties:
+        date: { type: string, format: date, description: 対象日 }
+        recentAverageMax:
+          type: number
+          description: 直近の平均最高気温（℃、小数1桁）
+        targetMax: { type: number, description: 対象日の最高気温（℃） }
     LaundryAssessment:
       type: object
       properties:

@@ -86,6 +86,12 @@
       <h2>全国の天気</h2>
       <div class="display-national-grid" id="display-national-grid"></div>
     </section>
+    <!-- もしものときスライド: 設定でONのとき、または判定が厳重警戒以上のときに
+         自動で加わる（EMERGENCY_SLIDE。display.jsのactiveSlidesを参照） -->
+    <section class="display-slide" id="slide-emergency" aria-label="もしものとき" hidden>
+      <h2>もしものとき（熱中症の応急対応）</h2>
+      <div class="display-emergency"></div>
+    </section>
   </main>
 
   <div class="display-bottom">
@@ -120,7 +126,8 @@
         <label><input type="checkbox" id="settings-slide-hours" data-slide="hours" checked>この後の予報</label>
         <label><input type="checkbox" id="settings-slide-days" data-slide="days" checked>3日間の天気</label>
         <label><input type="checkbox" id="settings-slide-national" data-slide="national" checked>全国の天気</label>
-        <p class="hint">最低1枚は表示されます（すべて外すと全スライドの表示に戻ります）。</p>
+        <label><input type="checkbox" id="settings-slide-emergency" data-slide="emergency">もしものとき（熱中症の応急対応）</label>
+        <p class="hint">最低1枚は表示されます（すべて外すと全スライドの表示に戻ります。「もしものとき」は枚数に数えません）。「もしものとき」はオフでも、判定が厳重警戒以上の間は自動で表示されます。</p>
       </fieldset>
       <fieldset class="display-settings-group">
         <legend>全国の天気に表示する都市</legend>

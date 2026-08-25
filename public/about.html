@@ -91,7 +91,8 @@
         <a href="#api">API</a><span aria-hidden="true"> ｜</span>
         <a href="#cache">エッジ配信とキャッシュ</a><span aria-hidden="true"> ｜</span>
         <a href="#disclaimer">免責事項</a><span aria-hidden="true"> ｜</span>
-        <a href="#sources">データ出典</a>
+        <a href="#sources">データ出典</a><span aria-hidden="true"> ｜</span>
+        <a href="/emergency">もしものとき（応急対応）</a>
       </p>
     </nav>
 
@@ -261,6 +262,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>model</code></th><td>string</td><td>使用した気象モデル（通常は<code>jma_seamless（気象庁MSM/GSM）</code>、デモ時は<code>demo</code>）</td></tr>
             <tr><th scope="row"><code>attribution</code></th><td>object</td><td>データ出典表記（<code>weatherData</code>・<code>weatherDataUrl</code>・<code>license</code>）。<br>表示時は出典の明記が必要</td></tr>
             <tr><th scope="row"><code>notices</code></th><td>string[]</td><td>通年の注意事項（活動時の安全に関する文言）</td></tr>
+            <tr><th scope="row"><code>suddenHeat</code></th><td>object・null</td><td>急な暑さ（暑熱順化前）の注意。初日の最高気温が直近7日の平均最高気温を5℃以上上回り、かつ25℃以上のときに<code>date</code>（対象日）・<code>recentAverageMax</code>（直近平均、℃）・<code>targetMax</code>（対象日の最高気温、℃）を返す。該当しない・過去データ不足のときは<code>null</code></td></tr>
             <tr><th scope="row"><code>hours</code></th><td>array</td><td>1時間ごとの予報（下表）</td></tr>
             <tr><th scope="row"><code>days</code></th><td>array</td><td>日別サマリー（下表）</td></tr>
           </tbody>
@@ -333,6 +335,8 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
             <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式）。<br>深刻度1以下かつ降水なしの時間帯が対象</td></tr>
             <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
+            <tr><th scope="row"><code>maxWbgt</code></th><td>number</td><td>その日の素のWBGT（着衣補正前）の最大値（℃）。33以上は環境省の熱中症警戒アラートの発表基準に相当</td></tr>
+            <tr><th scope="row"><code>maxWindSpeed</code></th><td>number</td><td>その日の最大風速（m/s、1時間平均の最大）。10以上は気象庁の「やや強い風」に相当</td></tr>
             <tr><th scope="row"><code>laundry</code></th><td>object</td><td>洗濯乾燥判定:
               <ul class="field-list">
                 <li><code>score</code>（<code>0</code><span aria-hidden="true">〜</span><span class="sr-only">から</span><code>100</code>）</li>

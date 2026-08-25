@@ -318,6 +318,70 @@
   font-weight: 700;
 }
 
+/* もしものときスライド（熱中症の応急対応の要点） */
+.display-emergency {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.4rem, 1.2vh, 1rem);
+  min-height: 0;
+}
+
+.display-emergency-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.9vh, 0.8rem);
+  min-height: 0;
+}
+
+.display-emergency-steps > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: clamp(0.4rem, 1vw, 1rem);
+  border: 2px solid var(--level-3-accent);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  padding: clamp(0.25rem, 0.9vh, 0.7rem) clamp(0.5rem, 1.2vw, 1.2rem);
+}
+
+/* 手順番号はDOMのspan（読み上げ対象）。丸数字の見た目にする */
+.display-emergency-number {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background-color: var(--level-3-accent);
+  color: var(--color-on-accent);
+  font-size: clamp(1rem, 2.6vmin, 1.7rem);
+  font-weight: 700;
+}
+
+.display-emergency-title {
+  flex-shrink: 0;
+  font-size: clamp(1.1rem, 3.2vmin, 2.1rem);
+  font-weight: 700;
+}
+
+.display-emergency-detail {
+  font-size: clamp(0.95rem, 2.4vmin, 1.6rem);
+}
+
+.display-emergency-link {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(0.9rem, 2.2vmin, 1.4rem);
+  color: var(--color-text-muted);
+}
+
 /* スライド内の読み込み中・データなし案内 */
 .display-slide-note {
   flex: 1;
@@ -434,26 +498,22 @@
   white-space: nowrap;
 }
 
-/* 複製2つをgap=100vw（画面1枚分）で並べ、トラック幅の半分だけ動かすと
-   終端フレームが先頭フレームと完全に一致し、テキスト長に依らずシームレスに繰り返す */
+/* テキスト複製を隙間なく並べ、トラック幅の半分（1グループ分）だけ動かして
+   シームレスに繰り返す（複製数と所要秒数はdisplay.jsが画面幅・文字幅から計算し、
+   文字数に関係なく一定速度で途切れず流れ続ける） */
 .display-ticker-track {
   display: inline-flex;
-  gap: 100vw;
-  padding-left: 100vw;
   animation: display-ticker-scroll 30s linear infinite;
+}
+
+/* 複製1つぶん。padding-rightが複製間の間隔になる（幅の実測に含めるためgapは使わない） */
+.display-ticker-item {
+  padding-right: 3em;
 }
 
 /* 「一時停止」ボタンでお知らせの流れも止める（WCAG 2.2.2。display.jsが付け外しする） */
 .display-ticker.ticker-paused .display-ticker-track {
   animation-play-state: paused;
-}
-
-.display-ticker-track.ticker-medium {
-  animation-duration: 45s;
-}
-
-.display-ticker-track.ticker-long {
-  animation-duration: 60s;
 }
 
 @keyframes display-ticker-scroll {
@@ -468,15 +528,10 @@
     text-align: center;
   }
 
+  /* 静止表示（display.jsは複製せず1つだけ描画する） */
   .display-ticker-track {
     animation: none;
-    padding-left: 0;
     display: block;
-  }
-
-  /* 静止表示では複製した2つ目のテキストを隠す */
-  .display-ticker-track > :nth-child(2) {
-    display: none;
   }
 }
 

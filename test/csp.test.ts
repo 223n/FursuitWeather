@@ -5,10 +5,21 @@ import headers from '../public/_headers?raw';
 import wranglerConfig from '../wrangler.jsonc?raw';
 import appJs from '../public/app.js?raw';
 import displayJs from '../public/display.js?raw';
+import swJs from '../public/sw.js?raw';
 import { HTML_PATHS, buildHtmlCsp, isHtmlPath } from '../src/csp';
 
 describe('isHtmlPath', () => {
-  it.each(['/', '/index.html', '/about', '/about.html', '/display', '/display.html', '/404.html'])(
+  it.each([
+    '/',
+    '/index.html',
+    '/about',
+    '/about.html',
+    '/display',
+    '/display.html',
+    '/emergency',
+    '/emergency.html',
+    '/404.html',
+  ])(
     '%s はHTMLとして処理する',
     (path) => {
       expect(isHtmlPath(path)).toBe(true);
@@ -91,6 +102,15 @@ describe('設定の同期', () => {
     const runWorkerFirst = wranglerConfig.match(/"run_worker_first":\s*\[([^\]]+)\]/)![1]!;
     for (const path of HTML_PATHS) {
       expect(runWorkerFirst, `${path}がrun_worker_firstにありません`).toContain(`"${path}"`);
+    }
+  });
+
+  it('HTML_PATHSの各ページはsw.jsのSHELL_URLS（オフラインシェル）にも含まれている', () => {
+    // ページを追加したときにService Workerのプリキャッシュから漏れると、
+    // そのページだけオフラインで開けなくなる（*.htmlの別名と404は対象外）
+    const shellUrls = swJs.match(/const SHELL_URLS = \[([^\]]+)\]/)![1]!;
+    for (const path of HTML_PATHS.filter((p) => !p.endsWith('.html'))) {
+      expect(shellUrls, `${path}がSHELL_URLSにありません`).toContain(`'${path}'`);
     }
   });
 

@@ -71,6 +71,8 @@ export function buildDayForecast(date: string, hours: readonly HourForecast[]): 
     // 素のWBGT（着衣補正前）の日最大。熱中症警戒アラートの発表基準（33以上）
     // への該当判断に使えるよう、日中に限らず全時間帯から取る
     maxWbgt: Math.max(...hours.map((h) => h.outdoor.wbgt)),
+    // 風は設営・撤収も含め終日のリスクのため、maxWbgtと同様に全時間帯から取る
+    maxWindSpeed: Math.max(...hours.map((h) => h.weather.windSpeed)),
     laundry: assessLaundry(hours.map((h) => h.weather)),
   };
 }
@@ -105,6 +107,8 @@ export function buildForecast(
     model,
     attribution: ATTRIBUTION,
     notices: YEAR_ROUND_NOTICES,
+    // 急な暑さの判定は過去データを持つAPI層（handleForecast）が上書きする
+    suddenHeat: null,
     hours,
     days,
   };

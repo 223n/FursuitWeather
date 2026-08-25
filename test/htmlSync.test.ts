@@ -11,11 +11,13 @@
 
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
+import readmeMd from '../README.md?raw';
 import apiMd from '../docs/api.md?raw';
 import logicMd from '../docs/logic.md?raw';
 import openapiYaml from '../docs/openapi.yaml?raw';
 import notFoundHtml from '../public/404.html?raw';
 import aboutHtml from '../public/about.html?raw';
+import emergencyHtml from '../public/emergency.html?raw';
 import appJs from '../public/app.js?raw';
 import html from '../public/index.html?raw';
 import llmsTxt from '../public/llms.txt?raw';
@@ -43,8 +45,11 @@ import {
   NATIONAL_CITIES,
   RECOMMENDED_MAX_GRADE,
   RESPONSE_CACHE_MAX_AGE_SECONDS,
+  SUDDEN_HEAT,
   SUIT_WBGT_ADJUSTMENT,
+  THUNDER_WEATHER_CODE_MIN,
   UPSTREAM_CACHE_TTL_SECONDS,
+  WIND_CAUTION_SPEED,
   YEAR_ROUND_NOTICES,
 } from '../src/constants';
 
@@ -114,9 +119,17 @@ describe('静的HTMLとconstantsの同期', () => {
     // 列の追加時に実テーブルと乖離しないよう機械検証する
     const caption = html.match(/<table id="hours-table">[\s\S]*?<caption[^>]*>([\s\S]*?)<\/caption>/);
     expect(caption).not.toBeNull();
-    for (const column of ['時刻', '天気', '気温', '湿度', '降水確率', '暑さ指数', '屋外判定', '屋内判定']) {
+    for (const column of ['時刻', '天気', '気温', '湿度', '降水確率', '風速', '暑さ指数', '屋外判定', '屋内判定']) {
       expect(caption![1]).toContain(column);
     }
+  });
+
+  it('強風・雷のしきい値の複製（app.js）はconstantsと一致する', () => {
+    // 注意表示のしきい値はフロントで再判定するため、片側だけの変更を検出する
+    expect(appJs).toContain(`const WIND_CAUTION_SPEED = ${WIND_CAUTION_SPEED};`);
+    expect(appJs).toContain(
+      `const THUNDER_WEATHER_CODE_MIN = ${THUNDER_WEATHER_CODE_MIN};`,
+    );
   });
 });
 
@@ -341,7 +354,7 @@ describe('フッターのバージョン表記の同期', () => {
   it('全ページのバージョン表記はpackage.jsonのversionと一致する', () => {
     // フッターの表記は手動更新のため、リリース時の更新漏れをここで検出する
     // （リリース手順はdocs/release.mdを参照）
-    for (const page of [html, aboutHtml, notFoundHtml]) {
+    for (const page of [html, aboutHtml, notFoundHtml, emergencyHtml]) {
       expect(page).toContain(`>v${pkg.version}</a>`);
     }
   });
@@ -399,6 +412,56 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     expect(appJs).toContain(`暑さ指数（WBGT）${HEAT_STROKE_ALERT_WBGT}以上`);
     expect(apiMd).toContain(`${HEAT_STROKE_ALERT_WBGT}以上は環境省の熱中症警戒アラートの発表基準に相当`);
     expect(logicMd).toContain(`${HEAT_STROKE_ALERT_WBGT}以上は環境省・`);
+  });
+
+  it('風・雷・急な暑さのしきい値の記述はconstantsと一致する', () => {
+    // 注意表示のしきい値（風速10m/s・WMOコード95・+5℃/直近7日/25℃以上）の
+    // docsの数値記述を単一情報源に揃える（app.js側の複製定数は上の
+    // 「強風・雷のしきい値の複製」テストで宣言単位で検証している）
+    expect(apiMd).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を${SUDDEN_HEAT.temperatureRise}℃以上上回り`,
+    );
+    expect(apiMd).toContain(`最高気温${SUDDEN_HEAT.minTargetMax}℃以上`);
+    expect(apiMd).toContain(`過去データが${SUDDEN_HEAT.minBaselineDays}日分未満`);
+    expect(apiMd).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
+    expect(logicMd).toContain(`最大風速が${WIND_CAUTION_SPEED}m/s以上の日`);
+    expect(logicMd).toContain(`WMOコード${THUNDER_WEATHER_CODE_MIN}以上`);
+    expect(logicMd).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を`,
+    );
+    expect(logicMd).toContain(`${SUDDEN_HEAT.temperatureRise}℃以上上回り`);
+    expect(logicMd).toContain(`最高気温が${SUDDEN_HEAT.minTargetMax}℃以上`);
+    expect(logicMd).toContain(`過去データが${SUDDEN_HEAT.minBaselineDays}日分未満`);
+    expect(llmsTxt).toContain(`強風（風速${WIND_CAUTION_SPEED}m/s以上）`);
+    expect(openapiYaml).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の`,
+    );
+    expect(openapiYaml).toContain(`${SUDDEN_HEAT.temperatureRise}℃以上上回り`);
+    expect(openapiYaml).toContain(`${SUDDEN_HEAT.minTargetMax}℃以上のときに付く`);
+    expect(openapiYaml).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
+    // app.jsの注意文の数値（フロントは定数を参照できないため文字列で検証する）
+    expect(appJs).toContain(`より${SUDDEN_HEAT.temperatureRise}℃以上高い見込み`);
+    // 凡例の強風マーク説明（index.html）
+    expect(html).toContain(`風速${WIND_CAUTION_SPEED}m/s以上（気象庁の「やや強い風」以上）`);
+    // READMEの機能説明の数値
+    expect(readmeMd).toContain(`強風（${WIND_CAUTION_SPEED}m/s以上）`);
+    expect(readmeMd).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を${SUDDEN_HEAT.temperatureRise}℃以上上回り`,
+    );
+    expect(readmeMd).toContain(`${SUDDEN_HEAT.minTargetMax}℃以上の日`);
+    // 部分欠測日の除外ルール（docs/logic.md）
+    expect(logicMd).toContain(`1日あたり${SUDDEN_HEAT.minSamplesPerDay}時間分以上`);
+  });
+
+  it('about.htmlのAPI仕様に新フィールド（suddenHeat・maxWbgt・maxWindSpeed）が記載されている', () => {
+    // docs/api.mdだけ更新されてaboutページが取り残されるのを防ぐ
+    for (const field of ['suddenHeat', 'recentAverageMax', 'maxWbgt', 'maxWindSpeed']) {
+      expect(aboutHtml).toContain(`<code>${field}</code>`);
+    }
+    expect(aboutHtml).toContain(
+      `直近${SUDDEN_HEAT.baselineDays}日の平均最高気温を${SUDDEN_HEAT.temperatureRise}℃以上上回り`,
+    );
+    expect(aboutHtml).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
   });
 
   it('判定ロジックの解説（docs/logic.md）のしきい値・係数はconstantsと一致する', () => {
@@ -502,6 +565,19 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     for (const slide of slides) {
       expect(displayMd).toMatch(new RegExp(`\\| ${slide.name} \\|[^|]*\\| ${slide.seconds}秒 \\|`));
     }
+  });
+
+  it('もしものときスライドの定義はdisplay.html・設定チェックボックス・docsと同期する', () => {
+    // EMERGENCY_SLIDEは通常巡回（SLIDES・4枚検証）と別枠のため、個別に検証する
+    const emergency = displayJs.match(
+      /key: 'emergency',\s*\n\s*id: 'slide-emergency',\s*\n\s*name: '([^']+)',/,
+    );
+    expect(emergency).not.toBeNull();
+    expect(displayHtml).toContain(`aria-label="${emergency![1]}"`);
+    expect(displayHtml).toContain('id="slide-emergency"');
+    expect(displayHtml).toContain('data-slide="emergency"');
+    expect(displayMd).toContain('もしものとき');
+    expect(displayMd).toContain('`emergency`');
   });
 
   it('公開仕様の「主要12都市」はNATIONAL_CITIESの件数と一致する', () => {

@@ -451,7 +451,8 @@ input[type='number'] {
  * 実データ4行分（時刻・判定・アドバイス・屋内）の高さを常に確保する
  * （スケルトンはこの高さに収まる行数にしてある） */
 .now-card {
-  min-height: 9.5rem;
+  /* CLS対策の高さ確保。雷・応急対応の追加行（厳重警戒以上・雷予想時）を見込む */
+  min-height: 11rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -461,7 +462,7 @@ input[type='number'] {
 /* 狭い画面ではアドバイス文が折り返して縦に伸びるため、その分を確保する */
 @media (max-width: 48rem) {
   .now-card {
-    min-height: 11rem;
+    min-height: 12.5rem;
   }
 }
 
@@ -864,6 +865,16 @@ th {
   margin-right: 0.3em;
 }
 
+/* 横スクロール中も時刻列（行見出し）を左端に固定する（列が増えて表を
+   横にずらすと時刻が見えなくなる対策）。thは地色付きのため下の列は透けない。
+   collapseした罫線はstickyに追従しないため、右端の区切りはbox-shadowで描く */
+#hours-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--color-border-table);
+}
+
 tbody tr.night {
   background-color: var(--color-night-row);
 }
@@ -900,7 +911,8 @@ tbody tr.night {
 }
 
 #notices-list li {
-  margin-bottom: 0.4rem;
+  /* 色枠の注意（alert/caution）が複数並んでも読み分けられる間隔にする */
+  margin-bottom: 0.6rem;
 }
 
 /* 熱中症警戒アラート基準相当の注意（注意事項欄の先頭で枠付きで目立たせる） */
@@ -914,6 +926,31 @@ tbody tr.night {
 
 .alert-notice .fa-icon {
   color: var(--level-3-accent);
+}
+
+/* 強風・急な暑さなどの注意（警戒レベルの橙系。赤のalert-noticeとは色+文面で区別する） */
+.caution-notice {
+  list-style: none;
+  border: 2px solid var(--level-2-accent);
+  border-radius: 6px;
+  background-color: var(--level-2-surface);
+  padding: 0.5rem 0.75rem;
+}
+
+.caution-notice .fa-icon {
+  color: var(--level-2-accent);
+}
+
+/* 時間別テーブルの強風セル（色だけに頼らず風アイコンを併記する） */
+.wind-caution {
+  color: var(--level-2-accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wind-caution .fa-icon {
+  margin-right: 0.2em;
+  vertical-align: -0.1em;
 }
 
 .about ul {
@@ -1014,6 +1051,106 @@ code {
 section h3 {
   font-size: 1.05rem;
   margin: 1.25rem 0 0.5rem;
+}
+
+/* 判定カード内の応急対応リンク（厳重警戒以上のときだけ表示される） */
+.now-emergency {
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.now-emergency > .fa-icon {
+  color: var(--level-3-accent);
+  margin-right: 0.3em;
+  vertical-align: -0.1em;
+}
+
+/* 応急対応ページ（/emergency）: 現場でスマホから読む前提。
+ * 文字は本文より一回り大きく、手順は番号付きの枠で1つずつ区切る */
+.emergency {
+  font-size: 1.05rem;
+}
+
+/* 意識確認と119番通報（最重要の判断を赤枠で最上部に置く） */
+.emergency-call {
+  border: 3px solid var(--level-3-accent);
+  border-radius: 8px;
+  background-color: var(--level-3-surface);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.emergency-call > h2 {
+  margin-top: 0;
+  color: var(--level-3-text);
+}
+
+.emergency-call .heading-icon {
+  color: var(--level-3-accent);
+  margin-right: 0.4rem;
+  vertical-align: -0.1em;
+}
+
+.emergency-call-button-line {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+/* 119番の発信リンク（押し間違いを避けつつ、迷わない大きさのボタンにする） */
+.emergency-call-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--level-3-accent);
+  color: var(--color-on-accent);
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.emergency-call-button:hover,
+.emergency-call-button:focus {
+  text-decoration: underline;
+}
+
+/* リンクだがボタン相当の操作のため、サイト標準のフォーカスリングを付ける */
+.emergency-call-button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 手順リスト（番号はマーカーではなく見出し内の丸数字で示し、枠と対応づける） */
+.emergency-steps {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.emergency-steps > li {
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.emergency-steps > li > h3 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+
+.emergency-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
+  font-size: 0.95rem;
 }
 
 /* ダークモード: OS設定に追従する。CUDの考え方（色+記号の併記）はそのまま、

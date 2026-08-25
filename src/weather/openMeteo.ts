@@ -7,6 +7,7 @@
 import {
   OPEN_METEO_BASE_URL,
   OPEN_METEO_FORECAST_BASE_URL,
+  SUDDEN_HEAT,
   UPSTREAM_CACHE_TTL_SECONDS,
   UPSTREAM_RETRY_DELAY_MS,
 } from '../constants';
@@ -68,6 +69,9 @@ export function buildForecastUrl(
   });
   if (date === undefined) {
     params.set('forecast_days', String(days));
+    // 急な暑さ（暑熱順化前）の判定用に、直近の実績も同じ応答で受け取る
+    // （上流コール数は増えない。日付固定の取得（/api/national）には付けない）
+    params.set('past_days', String(SUDDEN_HEAT.baselineDays));
   } else {
     params.set('start_date', date);
     params.set('end_date', date);

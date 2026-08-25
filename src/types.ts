@@ -126,7 +126,23 @@ export interface DayForecast {
   /** その日の素のWBGT（着衣補正前）の最大値（℃）。熱中症警戒アラートの
    * 発表基準（33以上）への該当判断に使える */
   maxWbgt: number;
+  /** その日の最大風速（m/s、1時間平均の最大。全時間帯から取る） */
+  maxWindSpeed: number;
   laundry: LaundryAssessment;
+}
+
+/**
+ * 急な暑さ（暑熱順化前）の注意
+ * 対象日の最高気温が直近数日の平均最高気温を大きく上回るときに付く。
+ * 判定できないとき（過去データの不足・欠測）はレスポンスでnullになる
+ */
+export interface SuddenHeatWarning {
+  /** 対象日（YYYY-MM-DD） */
+  date: string;
+  /** 直近の平均最高気温（℃、小数1桁） */
+  recentAverageMax: number;
+  /** 対象日の最高気温（℃） */
+  targetMax: number;
 }
 
 /** 地点検索（ジオコーディング）の1候補 */
@@ -191,6 +207,8 @@ export interface ForecastResponse {
   attribution: Attribution;
   /** 通年の注意事項 */
   notices: readonly string[];
+  /** 急な暑さ（暑熱順化前）の注意。該当なし・判定不能はnull */
+  suddenHeat: SuddenHeatWarning | null;
   hours: readonly HourForecast[];
   days: readonly DayForecast[];
 }
