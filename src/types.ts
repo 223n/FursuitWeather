@@ -103,6 +103,43 @@ export interface LaundryAssessment {
   advice: string;
 }
 
+/** 静電気の起きやすさレベル（低・中・高の3段階） */
+export type StaticElectricityLevelId = 'low' | 'medium' | 'high';
+
+/**
+ * 静電気指数（1日単位）
+ * 乾燥期の化繊ファーの帯電（グリーティングでの放電・ほこり吸着）への
+ * 備え（帯電防止スプレー・加湿）の判断に使う
+ */
+export interface StaticElectricityAssessment {
+  level: StaticElectricityLevelId;
+  /** 日本語ラベル（低・中・高） */
+  label: string;
+  /** 「高」の日の対策の一言（それ以外はnull） */
+  advice: string | null;
+}
+
+/** 空気のよごれ（黄砂・PM2.5）レベル（低・中・高の3段階） */
+export type AirQualityLevelId = 'low' | 'medium' | 'high';
+
+/**
+ * 空気のよごれ指数（1日単位）
+ * 春の黄砂・PM2.5による白系ファーの汚れ・屋外撮影のかすみへの
+ * 事前判断に使う。CAMS全球モデルの推定値に基づく「目安」で、
+ * 取得失敗・欠測時はレスポンスでnullになる
+ */
+export interface AirQualityAssessment {
+  level: AirQualityLevelId;
+  /** 日本語ラベル（低・中・高） */
+  label: string;
+  /** その日のPM2.5の日平均（μg/m³、小数1桁）。欠測はnull */
+  pm25Mean: number | null;
+  /** その日の黄砂（dust）の最大濃度（μg/m³、小数1桁）。欠測はnull */
+  dustMax: number | null;
+  /** 「高」の日の注意の一言（それ以外はnull） */
+  advice: string | null;
+}
+
 /** レベルの要約（日別サマリー用）。ActivityAssessmentの部分集合であることを型で明示する */
 export type LevelSummary = Pick<ActivityAssessment, 'level' | 'label' | 'grade'>;
 
@@ -133,6 +170,10 @@ export interface DayForecast {
   /** その日の最大風速（m/s、1時間平均の最大。全時間帯から取る） */
   maxWindSpeed: number;
   laundry: LaundryAssessment;
+  /** 静電気の起きやすさ（日中の各時間のうち最も厳しいレベルを採用） */
+  staticElectricity: StaticElectricityAssessment;
+  /** 空気のよごれ（黄砂・PM2.5）。取得失敗・欠測時はnull（ベストエフォート） */
+  airQuality: AirQualityAssessment | null;
 }
 
 /**

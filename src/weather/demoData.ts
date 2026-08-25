@@ -90,5 +90,11 @@ export function demoWeather(startDate: string): WeatherResult {
       [startDate, { sunrise: '05:00', sunset: '18:30' }],
       [nextDate, { sunrise: '05:01', sunset: '18:29' }],
     ]),
+    // 大気質（空気のよごれ指数用）。晴天日はやや高め、雨天日は洗い流されて低めの
+    // 典型値にする（どちらも「低」の範囲。デモで行の表示を確認できるようにする）
+    airQuality: new Map([
+      [startDate, { pm25: [12, 15, 18], dust: [2, 5] }],
+      [nextDate, { pm25: [6, 8], dust: [0] }],
+    ]),
   };
 }

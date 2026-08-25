@@ -482,6 +482,21 @@
     noDryCold: { grade: 3, symbol: [{ icon: 'temperature-low' }, '✕'], cold: true },
   };
 
+  /** 静電気レベルごとのバッジ設定（色+記号）。ラベルはAPIのlabelを使う。
+   * 低（対策不要）=◎緑、中=△橙、高（対策推奨）=✕赤系で、悪いほど暖色に寄せる */
+  const STATIC_BADGES = {
+    low: { grade: 0 },
+    medium: { grade: 2 },
+    high: { grade: 3 },
+  };
+
+  /** 空気のよごれ（黄砂・PM2.5）レベルごとのバッジ設定（静電気と同じ3段階の配色） */
+  const AIR_BADGES = {
+    low: { grade: 0 },
+    medium: { grade: 2 },
+    high: { grade: 3 },
+  };
+
   /** 冷房要否ごとのバッジ設定（色+記号）。ラベルはAPIのcoolingLabelを使う */
   const COOLING_BADGES = {
     required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'] },
@@ -626,6 +641,31 @@
     laundryValue.appendChild(createInfoChip(`指数${day.laundry.score}`));
     addRow('洗濯・乾燥', laundryValue);
     addRow('着ぐるみ乾燥目安', fursuitDryingBadge(day.laundry));
+    // 静電気（配信済みの古いレスポンスには無い場合があるため有無を確認する）。
+    // 「高」の日はAPIのadvice（帯電防止スプレーの一言）を添える
+    if (day.staticElectricity) {
+      addRow(
+        '静電気',
+        badgeWithText(
+          {
+            ...(STATIC_BADGES[day.staticElectricity.level] ?? { grade: 2 }),
+            label: day.staticElectricity.label,
+          },
+          day.staticElectricity.advice,
+        ),
+      );
+    }
+    // 空気のよごれ（黄砂・PM2.5）。取得失敗・欠測（null）の日は行ごと出さない。
+    // CAMS推定値に基づく目安のため、注記はaboutページ側に記載している
+    if (day.airQuality) {
+      addRow(
+        '空気のよごれ（黄砂・PM2.5）',
+        badgeWithText(
+          { ...(AIR_BADGES[day.airQuality.level] ?? { grade: 2 }), label: day.airQuality.label },
+          day.airQuality.advice,
+        ),
+      );
+    }
 
     card.appendChild(list);
 
@@ -826,13 +866,23 @@
     return currentForecast.hours.filter((h) => h.time.startsWith(date));
   }
 
+  /** 表示中の予報から「現在の時間帯」の行を取り出す
+   * （現在時刻のデータがなければ当日の直近未来で代替。該当なしはnull。
+   *   now-cardと見守りモードの変化検知が同じ規則を共有する） */
+  function currentHourEntry() {
+    const now = nowInJst();
+    const todayHours = hoursOnDate(now.date);
+    return (
+      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
+      null
+    );
+  }
+
   /** 現在時刻の判定カードを描画する。現在時刻のデータがなければ当日の直近未来で代替する */
   function renderNowCard() {
     const now = nowInJst();
-    const todayHours = hoursOnDate(now.date);
-    const target =
-      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-      todayHours.find((h) => hourNumberOf(h.time) > now.hour);
+    const target = currentHourEntry();
     if (!target) {
       nowCard.replaceChildren(
         hintParagraph('本日のこれからの時間帯の予報データがありません。「3日間の天気」タブで日別の予報をご確認ください。'),
@@ -993,9 +1043,63 @@
     }
   }
 
+  /** 環境省の公式発表（/api/alertの突合結果）。nullは非表示（未取得・発表なし・取得失敗） */
+  let envAlert = null;
+
+  /**
+   * 環境省のアラート発表状況を取得して注意欄へ反映する
+   * ベストエフォート: 取得失敗・提供期間外・発表なしはすべて非表示のまま。
+   * デモ表示ではdemo=1の固定発表例を使う（機能が黙って死んでいないかの死活確認手段）
+   */
+  async function refreshEnvAlert(query, seq) {
+    let alert = null;
+    try {
+      const response = await fetch(`/api/alert?${query === DEMO_QUERY ? 'demo=1' : query}`);
+      if (response.ok) {
+        const body = await response.json();
+        if (body && body.alert && typeof body.alert.prefectureName === 'string') {
+          alert = body.alert;
+        }
+      }
+    } catch {
+      // 非表示のまま（本体の予報表示を巻き込まない）
+    }
+    // 取得中に明示操作（地点変更）があれば古い地点の発表を表示しない
+    if (seq !== requestSeq) {
+      return;
+    }
+    envAlert = alert;
+    renderNotices();
+  }
+
   /** 注意事項を描画する */
   function renderNotices() {
     noticesList.replaceChildren();
+    // 環境省の公式発表（突合結果）。自前推定の「基準相当」表示より先頭に出す
+    if (envAlert) {
+      const item = document.createElement('li');
+      item.className = 'alert-notice';
+      const label = envAlert.special ? '熱中症特別警戒アラート' : '熱中症警戒アラート';
+      const advice = envAlert.special
+        ? '過去に例のない危険な暑さです。着ぐるみ活動は中止し、涼しい環境で過ごしてください。'
+        : '涼しい環境・こまめな休憩と水分・塩分補給を最優先してください。';
+      const text = document.createTextNode(
+        `環境省発表: 本日（${formatDate(envAlert.targetDate)}）、${envAlert.prefectureName}に${label}が発表されています` +
+          `（表示地点の最寄りの都道府県）。${advice}詳細は`,
+      );
+      const link = document.createElement('a');
+      link.href = 'https://www.wbgt.env.go.jp/alert.php';
+      link.rel = 'noopener';
+      link.textContent = '環境省 熱中症予防情報サイト';
+      item.append(
+        faIcon('triangle-exclamation', 'btn-icon'),
+        text,
+        link,
+        document.createTextNode('をご確認ください。'),
+      );
+      noticesList.appendChild(item);
+    }
+
     // 素のWBGT（着衣補正前）が熱中症警戒アラートの発表基準（33以上）に達する日は、
     // 公式の発表状況への導線つきで最上部に注意を出す（判定はサーバーのmaxWbgtを使う）
     const alertDays = currentForecast.days
@@ -1303,7 +1407,14 @@
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
+      // 古い地点の公式発表を新しい地点の予報と並べないよう、描画前に消して取り直す
+      envAlert = null;
       renderForecast();
+      // 見守りモード中の明示的な地点変更・再取得では、変化検知の基準も
+      // 新しい表示内容へ合わせ直す（旧地点との比較による偽の変化通知を防ぐ）
+      syncWatchBaseline(displayedFromCache);
+      // 環境省の発表状況の突合はベストエフォートで並行取得する（完了を待たない）
+      refreshEnvAlert(query, seq);
       // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）。
       // オフライン表示の保存済み予報は、発行時刻だけだと最新と誤認されるため
       // 取得時刻を明記する
@@ -1360,18 +1471,28 @@
     return `オフライン表示: ${cachedAtTimeText(response)}に取得した予報を表示しています。最新ではない可能性があります。`;
   }
 
-  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す */
-  function renderForecast() {
+  /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す
+   * @param options.preservePlan trueならプランナーの日付候補と作成済みの計画を触らない
+   *   （見守りモードの自動再取得用。自動処理が明示操作の結果=作成した計画・
+   *   持ち物リストを黙って消さないため） */
+  function renderForecast({ preservePlan = false } = {}) {
     renderNowCard();
     renderDayCards();
     renderNotices();
     // 取得できた日数に合わせて日付タブとプランナーの日付候補を更新し、
     // 地点や取得結果が変わったら古い前提の計画を残さない
     updateDayTabs();
-    populatePlanDates();
-    clearPlan();
+    if (!preservePlan) {
+      populatePlanDates();
+      clearPlan();
+    }
     // 着用タイマーの開始ボタンの表示と、表示中のタイマーの判定バッジを合わせる
     updateTimerButton();
+    // 当日ボードの自動の上限は「いまの判定」に連動するため、予報の描画と同時に更新する
+    // （boardStateは初期化前のみnull。初期化後は常に最新の判定を反映する）
+    if (boardState) {
+      renderBoard();
+    }
 
     if (selectedDate) {
       renderHours();
@@ -1411,6 +1532,155 @@
       loadForecast(lastQuery, lastLocationName, lastOptions ?? {});
     } else {
       loadSelectedCity();
+    }
+  });
+
+  // 見守りモード: 表示中の地点を10分ごとに自動再取得し、「いまの判定」の変化を
+  // 画面内ハイライトと短いチャイムで知らせる。検知は判定帯の変化のみで、
+  // 独自のしきい値は持ち込まない。トグルは意図しない自動取得ループを避けるため
+  // 記憶しない（開くたびに明示的にONにする）
+  const watchToggle = document.getElementById('watch-toggle');
+  const watchStatus = document.getElementById('watch-status');
+  /** 再取得間隔（ブラウザキャッシュの10分と一致させ、上流コールを増やさない） */
+  const WATCH_INTERVAL_MS = 10 * 60 * 1000;
+  let watchTimer = null;
+  /** 前回の「いまの判定」のレベルID（変化検知用。データなしはnull） */
+  let watchLastLevel = null;
+  /** 最後に再取得へ成功した時刻（ミリ秒。バックグラウンド復帰時の即時更新の判断に使う） */
+  let watchLastUpdatedMs = 0;
+
+  /** 見守りの状態表示を更新する */
+  function updateWatchStatus(text) {
+    watchStatus.textContent = text;
+    watchStatus.hidden = false;
+  }
+
+  /** 「HH:MM」表記（見守りの最終更新表示用） */
+  function watchClockText(date) {
+    return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** 判定変化の通知（画面内ハイライト+短いチャイム+読み上げ）。
+   * 前面で開いているときだけ呼ばれる（バックグラウンドでは再取得自体を止める）。
+   * ハイライトはチャイムを聞けない利用者の代替手段のため一時表示にせず、
+   * 次の更新か明示操作まで残す（解除はwatchRefresh成功時・syncWatchBaseline・OFF） */
+  function notifyWatchChange(label) {
+    // 再フローを挟んでクラスを付け直し、CSSアニメーションを再発火させる
+    // （連続変化でも毎回光る。getBoundingClientRectは同期レイアウトの強制目的）
+    nowCard.getBoundingClientRect();
+    nowCard.classList.add('watch-changed');
+    timerAlert(2);
+    srAnnounce.textContent = `見守り: いまの判定が「${label}」に変わりました。`;
+  }
+
+  /**
+   * 見守りの変化検知基準を表示中の予報へ合わせ直す
+   * 明示的な地点変更・再取得（loadForecast）の後に呼ぶ。旧地点の判定と
+   * 新地点の判定を比較して偽の「判定が変わりました」通知が出るのを防ぐ
+   * @param fromCache オフライン表示（Service Workerの保存済み応答）だったか
+   */
+  function syncWatchBaseline(fromCache) {
+    if (watchTimer === null) {
+      return;
+    }
+    const entry = currentForecast ? currentHourEntry() : null;
+    watchLastLevel = entry ? entry.outdoor.level : null;
+    watchLastUpdatedMs = Date.now();
+    nowCard.classList.remove('watch-changed');
+    updateWatchStatus(
+      fromCache
+        ? '見守り中・通信できず更新が止まっています（自動で再試行します）'
+        : `見守り中・最終更新 ${watchClockText(new Date())}`,
+    );
+  }
+
+  /**
+   * 見守りの自動再取得
+   * 明示操作（loadForecast）とは独立に動き、開始後に明示操作・地点変更・OFFが
+   * あれば結果を黙って破棄する（requestSeqを増やさず「最後の明示操作が勝つ」を
+   * 崩さない）。URL・記憶・共有状態も更新しない（表示中の地点の再取得のため）
+   */
+  async function watchRefresh() {
+    if (document.visibilityState !== 'visible' || !displayedQuery) {
+      return;
+    }
+    const seq = requestSeq;
+    const query = displayedQuery;
+    try {
+      const { response, body } = await fetchJsonBody(
+        `/api/forecast?${query}&days=${FORECAST_DAYS}`,
+        '通信に失敗しました。',
+      );
+      if (watchTimer === null || seq !== requestSeq || query !== displayedQuery) {
+        return;
+      }
+      throwIfHttpError(response, body, '予報の取得');
+      if (!body || !Array.isArray(body.days) || !Array.isArray(body.hours) || !Array.isArray(body.notices)) {
+        throw new Error('形式異常');
+      }
+      // Service Workerのオフライン退避応答は「更新の成功」ではない。
+      // 古いキャッシュを最新の取得と偽らず、更新が止まっている事実を表示する
+      if (response.headers.get('X-Served-From-Cache') === '1') {
+        updateWatchStatus('見守り中・通信できず更新が止まっています（自動で再試行します）');
+        return;
+      }
+      currentForecast = body;
+      // 選択中の日を維持する（「予報を更新」と同じ配慮）
+      const dates = body.days.map((d) => d.date);
+      selectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? null);
+      // 自動再取得は利用者の明示操作（活動プランの作成）を消さない
+      renderForecast({ preservePlan: true });
+      // 公式発表の突合も取り直す（見守りの長時間運転で朝5時の発表をまたぐケース）
+      refreshEnvAlert(query, seq);
+      const entry = currentHourEntry();
+      const level = entry ? entry.outdoor.level : null;
+      const changed = watchLastLevel !== null && level !== null && level !== watchLastLevel;
+      watchLastLevel = level;
+      watchLastUpdatedMs = Date.now();
+      if (changed) {
+        updateWatchStatus(
+          `見守り中・最終更新 ${watchClockText(new Date())}・判定が「${entry.outdoor.label}」に変わりました`,
+        );
+        notifyWatchChange(entry.outdoor.label);
+      } else {
+        nowCard.classList.remove('watch-changed');
+        updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
+      }
+    } catch {
+      if (watchTimer === null) {
+        return;
+      }
+      // ベストエフォート: 画面は前回の予報のまま残し、次の周期で再試行する
+      updateWatchStatus('見守り中・更新できませんでした（次の更新で再試行します）');
+    }
+  }
+
+  watchToggle.addEventListener('change', () => {
+    // チャイムの自動再生制限はユーザー操作の中で解いておく
+    prepareTimerAudio();
+    if (watchToggle.checked) {
+      const entry = currentForecast ? currentHourEntry() : null;
+      watchLastLevel = entry ? entry.outdoor.level : null;
+      watchLastUpdatedMs = Date.now();
+      watchTimer = setInterval(watchRefresh, WATCH_INTERVAL_MS);
+      updateWatchStatus(`見守り中・最終更新 ${watchClockText(new Date())}`);
+    } else {
+      clearInterval(watchTimer);
+      watchTimer = null;
+      watchStatus.hidden = true;
+      nowCard.classList.remove('watch-changed');
+    }
+  });
+
+  // バックグラウンド中は再取得を止めているため、復帰時に前回から10分以上
+  // 経っていればすぐ取り直す（次の周期まで最大10分古いまま待たせない）
+  document.addEventListener('visibilitychange', () => {
+    if (
+      document.visibilityState === 'visible' &&
+      watchTimer !== null &&
+      Date.now() - watchLastUpdatedMs >= WATCH_INTERVAL_MS
+    ) {
+      watchRefresh();
     }
   });
 
@@ -2137,6 +2407,27 @@
         notes.appendChild(sunsetNote);
       }
     }
+    // 暑熱リスクのある計画では、間が空いたときの慣らし（暑熱順化）を促す
+    // （詳細は同じタブ内の啓発パネル。冬の計画には出さない）
+    if (worstGradeOf(hours, false) >= 1) {
+      const acclimatizationNote = document.createElement('li');
+      acclimatizationNote.textContent =
+        'しばらく（2週間以上）着ていないときは、初日は目安のおよそ半分から段階的に。' +
+        '詳しくは下の「暑熱順化について」をご覧ください。';
+      notes.appendChild(acclimatizationNote);
+    }
+    // 前回の着用実績（活動ふりかえり記録）を参考として示す。
+    // 「前回できたから今日もいける」の危険側アンカリングを避ける文言を必ず併記する
+    const lastWear = readWearLog().slice(-1)[0];
+    if (lastWear) {
+      const lastDate = new Date(lastWear.at + 9 * 60 * 60 * 1000);
+      const wearNote = document.createElement('li');
+      wearNote.textContent =
+        `参考: 前回の着用（${lastDate.getUTCMonth() + 1}月${lastDate.getUTCDate()}日）は` +
+        `${lastWear.minutes}分でした。間が空いたときは前回より短めから始めてください` +
+        '（前回できた長さを今日の目安を緩める根拠にしないでください）。';
+      notes.appendChild(wearNote);
+    }
     const generalNote = document.createElement('li');
     generalNote.textContent =
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
@@ -2680,6 +2971,14 @@
     if (!outdoor || timerState.mode !== 'wear') {
       return;
     }
+    // ふりかえり記録用に、この着用中の最高の補正後WBGTを控える
+    if (
+      Number.isFinite(outdoor.suitWbgt) &&
+      (!Number.isFinite(timerState.maxSuitWbgt) || outdoor.suitWbgt > timerState.maxSuitWbgt)
+    ) {
+      timerState.maxSuitWbgt = outdoor.suitWbgt;
+      writeTimerState();
+    }
     if (outdoor.activityMinutes < timerState.limitMinutes) {
       // 判定が悪化していたら上限を安全側へ短縮し、警告を新しい上限で出し直す
       timerState.limitMinutes = outdoor.activityMinutes;
@@ -2810,7 +3109,10 @@
       Date.now() - state.startedAt < TIMER_STATE_MAX_AGE_MS &&
       Number.isFinite(state.limitMinutes) &&
       (state.mode !== 'rest' || Number.isFinite(state.wearMinutes)) &&
-      (state.query === undefined || typeof state.query === 'string')
+      (state.query === undefined || typeof state.query === 'string') &&
+      (state.maxSuitWbgt === undefined ||
+        state.maxSuitWbgt === null ||
+        Number.isFinite(state.maxSuitWbgt))
     ) {
       return state;
     }
@@ -2936,6 +3238,10 @@
 
   /** タイマーを終了して閉じる（保存した状態も消す） */
   function stopTimer() {
+    // 着用中の終了なら、そのセッションをふりかえり記録へ残す
+    if (timerState && timerState.mode === 'wear') {
+      recordWearSession(timerState);
+    }
     clearInterval(timerTickId);
     timerTickId = null;
     timerState = null;
@@ -2955,6 +3261,103 @@
     }
     timerReturnFocus = null;
   }
+
+  // ---- 活動ふりかえり記録 ----
+  // 着用タイマーの終了・休憩切り替え時に着用セッション（時刻・長さ・その間の
+  // 最高の補正後WBGT）をこの端末にのみ自動蓄積し、当日のサマリーを表示する。
+  // 「前回できたから今日もいける」という危険側の判断材料にしないよう、
+  // 表示には常に「目安を緩める根拠にしない」注意を併記する
+
+  const WEAR_LOG_KEY = 'fursuitweatherWearLog';
+  /** 保存する着用セッションの上限（古い記録から削除する） */
+  const WEAR_LOG_LIMIT = 20;
+  const wearLogSection = document.getElementById('wear-log-section');
+  const wearLogSummary = document.getElementById('wear-log-summary');
+
+  /** ミリ秒時刻の日本時間の日付（YYYY-MM-DD） */
+  function jstDateOfMs(ms) {
+    return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  }
+
+  /** 記録時刻として妥当な範囲（ミリ秒）。書き込みは常にDate.now()のため、
+   * この範囲外は破損・改ざんとみなして捨てる（Dateの有効範囲外の有限値は
+   * jstDateOfMsのtoISOStringが例外を投げ、初期化全体を巻き込むため） */
+  const WEAR_LOG_AT_MIN = Date.UTC(2020, 0, 1);
+  const WEAR_LOG_AT_MAX = Date.UTC(2100, 0, 1);
+
+  /** 保存済みの着用セッションを読む（壊れた保存・保存不可の環境は空） */
+  function readWearLog() {
+    const list = readStorageJson(WEAR_LOG_KEY);
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return list.filter(
+      (entry) =>
+        entry &&
+        Number.isFinite(entry.at) &&
+        entry.at >= WEAR_LOG_AT_MIN &&
+        entry.at <= WEAR_LOG_AT_MAX &&
+        Number.isFinite(entry.minutes),
+    );
+  }
+
+  /** 着用セッションを1件記録する（着用→休憩・タイマー終了の両方から呼ぶ） */
+  function recordWearSession(state) {
+    const minutes = Math.max(1, Math.round((Date.now() - state.startedAt) / 60000));
+    const entries = readWearLog();
+    entries.push({
+      at: Date.now(),
+      minutes,
+      maxSuitWbgt: Number.isFinite(state.maxSuitWbgt) ? state.maxSuitWbgt : null,
+    });
+    try {
+      localStorage.setItem(WEAR_LOG_KEY, JSON.stringify(entries.slice(-WEAR_LOG_LIMIT)));
+    } catch {
+      // 保存できない環境では表示だけ諦める（タイマー本体には影響しない）
+    }
+    renderWearLog();
+  }
+
+  /** 「今日の記録」として最後に描画した日（日付またぎの再評価用。boardTickが監視する） */
+  let wearLogRenderedDate = null;
+
+  /** 今日の着用記録のサマリーを描画する（今日の記録がなければ隠す） */
+  function renderWearLog() {
+    const today = nowInJst().date;
+    wearLogRenderedDate = today;
+    const todayEntries = readWearLog().filter((entry) => jstDateOfMs(entry.at) === today);
+    wearLogSection.hidden = todayEntries.length === 0;
+    if (todayEntries.length === 0) {
+      return;
+    }
+    const total = todayEntries.reduce((sum, entry) => sum + entry.minutes, 0);
+    const maxWbgt = Math.max(
+      ...todayEntries.map((entry) =>
+        Number.isFinite(entry.maxSuitWbgt) ? entry.maxSuitWbgt : Number.NEGATIVE_INFINITY,
+      ),
+    );
+    wearLogSummary.textContent =
+      `今日の記録: 着用${todayEntries.length}回・計${total}分` +
+      (Number.isFinite(maxWbgt) ? `・最高 補正後WBGT ${maxWbgt}℃` : '');
+  }
+
+  document.getElementById('wear-log-copy-button').addEventListener('click', async () => {
+    const lines = readWearLog().map((entry) => {
+      const date = new Date(entry.at + 9 * 60 * 60 * 1000);
+      return (
+        `${date.getUTCMonth() + 1}/${date.getUTCDate()} 着用${entry.minutes}分` +
+        (Number.isFinite(entry.maxSuitWbgt) ? `（最高 補正後WBGT ${entry.maxSuitWbgt}℃）` : '')
+      );
+    });
+    try {
+      await navigator.clipboard.writeText(['着用記録（FursuitWeather）', ...lines].join('\n'));
+      setStatus('着用記録をコピーしました。', false);
+    } catch {
+      setStatus('コピーできませんでした。', true);
+    }
+  });
+
+  renderWearLog();
 
   timerStartButton.addEventListener('click', () => {
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく
@@ -2982,6 +3385,8 @@
       warnedOver: false,
       // 判定の取り直しは開始時の地点で行う（表示地点の切り替えに追従させない）
       query: displayedQuery,
+      // ふりかえり記録用（この着用中の最高の補正後WBGT）
+      maxSuitWbgt: Number.isFinite(target.outdoor.suitWbgt) ? target.outdoor.suitWbgt : null,
     });
   });
 
@@ -2992,6 +3397,8 @@
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく（リロード復帰後の保険）
     prepareTimerAudio();
     if (timerState.mode === 'wear') {
+      // 着用セッションをふりかえり記録へ残してから休憩に切り替える
+      recordWearSession(timerState);
       // 休憩へ: 着用した長さを控えて「同じ長さ以上の休憩」の目安に使う
       const wearMinutes = Math.max(1, Math.round((Date.now() - timerState.startedAt) / 60000));
       timerState = {
@@ -3020,6 +3427,7 @@
         warned5: false,
         warnedOver: false,
         query: timerState.query,
+        maxSuitWbgt: Number.isFinite(target.outdoor.suitWbgt) ? target.outdoor.suitWbgt : null,
       };
       writeTimerState();
       updateTimerModeUi();
@@ -3076,6 +3484,401 @@
   if (storedTimerState) {
     openTimer(storedTimerState);
   }
+
+  // ---- 当日コンディションチェック ----
+  // 環境側の予報に対して、着用者側の体調リスクを自覚するための任意チェック。
+  // 回答はどこにも保存しない（localStorage・URLへ書かないことが実装上の不変条件）。
+  // 発熱・下痢（厚労省要綱では作業から外す判断の対象）は「活動見送りの検討」、
+  // それ以外は「1段階慎重に」の2段階に分け、判定のしきい値・記号・色は変えない
+
+  const conditionItems = [...document.querySelectorAll('.condition-item')];
+  const conditionNote = document.getElementById('condition-note');
+
+  /** チェック状態から注意の帯を更新する（未チェックなら空にする） */
+  function updateConditionNote() {
+    const severe = conditionItems.some((box) => box.checked && box.dataset.severe === 'true');
+    const anyChecked = conditionItems.some((box) => box.checked);
+    conditionNote.classList.toggle('condition-note-severe', severe);
+    conditionNote.classList.toggle('condition-note-warning', !severe && anyChecked);
+    if (!anyChecked) {
+      conditionNote.replaceChildren();
+      return;
+    }
+    conditionNote.replaceChildren(
+      faIcon('triangle-exclamation'),
+      srOnlySpan('注意: '),
+      document.createTextNode(
+        severe
+          ? '発熱・下痢など体調不良があるときは、今日の活動の見送りを検討してください。脱水が進みやすく、熱中症の危険が大きく高まります。回復を最優先に。'
+          : '該当がある日は、表示の判定より1段階慎重に。連続着用は目安より短めにし、休憩と水分・塩分補給を増やしてください。',
+      ),
+    );
+  }
+
+  for (const box of conditionItems) {
+    box.addEventListener('change', updateConditionNote);
+  }
+
+  // 「回答は保存されません」の約束を守るため、ブラウザのフォーム状態復元
+  // （リロード・戻る操作でチェックが残る挙動）も読み込み時に必ず打ち消す
+  // （HTML側のautocomplete="off"と二重の防御）
+  for (const box of conditionItems) {
+    box.checked = false;
+  }
+  updateConditionNote();
+
+  // ---- 当日ボード（複数着用者の見守り） ----
+  // 1台の画面点灯した端末で「誰がいつから出ていて、誰がそろそろ休憩か」を
+  // 一覧する掲示ボード。データはこの端末のlocalStorageのみで、当日限り
+  // （日付が変わると自動リセット）。ニックネームは共有URL・会場表示モードへ
+  // 一切載せない。休憩の下限時間という新しいしきい値は発明せず、休憩中は
+  // 経過の上向きカウントのみ表示する
+
+  const BOARD_STORAGE_KEY = 'fursuitweatherDayBoard';
+  const BOARD_WEARER_LIMIT = 20;
+  /** 交代が近い表示に切り替える残り分数（着用タイマーの5分前警告と同じ間隔） */
+  const BOARD_SOON_MINUTES = 5;
+  const boardNameInput = document.getElementById('board-name-input');
+  const boardManualLimitInput = document.getElementById('board-manual-limit');
+  const boardLimitNote = document.getElementById('board-limit-note');
+  const boardLists = {
+    wearing: document.getElementById('board-wearing'),
+    resting: document.getElementById('board-resting'),
+    waiting: document.getElementById('board-waiting'),
+  };
+
+  /** 当日ボードの状態（読み込みはinitBoardで行う） */
+  let boardState = null;
+
+  /** 空のボード状態を作る */
+  function emptyBoardState() {
+    return {
+      date: nowInJst().date,
+      limitMode: 'auto',
+      manualLimitMinutes: 30,
+      wearers: [],
+    };
+  }
+
+  /** 保存済みのボード状態を読む（壊れた保存・別の日の保存は空へリセット） */
+  function readBoardState() {
+    const state = readStorageJson(BOARD_STORAGE_KEY);
+    if (
+      !state ||
+      state.date !== nowInJst().date ||
+      !Array.isArray(state.wearers) ||
+      (state.limitMode !== 'auto' && state.limitMode !== 'manual') ||
+      !Number.isFinite(state.manualLimitMinutes)
+    ) {
+      return emptyBoardState();
+    }
+    const validStates = ['wearing', 'resting', 'waiting'];
+    state.wearers = state.wearers.filter(
+      (wearer) =>
+        wearer &&
+        typeof wearer.name === 'string' &&
+        wearer.name !== '' &&
+        validStates.includes(wearer.state) &&
+        Number.isFinite(wearer.since),
+    );
+    return state;
+  }
+
+  /** ボード状態を保存する（保存できない環境ではこのタブの表示中だけ動く） */
+  function writeBoardState() {
+    writeStorageJson(BOARD_STORAGE_KEY, boardState);
+  }
+
+  /** 現在の上限の目安（分）。自動は予報のいまの判定から。判定できないときはnull */
+  function boardLimitMinutes() {
+    if (boardState.limitMode === 'manual') {
+      return boardState.manualLimitMinutes;
+    }
+    if (!currentForecast) {
+      return null;
+    }
+    const entry = currentHourEntry();
+    return entry ? entry.outdoor.activityMinutes : null;
+  }
+
+  /** 経過分（切り捨て） */
+  function boardElapsedMinutes(wearer) {
+    return Math.max(0, Math.floor((Date.now() - wearer.since) / 60000));
+  }
+
+  /** 出演中カードの状況テキストと強調区分（'over'・'soon'・null）を作る */
+  function boardWearingStatus(wearer, limit) {
+    const elapsed = boardElapsedMinutes(wearer);
+    if (limit === null) {
+      return { text: `経過${elapsed}分（上限の目安なし）`, emphasis: null };
+    }
+    if (limit <= 0) {
+      return { text: `経過${elapsed}分・着用中止の判定です。直ちに交代を`, emphasis: 'over' };
+    }
+    const remaining = limit - elapsed;
+    if (remaining <= 0) {
+      return { text: `上限${limit}分を超過（経過${elapsed}分）・交代してください`, emphasis: 'over' };
+    }
+    if (remaining <= BOARD_SOON_MINUTES) {
+      return { text: `経過${elapsed}分／上限${limit}分・残り約${remaining}分`, emphasis: 'soon' };
+    }
+    return { text: `経過${elapsed}分／上限${limit}分`, emphasis: null };
+  }
+
+  /** 状態変更ボタンを作る
+   * @param wearerName アクセシブルネーム用の着用者名（同名ボタンが複数カードに
+   *   並んでも読み上げで区別できるようにする） */
+  function boardActionButton(label, wearerName, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.setAttribute('aria-label', `${label}（${wearerName}）`);
+    button.addEventListener('click', () => {
+      // 超過チャイムの自動再生制限を、復元済みボードの操作でも解いておく
+      // （既存方針: 警告の瞬間のAudioContext新規作成は無音になり得る）
+      prepareTimerAudio();
+      onClick();
+    });
+    return button;
+  }
+
+  /** 着用者の状態を変える（経過は移動時点から数え直し、超過チャイムも再武装する） */
+  function moveBoardWearer(wearer, nextState) {
+    wearer.state = nextState;
+    wearer.since = Date.now();
+    wearer.warnedOver = false;
+    writeBoardState();
+    renderBoard();
+  }
+
+  /** カードの状況テキストと強調クラスを現在時刻に合わせる（作成時・定期更新の共通処理） */
+  function applyBoardCardStatus(wearer, limit, refs) {
+    let text;
+    let emphasis = null;
+    if (wearer.state === 'wearing') {
+      ({ text, emphasis } = boardWearingStatus(wearer, limit));
+    } else if (wearer.state === 'resting') {
+      text = `休憩${boardElapsedMinutes(wearer)}分`;
+    } else {
+      text = '待機中';
+    }
+    if (refs.status.textContent !== text) {
+      refs.status.textContent = text;
+    }
+    refs.item.classList.toggle('board-card-over', emphasis === 'over');
+    refs.item.classList.toggle('board-card-soon', emphasis === 'soon');
+  }
+
+  /** 描画済みカードのDOM参照（着用者オブジェクト→要素）。
+   * boardStateはJSONで保存するため、DOM参照はこのMapで別管理する */
+  const boardCardRefs = new Map();
+
+  /** 1人分のカードを作る */
+  function boardCard(wearer, limit) {
+    const item = document.createElement('li');
+    item.className = 'board-card';
+    const name = document.createElement('span');
+    name.className = 'board-card-name';
+    name.textContent = wearer.name;
+    item.appendChild(name);
+
+    const status = document.createElement('span');
+    status.className = 'board-card-status';
+    item.appendChild(status);
+
+    const actions = document.createElement('span');
+    actions.className = 'board-card-actions';
+    if (wearer.state !== 'wearing') {
+      actions.appendChild(
+        boardActionButton('出演開始', wearer.name, () => moveBoardWearer(wearer, 'wearing')),
+      );
+    }
+    if (wearer.state === 'wearing') {
+      actions.appendChild(
+        boardActionButton('休憩へ', wearer.name, () => moveBoardWearer(wearer, 'resting')),
+      );
+    }
+    if (wearer.state !== 'waiting') {
+      actions.appendChild(
+        boardActionButton('待機へ', wearer.name, () => moveBoardWearer(wearer, 'waiting')),
+      );
+    }
+    actions.appendChild(
+      boardActionButton('削除', wearer.name, () => {
+        boardState.wearers = boardState.wearers.filter((entry) => entry !== wearer);
+        writeBoardState();
+        renderBoard();
+      }),
+    );
+    item.appendChild(actions);
+
+    boardCardRefs.set(wearer, { item, status });
+    applyBoardCardStatus(wearer, limit, { item, status });
+    return item;
+  }
+
+  /** 上限の目安の表示を更新する（role=statusのライブ領域のため、変化時のみ書き換える） */
+  function renderBoardLimitNote(limit) {
+    let text;
+    if (boardState.limitMode === 'manual') {
+      text = `目安: ${boardState.manualLimitMinutes}分（手動）`;
+    } else if (limit === null) {
+      text = '目安: 予報の取得後に表示されます';
+    } else {
+      // 自動の目安は「表示中の地点」に連動する。別地点の閲覧で目安が置き換わったことに
+      // 気づけるよう、どの地点の判定かを併記する
+      const place = displayedName || '表示中の地点';
+      text =
+        limit <= 0
+          ? `目安: 着用中止の判定です（${place}）`
+          : `目安: ${limit}分（${place}・いまの判定から自動）`;
+    }
+    if (boardLimitNote.textContent !== text) {
+      boardLimitNote.textContent = text;
+    }
+  }
+
+  /** ボードの構成（人数・状態・開始時刻）の指紋。変わらない限りDOMを作り直さない */
+  function boardSignature() {
+    return boardState.wearers
+      .map((wearer) => `${wearer.name} ${wearer.state} ${wearer.since}`)
+      .join('');
+  }
+
+  let boardRenderedSignature = null;
+
+  /** 3グループのリストをDOMごと作り直す（構成が変わったときのみ呼ぶ） */
+  function rebuildBoardLists(limit) {
+    boardCardRefs.clear();
+    const groups = { wearing: [], resting: [], waiting: [] };
+    for (const wearer of boardState.wearers) {
+      groups[wearer.state].push(wearer);
+    }
+    groups.wearing.sort((a, b) => a.since - b.since);
+    for (const state of ['wearing', 'resting', 'waiting']) {
+      boardLists[state].replaceChildren(
+        ...groups[state].map((wearer) => boardCard(wearer, limit)),
+      );
+      if (groups[state].length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'board-empty hint';
+        empty.textContent = 'なし';
+        boardLists[state].appendChild(empty);
+      }
+    }
+  }
+
+  /** ボード全体を描画し、上限超過のチャイムを鳴らす（画面表示中のみ）。
+   * 出演中は開始の早い順（=残り時間の少ない順）に並べ、次に交代させる人が先頭に来る。
+   * 構成が変わらない定期更新はカードの文言だけを書き換える
+   * （30秒ごとのDOM再生成で操作中のキーボードフォーカスを壊さないため） */
+  function renderBoard() {
+    // 日付が変わったら当日ボードの約束どおりリセットする（深夜運用のまたぎ対策。
+    // 上限モードのラジオ・手動分数のUIも内部状態と食い違わないよう同期し直す）
+    if (boardState.date !== nowInJst().date) {
+      boardState = emptyBoardState();
+      writeBoardState();
+      syncBoardControls();
+    }
+    const limit = boardLimitMinutes();
+    renderBoardLimitNote(limit);
+
+    const signature = boardSignature();
+    if (signature !== boardRenderedSignature) {
+      rebuildBoardLists(limit);
+      boardRenderedSignature = signature;
+    } else {
+      for (const [wearer, refs] of boardCardRefs) {
+        applyBoardCardStatus(wearer, limit, refs);
+      }
+    }
+
+    // 上限超過のチャイム（1回だけ。休憩・待機へ動かすと再武装される）。
+    // 画面点灯前提のボードのため、前面表示中以外では鳴らさない
+    if (document.visibilityState === 'visible') {
+      for (const wearer of boardState.wearers) {
+        if (wearer.state !== 'wearing' || wearer.warnedOver) {
+          continue;
+        }
+        const { emphasis } = boardWearingStatus(wearer, limit);
+        if (emphasis === 'over') {
+          wearer.warnedOver = true;
+          writeBoardState();
+          timerAlert(3);
+          srAnnounce.textContent = `当日ボード: ${wearer.name}が連続活動の上限を超えています。交代してください。`;
+        }
+      }
+    }
+  }
+
+  document.getElementById('board-add-button').addEventListener('click', () => {
+    prepareTimerAudio();
+    const name = boardNameInput.value.trim();
+    if (name === '') {
+      setStatus('ニックネームを入力してから追加してください。', true);
+      return;
+    }
+    if (boardState.wearers.length >= BOARD_WEARER_LIMIT) {
+      setStatus(`登録は${BOARD_WEARER_LIMIT}人までです。使い終わったカードを削除してください。`, true);
+      return;
+    }
+    boardState.wearers.push({
+      // idは使い捨て（並び・削除はオブジェクト参照で行う）。名前の重複は許す
+      name,
+      state: 'waiting',
+      since: Date.now(),
+      warnedOver: false,
+    });
+    boardNameInput.value = '';
+    writeBoardState();
+    renderBoard();
+  });
+
+  for (const radio of document.querySelectorAll('input[name="board-limit-mode"]')) {
+    radio.addEventListener('change', () => {
+      boardState.limitMode = radio.value === 'manual' ? 'manual' : 'auto';
+      writeBoardState();
+      renderBoard();
+    });
+  }
+
+  boardManualLimitInput.addEventListener('change', () => {
+    const value = Number(boardManualLimitInput.value);
+    if (Number.isFinite(value) && value >= 5 && value <= 120) {
+      boardState.manualLimitMinutes = Math.round(value);
+    }
+    boardManualLimitInput.value = String(boardState.manualLimitMinutes);
+    writeBoardState();
+    renderBoard();
+  });
+
+  /** 上限モードのラジオ・手動分数の入力を内部状態と同期する
+   * （初期化と日付またぎリセットの両方で使い、表示と状態の食い違いを防ぐ） */
+  function syncBoardControls() {
+    const manualRadio = document.querySelector('input[name="board-limit-mode"][value="manual"]');
+    const autoRadio = document.querySelector('input[name="board-limit-mode"][value="auto"]');
+    (boardState.limitMode === 'manual' ? manualRadio : autoRadio).checked = true;
+    boardManualLimitInput.value = String(boardState.manualLimitMinutes);
+  }
+
+  /** 30秒ごとの定期更新（経過表示は分単位のため十分。1分ずれの半分以下に収まる） */
+  function boardTick() {
+    renderBoard();
+    // 「今日の着用記録」も日付またぎで前日分を出し続けないよう再評価する
+    if (wearLogRenderedDate !== null && wearLogRenderedDate !== nowInJst().date) {
+      renderWearLog();
+    }
+  }
+
+  /** 保存済みの状態をUIへ反映してボードを開始する */
+  function initBoard() {
+    boardState = readBoardState();
+    syncBoardControls();
+    renderBoard();
+    setInterval(boardTick, 30 * 1000);
+  }
+
+  initBoard();
 
   // ---- 見やすさ設定（文字サイズ） ----
   // 押すたびに標準→大→特大と切り替え、この端末へ保存する。適用は全ページ共通の

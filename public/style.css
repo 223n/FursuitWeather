@@ -482,6 +482,39 @@ input[type='number'] {
   }
 }
 
+/* 見守りモード（いまの判定タブ）。状態表示はトグルと同じ行に出すため
+   表示切り替えで縦のレイアウトシフトが起きない */
+.watch-mode {
+  margin: 0.8rem 0 0.4rem;
+}
+
+.watch-status {
+  margin-left: 0.6rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* 判定変化のハイライト: 色だけに依存しないよう、変化はチャイム+読み上げ+
+   状態表示の文言+この枠線強調の複数手段で伝える。点滅は視差効果を減らす
+   設定では行わない（枠線は静的に残る）。次の更新か明示操作まで表示し続ける。
+   フォーカスリング（--color-focus）と見分けられるよう、色は情報表示の青にする */
+.now-card.watch-changed {
+  outline: 3px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .now-card.watch-changed {
+    animation: watch-pulse 1s ease-in-out 3;
+  }
+
+  @keyframes watch-pulse {
+    50% {
+      outline-color: transparent;
+    }
+  }
+}
+
 .now-headline {
   display: flex;
   align-items: center;
@@ -1589,4 +1622,177 @@ section h3 {
 .timer-rest .timer-panel {
   border-color: var(--level-cold-accent);
   background-color: var(--level-cold-surface);
+}
+
+/* 当日コンディションチェック（回答は保存しない）。
+   注意の帯は2段階: 通常の該当は黄系、発熱・下痢は警戒の赤系で区別する */
+.condition-check {
+  margin-top: 1rem;
+}
+
+.condition-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.condition-list li {
+  margin: 0.4rem 0;
+}
+
+.condition-list input {
+  margin-right: 0.4em;
+}
+
+/* 注意の帯の出現でチェック欄が動かないよう高さを事前確保する（CLS対策） */
+.condition-note {
+  min-height: 3.4rem;
+  margin: 0.5rem 0;
+}
+
+.condition-note .fa-icon {
+  margin-right: 0.35rem;
+}
+
+.condition-note-warning {
+  border: 2px solid var(--level-1-accent);
+  border-radius: 8px;
+  background-color: var(--level-1-surface);
+  color: var(--level-1-text);
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+}
+
+.condition-note-severe {
+  border: 2px solid var(--level-3-accent);
+  border-radius: 8px;
+  background-color: var(--level-3-surface);
+  color: var(--level-3-text);
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+}
+
+/* 暑熱順化の啓発パネル（プランナータブ内の静的テキスト） */
+.acclimatization-note {
+  margin-top: 1rem;
+}
+
+/* 活動ふりかえり（今日の着用記録）。この端末のみの保存で、今日の分があるときだけ表示 */
+.wear-log-section {
+  margin-top: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-surface);
+}
+
+.wear-log-section h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.wear-log-summary {
+  margin: 0.25rem 0;
+  font-weight: 700;
+}
+
+/* 当日ボード（複数着用者の見守り）。掲示ボードとして離れた場所からも
+   読めるよう、カードの名前と状況は大きめ・太字にする */
+.board-section {
+  margin-top: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-surface);
+}
+
+.board-section summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.board-limit-row {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.board-limit-row legend {
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+
+.board-manual-label input {
+  width: 4.5rem;
+}
+
+.board-limit-note {
+  font-weight: 700;
+}
+
+#board-groups h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.board-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-background);
+}
+
+.board-card-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.board-card-status {
+  font-weight: 700;
+}
+
+.board-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* 交代が近い・上限超過の強調。判定バッジと同じCUDトークンで、
+   色だけに依存しないよう文言（残り約n分・交代してください）を併記している */
+.board-card-soon {
+  border-color: var(--level-1-accent);
+  background-color: var(--level-1-surface);
+}
+
+.board-card-over {
+  border-color: var(--level-4-accent);
+  border-width: 2px;
+  background-color: var(--level-4-surface);
+}
+
+.board-card-over .board-card-status {
+  color: var(--level-4-text);
+}
+
+.board-empty {
+  border: none;
+  padding: 0.2rem 0;
 }

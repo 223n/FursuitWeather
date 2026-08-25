@@ -26,12 +26,16 @@ import wbgtTool from '../public/wbgt-tool.js?raw';
 import displayHtml from '../public/display.html?raw';
 import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
+import eventsApiTs from '../src/api/events.ts?raw';
 // style.cssは「?raw」ではなくfsで読む（vitestはCSSを専用パイプラインで処理する
 // ため、?raw指定でも空文字列になる）
 import { readFileSync } from 'node:fs';
 
 const styleCss = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
 import {
+  AIR_QUALITY,
+  AIR_QUALITY_LABELS,
+  BADGE,
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   HEAT_STROKE_ALERT_WBGT,
@@ -51,6 +55,8 @@ import {
   NATIONAL_CITIES,
   RECOMMENDED_MAX_GRADE,
   RESPONSE_CACHE_MAX_AGE_SECONDS,
+  STATIC_ELECTRICITY,
+  STATIC_ELECTRICITY_LABELS,
   SUDDEN_HEAT,
   SUIT_WBGT_ADJUSTMENT,
   THUNDER_WEATHER_CODE_MIN,
@@ -408,6 +414,47 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     }
   });
 
+  it('STATIC_BADGESに全静電気レベルのキーがある', () => {
+    const block = appJs.match(/const STATIC_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
+    for (const key of Object.keys(STATIC_ELECTRICITY_LABELS)) {
+      expect(block![1]).toContain(`${key}: {`);
+    }
+  });
+
+  it('静電気のしきい値の記述はconstantsと一致する', () => {
+    // 公開仕様（about・api.md・llms.txt）のしきい値の複製を単一情報源と突き合わせる
+    const high = `湿度${STATIC_ELECTRICITY.highHumidity}%未満`;
+    const medium = `湿度${STATIC_ELECTRICITY.mediumHumidity}%未満かつ気温${STATIC_ELECTRICITY.mediumTemperature}℃未満`;
+    for (const doc of [aboutHtml, apiMd, llmsTxt, openapiYaml]) {
+      expect(doc).toContain(high);
+      expect(doc).toContain(medium);
+    }
+  });
+
+  it('AIR_BADGESに全「空気のよごれ」レベルのキーがある', () => {
+    const block = appJs.match(/const AIR_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
+    for (const key of Object.keys(AIR_QUALITY_LABELS)) {
+      expect(block![1]).toContain(`${key}: {`);
+    }
+  });
+
+  it('空気のよごれのしきい値の記述はconstantsと一致する', () => {
+    // 折り返しをまたがない最小単位（数値+単位+以上）で全公開仕様を突き合わせる
+    const atoms = [
+      `日平均${AIR_QUALITY.pm25MediumMean}μg/m³以上`,
+      `日平均${AIR_QUALITY.pm25HighMean}μg/m³以上`,
+      `黄砂${AIR_QUALITY.dustMediumMax}μg/m³以上`,
+      `黄砂${AIR_QUALITY.dustHighMax}μg/m³以上`,
+    ];
+    for (const doc of [aboutHtml, apiMd, llmsTxt, openapiYaml]) {
+      for (const atom of atoms) {
+        expect(doc).toContain(atom);
+      }
+    }
+  });
+
   it('シェア画像の配色はstyle.cssのレベル別トークン（ライト側）と一致する', () => {
     // Canvas描画はCSS変数を参照できないためapp.jsが色を複製している。
     // style.cssの:root（ライト側。ダークモード側の再定義より前に現れる）と突き合わせ、
@@ -579,6 +626,52 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     expect(symbolsOf(displayJs)).toBe(symbolsOf(appJs));
     // wbgt-tool.jsも同じ判定記号を複製しているため併せて検証する
     expect(symbolsOf(wbgtTool)).toBe(symbolsOf(appJs));
+  });
+
+  it('events.jsonの検証パターン（郵便番号・時刻・日付）はapp.jsとsrc/api/events.tsで一致する', () => {
+    // イベント定義の検証基準はフロント（一覧表示）とWorker（/api/events.ics・
+    // /api/badge.svg）で複製されている。片方だけ基準を変えると「一覧には出るのに
+    // カレンダー・バッジでは弾かれる」形のずれになるため、正規表現リテラルの
+    // 完全一致で機械検証する
+    const patterns = [
+      String.raw`/^\d{3}-?\d{4}$/`,
+      String.raw`/^([01]\d|2[0-3]):[0-5]\d$/`,
+      String.raw`/^\d{4}-\d{2}-\d{2}$/`,
+    ];
+    for (const pattern of patterns) {
+      expect(appJs, `app.jsに${pattern}が見つからない`).toContain(pattern);
+      expect(eventsApiTs, `src/api/events.tsに${pattern}が見つからない`).toContain(pattern);
+    }
+  });
+
+  it('埋め込みバッジ（/api/badge.svg）の記号はapp.jsのGRADE_SYMBOLSと一致する', () => {
+    // grade 0〜3の文字記号を比較する。grade 4はサイトでは禁止マークのアイコン
+    // （Font Awesome）のため対象外（SVG側はフォント依存を避けて✕で代替。
+    // 経緯はsrc/constants.tsのBADGEのコメントを参照）
+    const match = appJs.match(
+      /const GRADE_SYMBOLS = \[\['(.)'\], \['(.)'\], \['(.)'\], \['(.)'\], \[\{ icon: 'ban' \}\]\];/,
+    );
+    expect(match, 'app.jsのGRADE_SYMBOLSの形式が想定と異なる').not.toBeNull();
+    expect(BADGE.gradeSymbols.slice(0, 4)).toEqual(match!.slice(1, 5));
+  });
+
+  it('埋め込みバッジ（/api/badge.svg）の配色はstyle.cssのレベル別トークンと一致する', () => {
+    // SVGはCSS変数を参照できないためconstants.tsが色を複製している。
+    // シェア画像（SHARE_GRADE_COLORS）と同様、ライト側の:rootと突き合わせる
+    const token = (name: string): string => {
+      const match = styleCss.match(new RegExp(`--${name}: (#[0-9A-F]{6});`));
+      expect(match, `--${name}がstyle.cssに見つからない`).not.toBeNull();
+      return match![1] ?? '';
+    };
+    BADGE.gradeSurfaces.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-surface`));
+    });
+    BADGE.gradeTexts.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-text`));
+    });
+    BADGE.gradeAccents.forEach((color, grade) => {
+      expect(color).toBe(token(`level-${grade}-accent`));
+    });
   });
 
   it('天気コード→アイコンの対応規則はapp.jsと一致する', () => {

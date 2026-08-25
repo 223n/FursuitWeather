@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleForecast } from '../src/api/forecast';
 import { UPSTREAM_CACHE_TTL_SECONDS } from '../src/constants';
 import {
+  buildAirQualityUrl,
   buildForecastUrl,
   buildProbabilityUrl,
   fetchWeather,
@@ -627,6 +628,9 @@ describe('fetchWeather', () => {
       if (String(input).includes('/v1/forecast')) {
         return new Response(JSON.stringify(probabilityBody()), { status: 200 });
       }
+      if (String(input).includes('/v1/air-quality')) {
+        return new Response(JSON.stringify({ hourly: { time: [] } }), { status: 200 });
+      }
       jmaCalls += 1;
       jmaInits.push(init as RequestInit & { cf?: unknown });
       return jmaCalls === 1
@@ -653,7 +657,7 @@ describe('fetchWeather', () => {
   it('取り直しても5xxのままなら上流エラーとして失敗させる', async () => {
     let jmaCalls = 0;
     const alwaysDown = (async (input: RequestInfo | URL) => {
-      if (!String(input).includes('/v1/forecast')) {
+      if (String(input).includes('/v1/jma')) {
         jmaCalls += 1;
       }
       return new Response('error code: 525', { status: 525 });
@@ -675,8 +679,8 @@ describe('fetchWeather', () => {
     await expect(fetchWeather(35.68, 139.68, 1, badRequest)).rejects.toThrow(
       '気象データを取得できませんでした',
     );
-    // 予報本体と降水確率で1回ずつ。取り直しは発生しない
-    expect(calls).toBe(2);
+    // 予報本体・降水確率・大気質で1回ずつ。取り直しは発生しない
+    expect(calls).toBe(3);
   });
 });
 
@@ -727,5 +731,145 @@ describe('buildProbabilityUrl', () => {
     expect(url.searchParams.get('hourly')).toBe('precipitation_probability');
     expect(url.searchParams.get('timezone')).toBe('Asia/Tokyo');
     expect(url.searchParams.get('forecast_days')).toBe('4');
+  });
+});
+
+describe('buildAirQualityUrl', () => {
+  it('大気質はAir Quality APIからPM2.5・黄砂を取得するURLになる', () => {
+    const url = new URL(buildAirQualityUrl(35.6785, 139.6823, 4));
+    expect(url.origin + url.pathname).toBe(
+      'https://air-quality-api.open-meteo.com/v1/air-quality',
+    );
+    expect(url.searchParams.get('hourly')).toBe('pm2_5,dust');
+    expect(url.searchParams.get('timezone')).toBe('Asia/Tokyo');
+    expect(url.searchParams.get('forecast_days')).toBe('4');
+  });
+});
+
+describe('fetchWeather（大気質の合流）', () => {
+  /** Air Quality APIレスポンスのモックを作る */
+  function airQualityBody(): unknown {
+    const time: string[] = [];
+    for (let hour = 0; hour < 24; hour += 1) {
+      time.push(`${MOCK_DATE}T${String(hour).padStart(2, '0')}:00`);
+    }
+    return {
+      hourly: {
+        time,
+        pm2_5: time.map(() => 40),
+        dust: time.map(() => 120),
+      },
+    };
+  }
+
+  /** JMAモデル・標準予報・Air Quality APIの3系統を出し分けるfetch実装を作る */
+  function routeWithAirQuality(
+    airQualityResponse: () => Response | Promise<Response>,
+  ): typeof fetch {
+    return (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/v1/air-quality')) {
+        return airQualityResponse();
+      }
+      if (url.includes('/v1/forecast')) {
+        return new Response(JSON.stringify(probabilityBody()), { status: 200 });
+      }
+      return new Response(JSON.stringify(openMeteoBody()), { status: 200 });
+    }) as typeof fetch;
+  }
+
+  it('大気質を日付ごとの生値へ変換して合流させる', async () => {
+    const fetchImpl = routeWithAirQuality(
+      () => new Response(JSON.stringify(airQualityBody()), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    const values = result.airQuality.get(MOCK_DATE);
+    expect(values).toBeDefined();
+    expect(values!.pm25).toHaveLength(24);
+    expect(values!.dust).toHaveLength(24);
+  });
+
+  it('大気質の取得に失敗しても予報本体は成功する（Mapは空）', async () => {
+    const fetchImpl = routeWithAirQuality(() => new Response('error', { status: 500 }));
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.hours).toHaveLength(24);
+    expect(result.airQuality.size).toBe(0);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '大気質APIエラー:',
+      expect.stringContaining('/v1/air-quality'),
+      500,
+      'error',
+    );
+  });
+
+  it('レスポンスの形式異常（time欠落）は空のMapとして扱い、本文先頭をログに残す', async () => {
+    const fetchImpl = routeWithAirQuality(
+      () => new Response(JSON.stringify({ message: 'ok' }), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.airQuality.size).toBe(0);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '大気質APIレスポンスの形式異常:',
+      expect.stringContaining('/v1/air-quality'),
+      expect.stringContaining('"message"'),
+    );
+  });
+
+  it('接続失敗は空のMapに落とし、原因をログに残す', async () => {
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      if (String(input).includes('/v1/air-quality')) {
+        throw new Error('接続拒否');
+      }
+      if (String(input).includes('/v1/forecast')) {
+        return new Response(JSON.stringify(probabilityBody()), { status: 200 });
+      }
+      return new Response(JSON.stringify(openMeteoBody()), { status: 200 });
+    }) as typeof fetch;
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    expect(result.airQuality.size).toBe(0);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '大気質の取得に失敗:',
+      expect.stringContaining('/v1/air-quality'),
+      expect.anything(),
+    );
+  });
+
+  it('不正な時刻・非数値の要素は捨て、値の配列が欠けていても日付の器は作る', async () => {
+    const body = airQualityBody() as {
+      hourly: { time: string[]; pm2_5: unknown[]; dust?: unknown };
+    };
+    body.hourly.time[0] = 'bad-time';
+    body.hourly.pm2_5[1] = '40';
+    delete body.hourly.dust;
+    const fetchImpl = routeWithAirQuality(
+      () => new Response(JSON.stringify(body), { status: 200 }),
+    );
+    const result = await fetchWeather(35.68, 139.68, 1, fetchImpl);
+    const values = result.airQuality.get(MOCK_DATE);
+    expect(values).toBeDefined();
+    // 24時間のうちtime不正1件を除き、さらに非数値1件を捨てた22件
+    expect(values!.pm25).toHaveLength(22);
+    expect(values!.dust).toHaveLength(0);
+  });
+
+  it('handleForecastの応答で日別サマリーにairQualityが載る', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routeWithAirQuality(
+        () => new Response(JSON.stringify(airQualityBody()), { status: 200 }),
+      ),
+    );
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.68&lon=139.68&days=1'),
+    );
+    expect(response.status).toBe(200);
+    const forecast = (await response.json()) as {
+      days: { airQuality: { level: string; pm25Mean: number; dustMax: number } | null }[];
+    };
+    // PM2.5平均40（35以上）・黄砂最大120（100以上）→「中」
+    expect(forecast.days[0]!.airQuality).not.toBeNull();
+    expect(forecast.days[0]!.airQuality!.level).toBe('medium');
+    expect(forecast.days[0]!.airQuality!.pm25Mean).toBe(40);
+    expect(forecast.days[0]!.airQuality!.dustMax).toBe(120);
   });
 });

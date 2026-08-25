@@ -347,6 +347,198 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   await expect(page.locator('#event-button')).toBeDisabled();
 });
 
+test('イベント: カレンダー登録リンクからiCalendar（/api/events.ics）を取得できる', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#picker-tab-event');
+  await expect(page.locator('#picker-event a[href="/api/events.ics"]')).toBeVisible();
+
+  // 実ファイル（public/events.json）の内容に依存しない構造の検証に留める
+  // （page.requestはWorkerの実エンドポイントへ届く）
+  const response = await page.request.get('/api/events.ics');
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('text/calendar');
+  expect(response.headers()['content-disposition']).toContain('fursuit-weather-events.ics');
+  const body = await response.text();
+  expect(body.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
+  expect(body.endsWith('END:VCALENDAR\r\n')).toBe(true);
+});
+
+// 見守りモードの自動再取得はService Worker経由になるとpage.routeのモックが
+// 効かない（PlaywrightはSW発のfetchを傍受しない）ため、SWを止めて検証する
+test.describe('見守りモード（SWなし）', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('見守りモード: 10分ごとに自動再取得し、判定の変化をハイライトで知らせる', async ({
+    page,
+  }) => {
+  await page.clock.install();
+  let forecastCalls = 0;
+  let firstLevels = null;
+  // beforeEachのデモモックより後に登録したこちらが先に評価される。
+  // 2回目以降の応答は「初回に存在しないレベル」へ全時間を差し替え、
+  // 早送りで比較対象の時間帯（時境界）が変わっても必ず変化が検知されるようにする
+  await page.route('**/api/forecast*', async (route) => {
+    forecastCalls += 1;
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    if (forecastCalls === 1) {
+      firstLevels = new Set(body.hours.map((hour) => hour.outdoor.level));
+    } else {
+      const candidates = [
+        { level: 'coldDanger', label: '低温危険', grade: 4 },
+        { level: 'danger', label: '危険', grade: 4 },
+        { level: 'safe', label: 'ほぼ安全', grade: 0 },
+      ];
+      const target = candidates.find((c) => !firstLevels.has(c.level)) ?? candidates[0];
+      for (const hour of body.hours) {
+        hour.outdoor = { ...hour.outdoor, ...target };
+      }
+    }
+    await route.fulfill({ json: body });
+  });
+
+  await page.goto('/');
+  await waitForForecast(page);
+  // 前面制約の明記（バックグラウンドで鳴る前提の誤解を防ぐ約束の文言）
+  await expect(page.locator('.watch-mode .hint')).toContainText(
+    'バックグラウンド・画面ロック中は更新も音も止まります',
+  );
+
+  await page.check('#watch-toggle');
+  await expect(page.locator('#watch-status')).toContainText('見守り中・最終更新');
+  expect(forecastCalls).toBe(1);
+
+  // 10分経過 → 自動再取得され、判定変化がハイライトされる
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect(page.locator('#now-card')).toHaveClass(/watch-changed/);
+  expect(forecastCalls).toBeGreaterThanOrEqual(2);
+
+  // OFFで状態表示とハイライトが消える
+  await page.uncheck('#watch-toggle');
+  await expect(page.locator('#watch-status')).toBeHidden();
+  await expect(page.locator('#now-card')).not.toHaveClass(/watch-changed/);
+  });
+});
+
+test('環境省アラート: 発表中は公式発表の赤帯を出し、発表なしは出さない', async ({ page }) => {
+  const jstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // 発表中: 突合結果の赤帯が注意欄の先頭に出る
+  await page.route('**/api/alert*', (route) =>
+    route.fulfill({
+      json: { alert: { prefectureName: '東京都', special: false, targetDate: jstToday } },
+    }),
+  );
+  await page.goto('/');
+  await waitForForecast(page);
+  const officialNotice = page.locator('#notices-list .alert-notice', { hasText: '環境省発表' });
+  await expect(officialNotice).toContainText('東京都に熱中症警戒アラートが発表されています');
+  await expect(officialNotice).toContainText('表示地点の最寄りの都道府県');
+
+  // 特別警戒: より深刻な文言に切り替わる
+  await page.unroute('**/api/alert*');
+  await page.route('**/api/alert*', (route) =>
+    route.fulfill({
+      json: { alert: { prefectureName: '和歌山県', special: true, targetDate: jstToday } },
+    }),
+  );
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#notices-list .alert-notice', { hasText: '環境省発表' })).toContainText(
+    '熱中症特別警戒アラート',
+  );
+
+  // 発表なし・取得失敗: 何も出さない（黙って非表示のベストエフォート）
+  await page.unroute('**/api/alert*');
+  await page.route('**/api/alert*', (route) => route.fulfill({ json: { alert: null } }));
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#notices-list')).not.toContainText('環境省発表');
+});
+
+test('当日ボード: 追加・状態移動・上限超過の強調と、ニックネームの非漏洩', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+
+  // 上限は手動20分に設定し、予報の内容に依存しない決定的なテストにする
+  await page.check('input[name="board-limit-mode"][value="manual"]');
+  await page.fill('#board-manual-limit', '20');
+  await page.dispatchEvent('#board-manual-limit', 'change');
+  await expect(page.locator('#board-limit-note')).toHaveText('目安: 20分（手動）');
+
+  await page.fill('#board-name-input', 'ポチ');
+  await page.click('#board-add-button');
+  await expect(page.locator('#board-waiting .board-card-name')).toHaveText('ポチ');
+
+  await page.click('#board-waiting .board-card-actions button:has-text("出演開始")');
+  await expect(page.locator('#board-wearing .board-card-status')).toContainText(
+    '経過0分／上限20分',
+  );
+
+  // 21分経過 → 超過の強調と交代を促す文言（色だけに依存しない）
+  await page.clock.fastForward(21 * 60 * 1000);
+  await expect(page.locator('#board-wearing .board-card')).toHaveClass(/board-card-over/);
+  await expect(page.locator('#board-wearing .board-card-status')).toContainText(
+    '交代してください',
+  );
+
+  // 休憩へ → 経過の上向きカウントのみ表示する（休憩の下限時間は発明しない）
+  await page.click('#board-wearing .board-card-actions button:has-text("休憩へ")');
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect(page.locator('#board-resting .board-card-status')).toContainText('休憩10分');
+
+  // ニックネームは共有URLにも会場表示モードのリンクにも載らない（プライバシー契約）
+  expect(page.url()).not.toContain('ポチ');
+  expect(page.url()).not.toContain(encodeURIComponent('ポチ'));
+  const displayHref = (await page.locator('#display-link').getAttribute('href')) ?? '';
+  expect(displayHref).not.toContain('ポチ');
+  expect(displayHref).not.toContain(encodeURIComponent('ポチ'));
+
+  // リロード後も当日の間はこの端末に保持される
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+  await expect(page.locator('#board-resting .board-card-name')).toHaveText('ポチ');
+});
+
+test('当日ボード: 日付が変わると自動でリセットされる', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'fursuitweatherDayBoard',
+      JSON.stringify({
+        date: '2000-01-01',
+        limitMode: 'auto',
+        manualLimitMinutes: 30,
+        wearers: [{ name: '昨日の人', state: 'waiting', since: 0, warnedOver: false }],
+      }),
+    );
+  });
+  await page.reload();
+  await waitForForecast(page);
+  await page.click('.board-section summary');
+  await expect(page.locator('#board-waiting')).toContainText('なし');
+  await expect(page.locator('#board-waiting')).not.toContainText('昨日の人');
+});
+
+test('埋め込みバッジ（/api/badge.svg）がデモデータのSVGを返す', async ({ page }) => {
+  await page.goto('/');
+  const response = await page.request.get('/api/badge.svg?demo=1');
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
+  const body = await response.text();
+  expect(body).toContain('<svg');
+  expect(body).toContain('着ぐるみ判定');
+});
+
 test('エラー時: 固定の日本語文が表示され、生の英語メッセージを出さない', async ({ page }) => {
   await page.unroute('**/api/forecast*');
   await page.route('**/api/forecast*', (route) => route.abort());
@@ -570,6 +762,13 @@ test('日の入り: 日別カード・時間別の目印・プランナーの日
   const firstCard = page.locator('#day-cards .day-card:not(.skeleton-card)').first();
   await expect(firstCard).toContainText('日の入り');
   await expect(firstCard).toContainText('18:30');
+
+  // 静電気行（デモデータは真夏日のため「低」）
+  await expect(firstCard).toContainText('静電気');
+  await expect(firstCard).toContainText('低');
+
+  // 空気のよごれ行（デモデータは典型値のため「低」）
+  await expect(firstCard).toContainText('空気のよごれ（黄砂・PM2.5）');
 
   // 明日の時間別テーブルには日の入りの目印が出る（今日は時間帯により行が隠れるため明日で確認）
   await page.click('#tab-day-1');
@@ -853,6 +1052,52 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await page.reload();
   await waitForForecast(page);
   await expect(page.locator('#timer-overlay')).toBeHidden();
+
+  // 活動ふりかえり: 休憩切り替えで1回分の着用セッションが記録され、
+  // 当日サマリーが表示される（この端末のみの保存でリロード後も残る）
+  await expect(page.locator('#wear-log-section')).toBeVisible();
+  await expect(page.locator('#wear-log-summary')).toContainText('着用1回');
+  await expect(page.locator('#wear-log-summary')).toContainText('計1分');
+
+  // プランナーには前回実績が「短めから」の注意付きで参考表示される
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#plan-result')).toContainText('参考: 前回の着用');
+  await expect(page.locator('#plan-result')).toContainText('緩める根拠にしないでください');
+});
+
+test('当日コンディションチェック: 2段階の注意が出て、回答はどこにも保存されない', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.getByText('今日のコンディションチェック').click();
+  // 通常の該当（睡眠不足）→「1段階慎重に」の黄系注意
+  await page.getByText('睡眠が6時間未満だった', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toContainText('1段階慎重に');
+  await expect(page.locator('#condition-note')).toHaveClass(/condition-note-warning/);
+
+  // 発熱・下痢の該当 →「活動の見送りを検討」の赤系警戒（他の該当より優先）
+  await page.getByText('発熱・下痢など体調不良がある', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toContainText('見送りを検討');
+  await expect(page.locator('#condition-note')).toHaveClass(/condition-note-severe/);
+
+  // 全部外すと帯は消える
+  await page.getByText('睡眠が6時間未満だった', { exact: true }).click();
+  await page.getByText('発熱・下痢など体調不良がある', { exact: true }).click();
+  await expect(page.locator('#condition-note')).toBeEmpty();
+
+  // プライバシー: 回答はlocalStorageのどこにも保存されない
+  const stored = await page.evaluate(() => Object.keys(window.localStorage).join(','));
+  expect(stored).not.toContain('ondition');
+
+  // 暑熱順化: プランナーの計画（デモは暑熱日）に慣らしの注意と啓発パネルが出る
+  await page.click('#tab-planner');
+  await page.click('#plan-button');
+  await expect(page.locator('#plan-result')).toContainText('目安のおよそ半分から段階的に');
+  await page.getByText('しばらく着ていない人へ').click();
+  await expect(page.locator('.acclimatization-note')).toContainText('暑熱順化');
 });
 
 test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の手順・保冷剤を出さない', async ({
@@ -888,6 +1133,8 @@ test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の
   await expect(page.locator('.rest-guide')).not.toContainText('冷房の効いた室内');
   await expect(page.locator('#packing-list')).not.toContainText('保冷剤');
   await expect(page.locator('#packing-list')).toContainText('カイロ');
+  // 暑熱順化の慣らし注意は暑熱リスクのある計画のみ（冬の計画には出さない）
+  await expect(page.locator('#plan-result')).not.toContainText('目安のおよそ半分');
 });
 
 test('着用タイマー: 判定が「着用中止」のときは開始できない', async ({ page }) => {

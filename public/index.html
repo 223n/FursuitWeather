@@ -179,6 +179,7 @@
           </select>
           <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
         </div>
+        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル）できます。開催の詳細は主催者の告知をご確認ください。</p>
       </div>
       <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
         <div class="control-row">
@@ -274,6 +275,92 @@
         <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
+      <!-- 見守りモード: 表示中の地点の予報を10分ごとに自動再取得し、「いまの判定」の
+           変化を画面内ハイライトと短いチャイムで知らせる（ハンドラー・アテンド向け）。
+           再取得間隔はブラウザキャッシュ（10分）と同じため上流コールは増えない。
+           バックグラウンド・画面ロック中は動かない制約の明記は必須（app.js） -->
+      <div class="watch-mode">
+        <label class="watch-toggle-label"><input type="checkbox" id="watch-toggle"> 見守りモード（10分ごとに自動更新）</label>
+        <span id="watch-status" class="watch-status" role="status" hidden></span>
+        <p class="hint">
+          この画面を前面で開いている間だけ動作し、いまの判定が変わると画面のハイライトと短いチャイムで知らせます。
+          バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
+        </p>
+      </div>
+      <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
+           （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
+      <div id="wear-log-section" class="wear-log-section" hidden>
+        <h3>今日の着用記録</h3>
+        <p id="wear-log-summary" class="wear-log-summary"></p>
+        <div class="control-row">
+          <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
+        </div>
+        <p class="hint">
+          着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
+          前回できた長さを、今日の目安を緩める根拠にしないでください。
+        </p>
+      </div>
+      <!-- 当日ボード: 複数の着用者を1台の端末で見守る掲示ボード（ハンドラー・救護スタッフ向け）。
+           データはこの端末のlocalStorageのみで、翌日に自動リセットされる。
+           ニックネームは共有URL・会場表示モードへ一切載せない（E2Eで担保）。
+           上限の目安の判定ソースは予報（自動）と手動（実測WBGTタブの結果の転記）を選べる -->
+      <details class="board-section">
+        <summary>当日ボード（複数着用者の見守り・この端末のみ）</summary>
+        <p class="hint">
+          画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
+          記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
+        </p>
+        <div class="control-row">
+          <label for="board-name-input">ニックネーム</label>
+          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ">
+          <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
+        </div>
+        <fieldset class="board-limit-row">
+          <legend>連続活動の上限の目安</legend>
+          <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
+          <label><input type="radio" name="board-limit-mode" value="manual"> 手動</label>
+          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30" aria-label="手動の連続活動の上限（分）"> 分</label>
+          <span id="board-limit-note" class="board-limit-note" role="status"></span>
+        </fieldset>
+        <p class="hint">
+          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。また自動の目安は表示中の地点のいまの判定に連動するため、会場の地点を表示したままお使いください。
+        </p>
+        <div id="board-groups">
+          <h3>出演中</h3>
+          <ul id="board-wearing" class="board-list"></ul>
+          <h3>休憩中</h3>
+          <ul id="board-resting" class="board-list"></ul>
+          <h3>待機</h3>
+          <ul id="board-waiting" class="board-list"></ul>
+        </div>
+        <p class="hint">
+          これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
+        </p>
+      </details>
+      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
+           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
+           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
+           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない） -->
+      <details class="condition-check">
+        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
+        <p class="hint">
+          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
+          当てはまるものにチェックすると、今日の心構えを表示します。
+          回答はこの端末にも保存されず、どこにも送信されません。
+        </p>
+        <ul class="condition-list">
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+        </ul>
+        <p id="condition-note" class="condition-note" role="status"></p>
+        <p class="hint">
+          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
+          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
+        </p>
+      </details>
     </section>
 
     <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
@@ -380,6 +467,24 @@
         </div>
         <p class="hint">チェックと追加した持ち物はこの端末にのみ保存されます。「リストをコピー」でグループチャットへ貼れます。</p>
       </div>
+
+      <!-- 暑熱順化（暑さへの体の慣れ）の啓発パネル。動的な記録・警告は持たず、
+           知識の提供と「間が空いたら短めに」の一般注意に留める（静的テキストのみ） -->
+      <details class="acclimatization-note">
+        <summary>しばらく着ていない人へ（暑熱順化について）</summary>
+        <p>
+          体が暑さに慣れる「暑熱順化」は、7日以上かけて暑さにさらされる時間を
+          少しずつ延ばすことで得られ、おおむね4日以上暑さから離れると失われ始めます
+          （厚生労働省「職場における熱中症予防基本対策要綱」より）。
+          シーズン最初のイベントや数週間ぶりの活動では、真夏と同じ感覚で着ると
+          熱中症のリスクが高くなります。
+        </p>
+        <p>
+          再開の初日は計画の目安のおよそ半分から始め、数回かけて段階的に延ばすのが
+          安全です（米国の労働安全衛生機関（NIOSH/OSHA）の再順化スケジュール
+          （初日は通常の50%から漸増）に基づく目安です）。
+        </p>
+      </details>
     </section>
 
     <!-- 実測WBGTから判定: 会場でWBGT計を持っている人が、予報ではなく実測値で

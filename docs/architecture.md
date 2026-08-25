@@ -67,11 +67,15 @@ sequenceDiagram
 ```text
 src/
 ├── index.ts            Workerエントリポイント（ルーティング・最終防衛線）
-├── csp.ts              HTMLページのCSP組み立てとnonce差し込み
+├── csp.ts              HTMLページのCSP組み立てとnonce差し込み（OGメタの差し替えも担う）
+├── ogp.ts              リンクカード（OGP）用の当日判定サマリー（クローラーUA限定。下記参照）
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
 │   ├── geocode.ts      /api/geocode ハンドラ（地点検索の代理問い合わせ）
 │   ├── national.ts     /api/national ハンドラ（全国主要都市の当日サマリー）
+│   ├── events.ts       /api/events.ics ハンドラ（イベントのカレンダー配信）
+│   ├── badge.ts        /api/badge.svg ハンドラ（埋め込みバッジ。地点は主要都市+イベント限定）
+│   ├── alert.ts        /api/alert ハンドラ（環境省アラート発表状況の突合。全経路ベストエフォート）
 │   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）
@@ -82,6 +86,11 @@ src/
 │   ├── wbgt.ts         WBGT推定（小野2014式）
 │   ├── fursuit.ts      着ぐるみ活動判定（暑熱・低温・冷房）
 │   ├── laundry.ts      洗濯乾燥指数
+│   ├── staticElectricity.ts 静電気指数（乾燥期の帯電の起きやすさ）
+│   ├── airQuality.ts   空気のよごれ指数（黄砂・PM2.5）
+│   ├── ical.ts         iCalendar（RFC 5545）の組み立て（折返し・エスケープ・時刻変換）
+│   ├── badge.ts        埋め込みバッジのSVG組み立て（記号+文字併記・CUD配色）
+│   ├── alert.ts        環境省アラート発表状況CSVの解析と最寄り都道府県の突合
 │   ├── time.ts         時刻文字列の切り出しと時間帯フィルタ
 │   └── forecast.ts     予報レスポンスの組み立て（純粋ロジック）
 ├── constants.ts        係数・しきい値の集約（出典コメント付き）
@@ -224,6 +233,24 @@ nonceも解釈できないので、併記の有無にかかわらず守れませ
 `run_worker_first`の両方に書く必要があり、`test/csp.test.ts`が両者の
 一致を検証します（ずれるとnonceの無いCSPで配信され、タグのnonceと
 食い違って実行がブロックされます）。
+
+### リンクカードへの当日判定表示（動的OGP）
+
+共有URL（`/?lat=&lon=`）をSNS・チャットへ貼ると、リンクカードに共有時点の
+当日判定が表示されます。HTMLがWorkerを通ることを利用して、`withNonce`が
+OGP・Xカードのタイトル・説明メタタグを差し替えます（`src/ogp.ts`）。
+
+- **クローラーUA限定**: リンクプレビュー用クローラー（Twitterbot・Discordbot・
+  facebookexternalhit・Misskey（summaly）・Bluesky（cardyb）・Mastodonなど）からの
+  アクセスだけが対象です。通常の閲覧で上流を呼ぶと、画面はapp.jsが組み立てるのに
+  エッジ配信の速さだけを損なうためです
+- **対象はトップページ×有効座標のみ**: `/`・`/index.html`で`lat`・`lon`が
+  有効範囲の数値のときだけ動きます。地点表現は主要12都市の最寄り
+  （緯度経度差の二乗和が1以内）なら「◯◯付近」、それ以外は座標表記です。
+  URLの`name`パラメータは使いません（任意文言をカードへ差し込まれないため）
+- **ベストエフォート**: 取得は`/api/national`と同じ日付固定の当日1日分で、
+  上流エッジキャッシュを共有します。失敗時は静的なOGタグのまま配信し、
+  HTML配信自体は巻き込みません
 
 ### 外部スクリプト（アクセス解析）
 

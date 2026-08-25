@@ -2,6 +2,7 @@
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
 import type {
+  AirQualityLevelId,
   Attribution,
   ColdLevelId,
   CoolingNeed,
@@ -9,6 +10,7 @@ import type {
   HeatLevelId,
   LaundryLevelId,
   OutdoorLevelId,
+  StaticElectricityLevelId,
 } from './types';
 
 /**
@@ -253,6 +255,70 @@ export const LAUNDRY_LEVEL_LABELS: Readonly<Record<LaundryLevelId, string>> = {
 };
 
 /**
+ * 静電気指数のしきい値
+ * 「相対湿度40%以下・気温20℃以下で静電気が発生しやすい」という帯電対策の
+ * 一般的な目安（家電・繊維業界の啓発資料に共通。例: パナソニック・ライオンの
+ * 静電気対策解説）に準拠する。主要気象サービスの生活指数（tenki.jp静電気指数
+ * など）と同じ位置づけの「目安」であり、判定は日中（DAYTIME_*の時間帯）の
+ * 各時間を個別に判定し、最も厳しいレベルを採用する（活動中の最悪ケース）。
+ * 乾燥期の化繊ファーは強く帯電し、グリーティングでの放電・ほこり吸着の
+ * 原因になるため、着ぐるみ特化の生活指数として表示する
+ */
+export const STATIC_ELECTRICITY = {
+  /** この湿度（%）未満は気温によらず「高」 */
+  highHumidity: 25,
+  /** この湿度（%）未満かつmediumTemperature未満で「中」 */
+  mediumHumidity: 40,
+  /** 「中」判定の気温（℃）上限（乾燥していても暖かければ帯電しにくい） */
+  mediumTemperature: 20,
+} as const;
+
+/** 静電気レベルの表示ラベル */
+export const STATIC_ELECTRICITY_LABELS: Readonly<Record<StaticElectricityLevelId, string>> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+/** 静電気「高」の日に添える対策の一言 */
+export const STATIC_ELECTRICITY_ADVICE = 'グリーティング前に帯電防止スプレーを。';
+
+/**
+ * 空気のよごれ（黄砂・PM2.5）指数のしきい値（μg/m³）
+ * PM2.5は環境省の環境基準（日平均35μg/m³）と、注意喚起のための暫定的な
+ * 指針となる値（日平均70μg/m³。超過時は屋外での長時間の激しい運動を
+ * 減らすことが推奨される）に準拠する。
+ * 黄砂（dust）は気象庁の黄砂解析予測モデルの地表付近濃度の段階に準拠し、
+ * 0.1mg/m³（=100μg/m³）を「黄砂が観測される目安」、0.5mg/m³（=500μg/m³）を
+ * 「視程5km未満相当で屋外活動への影響が出やすい濃度」として扱う。
+ * いずれもCAMS全球モデル（約25kmメッシュ）の推定値に対する「目安」であり、
+ * 公式の観測・注意報ではない（画面にもその旨を明記する）
+ */
+export const AIR_QUALITY = {
+  /** PM2.5の日平均がこの値以上で「中」 */
+  pm25MediumMean: 35,
+  /** PM2.5の日平均がこの値以上で「高」 */
+  pm25HighMean: 70,
+  /** 黄砂の最大濃度がこの値以上で「中」 */
+  dustMediumMax: 100,
+  /** 黄砂の最大濃度がこの値以上で「高」 */
+  dustHighMax: 500,
+} as const;
+
+/** 空気のよごれレベルの表示ラベル */
+export const AIR_QUALITY_LABELS: Readonly<Record<AirQualityLevelId, string>> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+/** 空気のよごれ「高」の日に添える注意の一言
+ * しきい値の根拠（環境省の黄砂・PM2.5行動目安）は健康影響の基準のため、
+ * ファーの汚れだけでなく健康面の注意（長時間の激しい屋外活動を控える）も必ず含める */
+export const AIR_QUALITY_ADVICE =
+  '屋外での長時間の激しい活動は控えめに。白系ファーは汚れに注意し、屋外撮影はかすむことがあります。';
+
+/**
  * 強風の注意を出す風速（m/s、1時間平均）
  * 気象庁「風の強さと吹き方」の「やや強い風」（平均10m/s以上）に相当。
  * 着ぐるみは頭部が大きく視界・聴覚が制限されるため、設営物の飛散や
@@ -311,6 +377,14 @@ export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
  * 降水確率は気象庁モデルAPIでは提供されないため、この標準APIから補完取得する
  */
 export const OPEN_METEO_FORECAST_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
+/**
+ * Open-Meteo Air Quality API（CAMS全球モデル・無料）
+ * 空気のよごれ指数（黄砂・PM2.5）の推定値をここから補完取得する
+ * （降水確率と同じベストエフォート。失敗しても予報本体を巻き込まない）
+ */
+export const OPEN_METEO_AIR_QUALITY_BASE_URL =
+  'https://air-quality-api.open-meteo.com/v1/air-quality';
 
 /** Open-Meteoジオコーディングv1 API（都市名・郵便番号から座標を検索する） */
 export const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -406,6 +480,111 @@ export const NATIONAL_CITIES: readonly NationalCity[] = [
   { name: '鹿児島', lat: 31.5966, lon: 130.5571 },
   { name: '那覇', lat: 26.2124, lon: 127.6809 },
 ];
+
+/**
+ * 環境省の熱中症警戒アラート発表状況CSVの取得元
+ * 電子情報提供サービスの公開ファイル（例年おおむね4月下旬〜10月下旬提供、
+ * 毎日5時・17時発表）。当日分は /{年}/alert_{YYYYMMDD}_05.csv。
+ * 様式は年度で変わり得るため、毎年4月の提供開始時に実ファイルとの突合を行う
+ * （手順はdocs/release.mdの年次確認を参照。2026年度の様式はtest/fixturesに保存）
+ */
+export const WBGT_ALERT_BASE_URL = 'https://www.wbgt.env.go.jp/alert/dl';
+
+/** アラート発表状況の上流エッジキャッシュTTL（秒）。発表は1日2回（5時・17時）のため、
+ * 気象データと同じ30分で十分に追従できる */
+export const ALERT_CACHE_TTL_SECONDS = 1800;
+
+/** 都道府県の代表点（都道府県庁所在地の座標） */
+export interface PrefecturePoint {
+  /** 都道府県コード（JIS X 0401の2桁。アラートCSVの都道府県コード列と同じ体系） */
+  readonly code: string;
+  readonly name: string;
+  readonly lat: number;
+  readonly lon: number;
+}
+
+/**
+ * 都道府県の代表点一覧（アラート発表状況の突合用）
+ * 表示地点から最も近い代表点の都道府県を「表示地点の都道府県」とみなす。
+ * 県境付近では隣県に判定され得るため、画面には必ず都道府県名を併記して
+ * どの発表を示しているか分かるようにする。座標は国土地理院の
+ * 「都道府県庁の位置」に基づく（小数4桁）
+ */
+export const PREFECTURE_POINTS: readonly PrefecturePoint[] = [
+  { code: '01', name: '北海道', lat: 43.0642, lon: 141.3469 },
+  { code: '02', name: '青森県', lat: 40.8244, lon: 140.74 },
+  { code: '03', name: '岩手県', lat: 39.7036, lon: 141.1525 },
+  { code: '04', name: '宮城県', lat: 38.2688, lon: 140.8721 },
+  { code: '05', name: '秋田県', lat: 39.7186, lon: 140.1024 },
+  { code: '06', name: '山形県', lat: 38.2404, lon: 140.3633 },
+  { code: '07', name: '福島県', lat: 37.75, lon: 140.4678 },
+  { code: '08', name: '茨城県', lat: 36.3418, lon: 140.4468 },
+  { code: '09', name: '栃木県', lat: 36.5658, lon: 139.8836 },
+  { code: '10', name: '群馬県', lat: 36.3911, lon: 139.0608 },
+  { code: '11', name: '埼玉県', lat: 35.8569, lon: 139.6489 },
+  { code: '12', name: '千葉県', lat: 35.6047, lon: 140.1233 },
+  { code: '13', name: '東京都', lat: 35.6895, lon: 139.6917 },
+  { code: '14', name: '神奈川県', lat: 35.4478, lon: 139.6425 },
+  { code: '15', name: '新潟県', lat: 37.9026, lon: 139.0236 },
+  { code: '16', name: '富山県', lat: 36.6953, lon: 137.2113 },
+  { code: '17', name: '石川県', lat: 36.5947, lon: 136.6256 },
+  { code: '18', name: '福井県', lat: 36.0652, lon: 136.2216 },
+  { code: '19', name: '山梨県', lat: 35.6642, lon: 138.5684 },
+  { code: '20', name: '長野県', lat: 36.6513, lon: 138.181 },
+  { code: '21', name: '岐阜県', lat: 35.3912, lon: 136.7223 },
+  { code: '22', name: '静岡県', lat: 34.9769, lon: 138.3831 },
+  { code: '23', name: '愛知県', lat: 35.1802, lon: 136.9066 },
+  { code: '24', name: '三重県', lat: 34.7303, lon: 136.5086 },
+  { code: '25', name: '滋賀県', lat: 35.0045, lon: 135.8686 },
+  { code: '26', name: '京都府', lat: 35.0212, lon: 135.7556 },
+  { code: '27', name: '大阪府', lat: 34.6863, lon: 135.52 },
+  { code: '28', name: '兵庫県', lat: 34.6913, lon: 135.183 },
+  { code: '29', name: '奈良県', lat: 34.6851, lon: 135.8329 },
+  { code: '30', name: '和歌山県', lat: 34.226, lon: 135.1675 },
+  { code: '31', name: '鳥取県', lat: 35.5039, lon: 134.2383 },
+  { code: '32', name: '島根県', lat: 35.4723, lon: 133.0505 },
+  { code: '33', name: '岡山県', lat: 34.6618, lon: 133.9344 },
+  { code: '34', name: '広島県', lat: 34.3966, lon: 132.4596 },
+  { code: '35', name: '山口県', lat: 34.1861, lon: 131.4705 },
+  { code: '36', name: '徳島県', lat: 34.0658, lon: 134.5593 },
+  { code: '37', name: '香川県', lat: 34.3401, lon: 134.0434 },
+  { code: '38', name: '愛媛県', lat: 33.8417, lon: 132.7657 },
+  { code: '39', name: '高知県', lat: 33.5597, lon: 133.5311 },
+  { code: '40', name: '福岡県', lat: 33.6064, lon: 130.4181 },
+  { code: '41', name: '佐賀県', lat: 33.2494, lon: 130.2988 },
+  { code: '42', name: '長崎県', lat: 32.7448, lon: 129.8737 },
+  { code: '43', name: '熊本県', lat: 32.7898, lon: 130.7417 },
+  { code: '44', name: '大分県', lat: 33.2382, lon: 131.6126 },
+  { code: '45', name: '宮崎県', lat: 31.9111, lon: 131.4239 },
+  { code: '46', name: '鹿児島県', lat: 31.5602, lon: 130.5581 },
+  { code: '47', name: '沖縄県', lat: 26.2124, lon: 127.6809 },
+];
+
+/**
+ * 埋め込みバッジ（/api/badge.svg）の描画定数
+ *
+ * 記号・配色はサイト本体の判定バッジの複製（記号はpublic/app.jsのGRADE_SYMBOLS、
+ * 配色はpublic/style.cssのCUD配色トークン--level-N-*。ずれはhtmlSyncテストが検出する）。
+ * アクセシビリティ方針（判定を色だけに依存させず記号+文字を併記）も
+ * 埋め込み先でそのまま維持する。
+ * grade 4の記号だけはサイトでは禁止マークのアイコン（Font Awesome）だが、
+ * SVGテキストではフォント依存の絵文字を避けて「✕」を使う（ラベル文字で区別できる）
+ */
+export const BADGE = {
+  /** 左セグメントの固定ラベル */
+  leftLabel: '着ぐるみ判定',
+  /** gradeごとの記号（0〜3はapp.jsのGRADE_SYMBOLSと同一） */
+  gradeSymbols: ['◎', '○', '△', '✕', '✕'],
+  /** gradeごとの背景色（style.cssの--level-N-surface） */
+  gradeSurfaces: ['#E5F5EF', '#FCF0D8', '#FDE8D7', '#FBE3DD', '#F6D7D0'],
+  /** gradeごとの文字色（style.cssの--level-N-text。surface上でコントラスト確保済み） */
+  gradeTexts: ['#006147', '#6B4700', '#7A3100', '#99260C', '#6E1100'],
+  /** gradeごとの強調色（style.cssの--level-N-accent。枠線に使う） */
+  gradeAccents: ['#009E73', '#A66E00', '#B34700', '#CC3311', '#8A1500'],
+  /** 暑熱の「危険」だけに付ける明示文（HEAT_BANDSのadviceの要点。埋め込み先でも
+   * 「着用中止」が文字で伝わるようにする。低温側はラベル自体が低温危険のため付けない） */
+  dangerSuffix: '・着用中止',
+} as const;
 
 /**
  * APIレスポンスの帰属表示（Open-Meteoの利用規約により表示時の出典明記が必要。
