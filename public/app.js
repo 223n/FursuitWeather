@@ -157,6 +157,21 @@
     return span;
   }
 
+  /** URL由来のテキストから制御文字・書式文字を除去する（display.jsのsanitizeTextと
+   * 同じ規則。U+202E等の双方向制御文字はtextContent経由でも表示順を反転できるため、
+   * 共有URLの地点名・イベント名の見た目の偽装対策として必須。
+   * ZWJ絵文字合成が崩れる副作用は許容する） */
+  function sanitizeUrlText(text) {
+    return String(text).replace(/[\p{Cc}\p{Cf}]/gu, '').trim();
+  }
+
+  /** 低温側の判定か（levelのcold接頭辞。types.tsのColdLevelIdの契約）
+   * 判定規則の単一情報源。暑熱/低温の取り違えは安全に直結するため、
+   * 個別のstartsWith複製は使わずここへ寄せる（levelの型崩れにも防御する） */
+  function isColdLevel(levelSummary) {
+    return String(levelSummary.level || '').startsWith('cold');
+  }
+
   /** class=hintの案内文（p要素）を組み立てる（データ無し時の表示で共通） */
   function hintParagraph(text) {
     const paragraph = document.createElement('p');
@@ -391,6 +406,24 @@
     writeStorageJson(FAVORITES_STORAGE_KEY, list);
   }
 
+  /** 1日分の要点（天気・気温・判定・時間帯・冷房・洗濯）を読み上げ文で組み立てる
+   * （読み込み直後のサマリーと、イベント表示の開催日サマリーが共有する） */
+  function spokenDaySummary(day) {
+    const parts = [
+      `${formatDate(day.date)}の天気は${day.weatherLabel}、` +
+        `気温は${Math.round(day.temperatureMin)}度から${Math.round(day.temperatureMax)}度です。`,
+      `屋外の着ぐるみ判定は「${day.outdoorWorst.label}」。`,
+      day.recommendedHours.length > 0
+        ? // 「09:00」のままだと日本語音声合成で時刻として読まれないため「9時」形式にする
+          `活動しやすい時間帯は${day.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
+        : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
+      `空調のない屋内は${day.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
+      `洗濯指数は「${day.laundry.label}」、着ぐるみの乾燥目安は約${day.laundry.fursuitDryingHours}時間です。`,
+      '詳しくは「3日間の天気」タブや「今日の天気」などの各タブの表をご確認ください。',
+    ];
+    return parts.join('');
+  }
+
   /** スクリーンリーダー向けに、その日の予報を文章で組み立てる
    * 表やバッジを順に辿らなくても、読み込み直後に要点が音声で伝わるようにする */
   function buildSpokenSummary(forecast, locationName) {
@@ -398,20 +431,7 @@
     if (!today) {
       return `${locationName}の予報を読み込みました。`;
     }
-    const parts = [
-      `${locationName}の予報を読み込みました。`,
-      `${formatDate(today.date)}の天気は${today.weatherLabel}、` +
-        `気温は${Math.round(today.temperatureMin)}度から${Math.round(today.temperatureMax)}度です。`,
-      `屋外の着ぐるみ判定は「${today.outdoorWorst.label}」。`,
-      today.recommendedHours.length > 0
-        ? // 「09:00」のままだと日本語音声合成で時刻として読まれないため「9時」形式にする
-          `活動しやすい時間帯は${today.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
-        : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
-      `空調のない屋内は${today.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
-      `洗濯指数は「${today.laundry.label}」、着ぐるみの乾燥目安は約${today.laundry.fursuitDryingHours}時間です。`,
-      '詳しくは「3日間の天気」タブや「今日の天気」などの各タブの表をご確認ください。',
-    ];
-    return parts.join('');
+    return `${locationName}の予報を読み込みました。${spokenDaySummary(today)}`;
   }
 
   /** 「今日の要点を聞く」・「画像で共有」の説明文に使う要点サマリー。
@@ -425,6 +445,15 @@
    *   入っており、常に当日を述べる自動生成文だと対象日が食い違うため） */
   function currentSummaryText() {
     return spokenSummaryText || buildSpokenSummary(currentForecast, displayedName || '');
+  }
+
+  /** 要点サマリーの更新とスクリーンリーダー通知を対で行う単一の入口
+   * （片側だけ更新して読み上げと「今日の要点を聞く」・画像共有の説明文が
+   *   食い違うのを構造的に防ぐ。見守り・当日ボードの一時通知は
+   *   srAnnounceのみを書く現行の使い分けを維持する） */
+  function announceSummary(text) {
+    spokenSummaryText = text;
+    srAnnounce.textContent = text;
   }
 
   /** 地点ラベル直下の常設注記を表示・非表示する（開催日の予報ではない、など）
@@ -503,7 +532,7 @@
    * summary.symbol（テキストと{icon}の混在配列）で記号、summary.cold=trueで青系配色を明示的に指定できる */
   function createBadge(summary, large) {
     const badge = document.createElement('span');
-    const isCold = summary.cold === true || String(summary.level || '').startsWith('cold');
+    const isCold = summary.cold === true || isColdLevel(summary);
     badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}${large ? ' badge-large' : ''}`;
 
     const symbol = document.createElement('span');
@@ -947,14 +976,27 @@
     forecastTabs.activate(hashTabId, false);
   }
 
-  /** 取得済みの日数に合わせて日付タブの表示を切り替える */
+  /** 取得済みの日数に合わせて日付タブの表示とラベルを切り替える */
   function updateDayTabs() {
     for (const target of TABS) {
       if (target.dayIndex === undefined) {
         continue;
       }
       const tab = document.getElementById(target.tabId);
-      tab.hidden = !currentForecast || currentForecast.days[target.dayIndex] === undefined;
+      const day = currentForecast ? currentForecast.days[target.dayIndex] : undefined;
+      tab.hidden = day === undefined;
+      if (day) {
+        // タブ名は配列位置ではなく実際の日付との差で決める（日付またぎの
+        // オフライン表示ではdays[0]が前日になり得るため、静的な「今日の天気」の
+        // ままだと前日のデータに「今日」と付く。プランナーの日付候補と同じ基準）
+        const relative = ['今日', '明日', '明後日'][daysBetween(nowInJst().date, day.date)];
+        const label = relative ? `${relative}の天気` : `${formatDate(day.date)}の天気`;
+        // 先頭のアイコン（svg）は保持し、テキストノードだけを差し替える
+        const textNode = [...tab.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+        if (textNode && textNode.textContent !== label) {
+          textNode.textContent = label;
+        }
+      }
     }
     // 表示中のタブが日数不足で消えた場合は「現在の天気」へ戻す
     if (document.getElementById(forecastTabs.getActiveTabId()).hidden) {
@@ -1086,7 +1128,7 @@
     // 厳重警戒（grade 3）以上の時間帯は、応急対応ページへの導線を判定カード内に出す
     // （体調不良が起きやすい状況で、手順を探させない）。
     // 低温側の危険（coldDanger）はgradeが同値でも熱中症手順ではないため出さない
-    if (target.outdoor.grade >= 3 && !target.outdoor.level.startsWith('cold')) {
+    if (target.outdoor.grade >= 3 && !isColdLevel(target.outdoor)) {
       const emergency = document.createElement('p');
       emergency.className = 'now-emergency';
       emergency.appendChild(faIcon('triangle-exclamation', 'btn-icon'));
@@ -1586,8 +1628,7 @@
 
       // スクリーンリーダーへ読み込み完了とその日の要点を通知する
       // （読み上げ・共有説明文用の要点も同じ文で更新する）
-      spokenSummaryText = buildSpokenSummary(body, locationName);
-      srAnnounce.textContent = spokenSummaryText;
+      announceSummary(buildSpokenSummary(body, locationName));
       // 呼び出し元が表示成功後の追加処理（イベント開催日のタブ切り替えなど）を
       // 行えるよう、成功をtrueで返す（破棄・失敗時はundefined）
       return true;
@@ -1900,11 +1941,12 @@
       const params = new URLSearchParams(shareQueryString(displayedQuery, displayedName));
       // 任意設定: 日付とプランナーの時間帯（date/from/to）を含める。
       // 開いた側は最新の予報で再計算されるため、古い画面写真を信じる事故を防げる。
-      // 受け取り側はdate/from/toを1つの計画として扱うため、日付はプランナーの
-      // 日付を優先する（閲覧中タブ（selectedDate）とプランナーが別の日を指して
-      // いると、1日ずれた計画URLを作ってしまう）
+      // 受け取り側はdate/from/toを1つの計画として扱うため、プランナーの日付が
+      // 明示的に決まっているとき（利用者の選択・イベント・共有URL）はそれを優先する。
+      // プランナー未使用ならセレクトの既定値（常に今日）ではなく見ている日付を使う
+      // （明後日タブを見ながらの共有が黙って今日の日付になるのを防ぐ）
       if (shareIncludePlan.checked && currentForecast && selectedDate) {
-        params.set('date', planDate.value || selectedDate);
+        params.set('date', planDateExplicit && planDate.value ? planDate.value : selectedDate);
         params.set('from', planStart.value);
         params.set('to', planEnd.value);
       }
@@ -2243,6 +2285,7 @@
       // ボタンが残らないよう初期状態へ戻す
       disablePicker(eventSelect, eventButton, emptyMessage);
       eventLinkButton.disabled = true;
+      updateEventIcsLink();
       return;
     }
     eventList.forEach((event, index) => {
@@ -2253,7 +2296,22 @@
     eventSelect.disabled = false;
     eventButton.disabled = false;
     eventLinkButton.disabled = false;
+    updateEventIcsLink();
   }
+
+  /** 「選択中のイベントだけ登録」リンクを選択に追随させる
+   * （リンク先は/api/events.ics?event=イベント名。固定リンク・バッジと同じ照合キー） */
+  function updateEventIcsLink() {
+    const wrapper = document.getElementById('event-ics-single');
+    const event = eventList[Number(eventSelect.value)];
+    wrapper.hidden = !event;
+    if (event) {
+      document.getElementById('event-ics-link').href =
+        `/api/events.ics?event=${encodeURIComponent(event.name)}`;
+    }
+  }
+
+  eventSelect.addEventListener('change', updateEventIcsLink);
 
   /** 郵便番号から開催地の座標を1件解決する（候補が無ければnull）。
    * 郵便番号→市区町村名→座標の変換はWorker側（/api/geocode）が担う */
@@ -2287,6 +2345,8 @@
   function applyEventPlanTimes(event, targetDate) {
     // 日付だけは対象日に合わせておく（時間帯は利用者が選ぶ）
     planDate.value = targetDate;
+    // 開催日への設定は明示的な日付として扱う（共有URLのdateにこの日付を載せる）
+    planDateExplicit = true;
     // 前の条件で作った計画は前提が変わるため消す（プランナーは操作起点で作り直す）
     clearPlan();
     if (
@@ -2390,10 +2450,11 @@
           ? `活動プランナーに${planText}を設定しました。${PLANNER_GUIDE_TEXT}`
           : `活動プランナーに開催日を設定しました。時間帯を選び、${PLANNER_GUIDE_TEXT}`);
       setStatus(message, false);
-      // 読み上げサマリーは常に当日の予報を述べるため、対象日が今日でない
-      // ときに食い違う。開催日を明示した文で上書きする
-      spokenSummaryText = message;
-      srAnnounce.textContent = message;
+      // 読み上げサマリーは常に当日の予報を述べるため、対象日が今日でないときに
+      // 食い違う。開催日を明示した文へ差し替えつつ、天気・判定の要点も続けて含める
+      // （「今日の要点を聞く」・画像共有の説明文が操作案内だけにならないように）
+      const targetDay = currentForecast.days.find((d) => d.date === targetDate);
+      announceSummary(`${message}${targetDay ? spokenDaySummary(targetDay) : ''}`);
       // 固定リンク（?event=）の呼び出し元が失敗時のフォールバックを判断できるよう、
       // 予報の表示まで成功したことをtrueで返す（失敗・破棄時はundefined）
       return true;
@@ -2416,8 +2477,10 @@
     // ステータスは「予報を更新」などで流れて消えるため、安全に関わる注記は
     // 地点ラベル直下にも常設で残す（地点が変わればloadForecastが消す）
     setLocationNote(`開催日（${formatEventPeriod(event)}）の予報ではありません（表示は${range}の予報）`);
-    spokenSummaryText = message;
-    srAnnounce.textContent = message;
+    // 表示している直近予報の要点も続けて含める（読み上げ・共有説明文用）
+    announceSummary(
+      `${message}${currentForecast.days[0] ? spokenDaySummary(currentForecast.days[0]) : ''}`,
+    );
     return true;
   }
 
@@ -2476,8 +2539,12 @@
     // 読み込み自体が失敗したときはエラー表示を残し、虚偽の案内で上書きしない
     const loaded = await loadInitialStoredOrDefault();
     if (loaded) {
+      // 一覧の読み込み自体が失敗しているときは「開催終了かも」と誤解させない
+      // （実際は一時的な通信失敗のことがある。原因に即した文言で分ける）
       setStatus(
-        `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
+        eventsLoadFailed
+          ? `イベント一覧を読み込めなかったため、「${name}」を表示できませんでした。通信を確認し、イベントタブを選ぶと再試行します。かわりに通常の予報を表示しています。`
+          : `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
         false,
         true,
       );
@@ -2486,6 +2553,14 @@
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
   const planDate = document.getElementById('plan-date');
+
+  /** プランナーの日付が明示的に決まっているか（利用者の選択・イベント・共有URL）。
+   * セレクトは予報読み込み後に常に先頭（今日）が入るため、値の有無では
+   * 「使っていない」を判別できない。共有URLのdateにどちらを載せるかの判定に使う */
+  let planDateExplicit = false;
+  planDate.addEventListener('change', () => {
+    planDateExplicit = true;
+  });
   const planButton = document.getElementById('plan-button');
   const planStart = document.getElementById('plan-start');
   const planEnd = document.getElementById('plan-end');
@@ -2658,9 +2733,14 @@
         notes.appendChild(sunsetNote);
       }
     }
+    // 休憩ガイド・持ち物は暑熱と低温で内容が逆になるため、gradeを側別に分けて求める
+    // （低温警戒=grade 2・低温危険=grade 4を暑熱の厳しさとして扱うと、氷点下の日に
+    //   冷却手順や保冷剤を案内してしまう。順化注記と休憩ガイドが同じ値を共有する）
+    const heatWorstGrade = worstGradeOf(hours, false);
+    const coldWorstGrade = worstGradeOf(hours, true);
     // 暑熱リスクのある計画では、間が空いたときの慣らし（暑熱順化）を促す
     // （詳細は同じタブ内の啓発パネル。冬の計画には出さない）
-    if (worstGradeOf(hours, false) >= 1) {
+    if (heatWorstGrade >= 1) {
       const acclimatizationNote = document.createElement('li');
       acclimatizationNote.textContent =
         'しばらく（2週間以上）着ていないときは、初日は目安のおよそ半分から段階的に。' +
@@ -2684,11 +2764,6 @@
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
     notes.appendChild(generalNote);
 
-    // 休憩ガイド・持ち物は暑熱と低温で内容が逆になるため、gradeを側別に分けて渡す
-    // （低温警戒=grade 2・低温危険=grade 4を暑熱の厳しさとして扱うと、氷点下の日に
-    //   冷却手順や保冷剤を案内してしまう）
-    const heatWorstGrade = worstGradeOf(hours, false);
-    const coldWorstGrade = worstGradeOf(hours, true);
     planResult.replaceChildren(
       heading,
       list,
@@ -2705,7 +2780,7 @@
     return Math.max(
       0,
       ...hours
-        .filter((h) => String(h.outdoor.level).startsWith('cold') === cold)
+        .filter((h) => isColdLevel(h.outdoor) === cold)
         .map((h) => h.outdoor.grade),
     );
   }
@@ -2790,7 +2865,7 @@
         '冷却ベスト・首用の冷却グッズ',
       );
     }
-    if (hours.some((h) => String(h.outdoor.level).startsWith('cold'))) {
+    if (hours.some((h) => isColdLevel(h.outdoor))) {
       items.push(
         '速乾インナーの替え（汗冷え対策）',
         'カイロ（肌に直接当てない。低温やけどに注意）',
@@ -2938,7 +3013,7 @@
 
   /** 時間別判定に対応する描画色を返す（低温レベルは青系） */
   function shareColorsOf(outdoor) {
-    return String(outdoor.level).startsWith('cold')
+    return isColdLevel(outdoor)
       ? SHARE_COLD_COLORS
       : (SHARE_GRADE_COLORS[outdoor.grade] ?? SHARE_GRADE_COLORS[0]);
   }
@@ -3070,7 +3145,7 @@
       ctx.fillStyle = cellColors.accent;
       ctx.fillRect(x + 2, barY, cellWidth - 4, barHeight);
       shareDrawSymbol(ctx, dayHours[index].outdoor, x + cellWidth / 2, barY + barHeight / 2 + 2, 28, '#FFFFFF');
-      if (String(dayHours[index].outdoor.level).startsWith('cold')) {
+      if (isColdLevel(dayHours[index].outdoor)) {
         // 低温側は画面表示（温度計アイコン）と同様に、色に加えて形でも区別する
         shareDrawSnowflake(ctx, x + 16, barY + 14, 7, '#FFFFFF');
       }
@@ -3229,6 +3304,10 @@
       return;
     }
     renderTimerJudgment(outdoor);
+    // 休憩中の文言（restGuideText）が最新判定と矛盾しないよう、モードに関わらず控える
+    if (outdoor && Number.isFinite(outdoor.activityMinutes)) {
+      timerLatestActivityMinutes = outdoor.activityMinutes;
+    }
     if (!outdoor || timerState.mode !== 'wear') {
       return;
     }
@@ -3398,9 +3477,19 @@
     }
   }
 
+  /** タイマー表示中の最新判定の連続活動分（休憩中の文言が最新判定と矛盾しないよう
+   * applyTimerOutdoorが控える。0=着用中止。未取得はnull） */
+  let timerLatestActivityMinutes = null;
+
   /** 休憩中の目安文。目安（着用と同じ長さ）に達したら文言を切り替え、
    * アテンドが経過と目安を暗算で見比べる負担を減らす */
   function restGuideText(restMinutes) {
+    // 休憩中に判定が悪化して着用中止になったときは「再開できます」と言わない
+    // （直下の判定バッジと矛盾した表示は危険側の楽観を誘う。再開ボタン側の
+    //   安全ゲートと同じ判断を文言にも反映する）
+    if (timerLatestActivityMinutes === 0) {
+      return '現在の判定は「着用中止」です。休憩を続けてください。';
+    }
     if (!Number.isFinite(timerState.wearMinutes)) {
       return '同じ長さ以上の休憩と、水分・塩分補給を。';
     }
@@ -3552,6 +3641,8 @@
     clearInterval(timerTickId);
     timerTickId = null;
     timerState = null;
+    // 次のタイマーへ前回の判定を持ち越さない（restGuideTextの中止分岐用）
+    timerLatestActivityMinutes = null;
     // 消せない環境でも表示は閉じる（次回表示時はreadTimerStateの検証に従う）
     removeStorageItem(TIMER_STATE_KEY);
     releaseTimerWakeLock();
@@ -3666,24 +3757,29 @@
 
   renderWearLog();
 
+  /** 開始できない理由の近接表示（#statusはボタン位置から画面外になり得るため） */
+  const timerStartStatus = document.getElementById('timer-start-status');
+
   timerStartButton.addEventListener('click', () => {
     // クリック（ユーザー操作）の中で音声の再生制限を解いておく
     prepareTimerAudio();
     const target = currentOutdoorTarget();
     if (!target) {
-      setStatus('先に予報を読み込んでください。', true);
+      announceNear(timerStartStatus, '先に予報を読み込んでください。', true);
       return;
     }
     if (target.outdoor.activityMinutes === 0) {
       // 中止の理由が暑熱か低温かで、優先すべき行動（冷却/保温）を出し分ける
-      setStatus(
-        String(target.outdoor.level).startsWith('cold')
+      announceNear(
+        timerStartStatus,
+        isColdLevel(target.outdoor)
           ? '現在の判定は「着用中止」のため、タイマーは開始できません。保温と休憩を優先してください。'
           : '現在の判定は「着用中止」のため、タイマーは開始できません。休憩・冷却を優先してください。',
         true,
       );
       return;
     }
+    timerStartStatus.textContent = '';
     openTimer({
       mode: 'wear',
       startedAt: Date.now(),
@@ -4129,8 +4225,8 @@
   /** ボードの構成（人数・状態・開始時刻）の指紋。変わらない限りDOMを作り直さない */
   function boardSignature() {
     return boardState.wearers
-      .map((wearer) => `${wearer.name} ${wearer.state} ${wearer.since}`)
-      .join('');
+      .map((wearer) => `${wearer.name}\u0000${wearer.state}\u0000${wearer.since}`)
+      .join('\u0001');
   }
 
   let boardRenderedSignature = null;
@@ -4253,6 +4349,9 @@
     const value = Number(boardManualLimitInput.value);
     if (Number.isFinite(value) && value >= 5 && value <= 120) {
       boardState.manualLimitMinutes = Math.round(value);
+    } else {
+      // 黙って差し戻すと「入力が効かない」ように見えるため、理由を近接表示する
+      announceNear(boardStatusElement, '上限の目安は5〜120分の範囲で指定してください。', true);
     }
     boardManualLimitInput.value = String(boardState.manualLimitMinutes);
     writeBoardState();
@@ -4446,6 +4545,8 @@
       return;
     }
     planDate.value = date;
+    // 共有URL由来の設定も明示的な日付として扱う（再共有時にこの日付を引き継ぐ）
+    planDateExplicit = true;
     clearPlan();
     const from = Number.parseInt(pageParams.get('from') ?? '', 10);
     const to = Number.parseInt(pageParams.get('to') ?? '', 10);
@@ -4494,7 +4595,7 @@
     // 名前と座標の食い違い（偽装リンク）に気付けるようにし、記憶には座標由来の
     // 名前だけを使って偽装名が次回以降の表示に固定されないようにする。
     // 表示自体はtextContent経由のため、タグや装飾は無効化される
-    const sharedName = (pageParams.get('name') ?? '').trim().slice(0, 80);
+    const sharedName = sanitizeUrlText(pageParams.get('name') ?? '').slice(0, 80);
     const coordName = describeSharedLocation(sharedLat, sharedLon);
     const displayLabel = sharedName
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
@@ -4512,10 +4613,10 @@
         applySharedPlan(tabSeqAtStart);
       }
     });
-  } else if ((pageParams.get('event') ?? '').trim() !== '') {
+  } else if (sanitizeUrlText(pageParams.get('event') ?? '') !== '') {
     // イベント固定リンク（?event=イベント名）: 一覧の読み込み完了後に
     // initEventsの続き（下のinitEvents().then）が該当イベントを自動選択する
-    pendingEventName = (pageParams.get('event') ?? '').trim().slice(0, 80);
+    pendingEventName = sanitizeUrlText(pageParams.get('event') ?? '').slice(0, 80);
   } else {
     loadInitialStoredOrDefault();
   }

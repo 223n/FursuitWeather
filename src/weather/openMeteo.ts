@@ -13,6 +13,7 @@ import {
   SUDDEN_HEAT,
   UPSTREAM_CACHE_TTL_SECONDS,
   UPSTREAM_RETRY_DELAY_MS,
+  WEATHER_FETCH_FAILURE_MESSAGE,
 } from '../constants';
 import type { AirQualityValues } from '../logic/airQuality';
 import type { HourlyWeather, SunTimes } from '../types';
@@ -23,6 +24,7 @@ import {
   readUpstreamJson,
   throwUpstreamStatus,
   UpstreamError,
+  type UpstreamMessages,
 } from './upstream';
 
 /**
@@ -393,13 +395,10 @@ function fetchAirQuality(
   );
 }
 
-/** 上流リクエストの文言セット（fetchUpstreamへ渡すログラベルと利用者向け文言） */
-type UpstreamMessages = Parameters<typeof fetchUpstream>[3];
-
 /** 予報本体（気象データ）用の文言 */
 const WEATHER_FETCH_MESSAGES: UpstreamMessages = {
   logLabel: '気象データの取得に失敗:',
-  failure: '気象データの取得に失敗しました。時間をおいて再度お試しください',
+  failure: WEATHER_FETCH_FAILURE_MESSAGE,
   // タイムアウトは「待てば直る」ことが多いため専用文言で区別する
   timeout: '気象データの取得がタイムアウトしました。時間をおいて再度お試しください',
 };

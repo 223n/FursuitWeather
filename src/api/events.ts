@@ -7,17 +7,26 @@ import { parseCalendarEvents } from '../logic/events';
 import { buildEventsCalendar } from '../logic/ical';
 import { todayInJst } from '../logic/time';
 import { fetchEventsJson, type AssetsEnv } from './assets';
-import { apiHeaders } from './http';
+import { apiHeaders, jsonError } from './http';
 
 /**
- * GET /api/events.ics
+ * GET /api/events.ics （掲載中の全イベント）
+ * GET /api/events.ics?event=イベント名 （1件だけ。参加イベントのみ登録したい人向け）
  * 静的アセットのevents.jsonを読み、text/calendarで返す。
  * アセットの取得・解析の失敗はルーターの最終防衛線（500）に委ねる
  */
 export async function handleEventsCalendar(request: Request, env: AssetsEnv): Promise<Response> {
   const url = new URL(request.url);
   const now = new Date();
-  const events = parseCalendarEvents(await fetchEventsJson(url, env), todayInJst(now));
+  let events = parseCalendarEvents(await fetchEventsJson(url, env), todayInJst(now));
+  // イベント名は固定リンク（?event=）・バッジ（/api/badge.svg?event=）と同じ照合キー
+  const eventName = url.searchParams.get('event');
+  if (eventName !== null) {
+    events = events.filter((entry) => entry.name === eventName);
+    if (events.length === 0) {
+      return jsonError(404, '指定されたイベントは登録されていません');
+    }
+  }
   const calendar = buildEventsCalendar(events, url.origin, now);
   return new Response(calendar, {
     // 共通ヘッダー（CORS・nosniff・キャッシュ）はapiHeadersへ集約。

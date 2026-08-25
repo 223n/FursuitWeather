@@ -369,6 +369,11 @@ export const RECOMMENDED_MAX_GRADE = 1;
 /** APIレスポンスのmodelフィールドに使う気象モデル表記（/api/forecast・/api/national共通） */
 export const WEATHER_MODEL_LABEL = 'jma_seamless（気象庁MSM/GSM）';
 
+/** 予報本体の取得失敗の利用者向け文言
+ * （openMeteo.tsの上流失敗と、forecast.tsの日付またぎ防御502が共有する単一情報源） */
+export const WEATHER_FETCH_FAILURE_MESSAGE =
+  '気象データの取得に失敗しました。時間をおいて再度お試しください';
+
 /** Open-Meteo JMAモデルAPI（気象庁MSM/GSMモデル由来の予報データ） */
 export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
 

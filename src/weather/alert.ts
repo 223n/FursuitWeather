@@ -9,7 +9,7 @@
 
 import { ALERT_CACHE_TTL_SECONDS, WBGT_ALERT_BASE_URL } from '../constants';
 import { alertForPrefecture, nearestPrefecture, parseAlertCsv } from '../logic/alert';
-import { fetchUpstream } from './upstream';
+import { fetchUpstream, logUpstreamStatus } from './upstream';
 
 /** 突合結果（/api/alertのレスポンスのalertフィールド） */
 export interface AlertResult {
@@ -45,9 +45,13 @@ export async function fetchAlertFor(
       failure: 'アラート発表状況を取得できませんでした',
     });
     if (!response.ok) {
-      // 提供期間外・当日5時の発表前はファイルが無い（404）。異常ではないためログも出さない
-      if (response.status !== 404) {
-        console.error('アラート発表状況の応答異常:', url, response.status);
+      // 破棄する応答も本文を必ず読み切る（未読ストリームが上流接続を保持するのを
+      // 防ぐ。upstream.tsの規約。提供期間外・当日5時の発表前は毎回404になる）
+      if (response.status === 404) {
+        // 異常ではないためログは出さず、本文だけ読み捨てる
+        await response.text().catch(() => '');
+      } else {
+        await logUpstreamStatus('アラート発表状況の応答異常:', url, response);
       }
       return null;
     }

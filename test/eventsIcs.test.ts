@@ -129,4 +129,29 @@ describe('handleEventsCalendar', () => {
       handleEventsCalendar(new Request('https://example.com/api/events.ics'), env),
     ).rejects.toThrow('events.json');
   });
+
+  it('?event=イベント名で該当の1件だけを返す（参加イベントのみ登録したい人向け）', async () => {
+    const env = createEnv({
+      events: [validEvent(), validEvent({ name: 'Kemocon 19', zip: '412-0033' })],
+    });
+    const response = await handleEventsCalendar(
+      new Request(`https://example.com/api/events.ics?event=${encodeURIComponent('Kemocon 19')}`),
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('SUMMARY:Kemocon 19');
+    expect(body).not.toContain('SUMMARY:けもケット17');
+  });
+
+  it('?event=が未登録の名前なら404を返す（固定リンク・バッジと同じ照合キー）', async () => {
+    const env = createEnv({ events: [validEvent()] });
+    const response = await handleEventsCalendar(
+      new Request('https://example.com/api/events.ics?event=存在しないイベント'),
+      env,
+    );
+    expect(response.status).toBe(404);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toContain('登録されていません');
+  });
 });

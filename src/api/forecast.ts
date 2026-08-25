@@ -1,7 +1,12 @@
 // /api/forecast エンドポイント
 // クエリパラメータを検証し、気象データの取得と予報の組み立てを行う
 
-import { DEFAULT_FORECAST_DAYS, MAX_FORECAST_DAYS, WEATHER_MODEL_LABEL } from '../constants';
+import {
+  DEFAULT_FORECAST_DAYS,
+  MAX_FORECAST_DAYS,
+  WEATHER_FETCH_FAILURE_MESSAGE,
+  WEATHER_MODEL_LABEL,
+} from '../constants';
 import { assessSuddenHeat } from '../logic/acclimatization';
 import { buildForecast } from '../logic/forecast';
 import { dateOf, todayInJst } from '../logic/time';
@@ -57,7 +62,8 @@ export async function handleForecast(request: Request): Promise<Response> {
   // 空画面が最大10分残るため、上流異常と同じ扱い（502・no-store）で失敗させる
   if (currentHours.length === 0) {
     console.error('予報データが日付またぎで全て過去に分類されました:', today, weather.hours.length);
-    throw new UpstreamError('気象データの取得に失敗しました。時間をおいて再度お試しください');
+    // 文言は上流失敗（openMeteo.ts）と共通の単一情報源を使う
+    throw new UpstreamError(WEATHER_FETCH_FAILURE_MESSAGE);
   }
 
   const forecast = buildForecast(

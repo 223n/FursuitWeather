@@ -364,6 +364,11 @@ test('イベント: 固定リンクをコピーで?event=のエンコード済�
   await page.goto('/');
   await waitForForecast(page);
   await page.click('#picker-tab-event');
+  // 「選択中のイベントだけ登録」リンクが選択中のイベントに追随している
+  await expect(page.locator('#event-ics-link')).toHaveAttribute(
+    'href',
+    `/api/events.ics?event=${encodeURIComponent('サマーコン')}`,
+  );
   // クリップボードはスタブして渡った文字列そのものを検証する（許可ダイアログ回避）
   await page.evaluate(() => {
     window.__copied = null;
@@ -390,7 +395,11 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
   await page.goto('/');
   await waitForForecast(page);
   await page.click('#picker-tab-event');
-  await expect(page.locator('#picker-event a[href="/api/events.ics"]')).toBeVisible();
+  // 「選択中のイベントだけ登録」リンク（イベント選択で同じhrefになり得る）と
+  // 区別するため、全件リンクは文言でも絞り込む
+  await expect(
+    page.locator('#picker-event a[href="/api/events.ics"]', { hasText: 'カレンダーに登録' }),
+  ).toBeVisible();
 
   // 実ファイル（public/events.json）の内容に依存しない構造の検証に留める
   // （page.requestはWorkerの実エンドポイントへ届く）

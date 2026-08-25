@@ -143,6 +143,21 @@ describe('handleAlert', () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
+  it('404の本文の読み捨てに失敗しても例外にせずalert: nullを返す', async () => {
+    // 読むとエラーになる本文（切断など）。読み捨ての.catchが握りつぶすことを確認する
+    const brokenBody = new ReadableStream({
+      start(controller): void {
+        controller.error(new Error('切断'));
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(brokenBody, { status: 404 })));
+    const response = await handleAlert(
+      new Request('https://example.com/api/alert?lat=35.68&lon=139.68'),
+    );
+    expect(((await response.json()) as { alert: unknown }).alert).toBeNull();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
   it('404以外の応答異常はalert: nullにしてログへ残す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 500 })));
     const response = await handleAlert(

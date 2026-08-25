@@ -149,9 +149,12 @@
     resultArea.replaceChildren(list);
     // 低温側の注記: 低温判定（汗冷え・凍結）は体感温度ベースのため、WBGTの
     // 実測値からは判定できない。低い実測値で暑熱側の「ほぼ安全（45分）」だけを
-    // 見て危険側に楽観しないよう、予報画面の低温判定への導線を添える
-    // （しきい値15はsrc/constants.tsのCOLD_SWITCH_TEMPERATUREと同じ目安）
-    if (suitWbgt < 15) {
+    // 見て危険側に楽観しないよう、予報画面の低温判定への導線を添える。
+    // しきい値は実測値（補正前）で判定する: 日陰では気温≧実測WBGTのため、
+    // 「実測15℃未満」は低温判定の開始域（気温15℃未満=COLD_SWITCH_TEMPERATURE）を
+    // 安全側に近似できる（補正後で判定すると実測4℃未満まで注記が出ず、
+    // 低温注意の典型域（実測4〜10℃程度）を取りこぼす）
+    if (measured < 15) {
       const coldNote = document.createElement('p');
       coldNote.className = 'hint';
       coldNote.textContent =

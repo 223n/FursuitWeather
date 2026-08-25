@@ -33,6 +33,8 @@
   const PIXEL_SHIFT_MS = 3 * 60 * 1000;
   /** 熱中症警戒アラートの発表基準となる暑さ指数（src/constants.tsと同期） */
   const HEAT_STROKE_ALERT_WBGT = 33;
+  /** 日本時間の暦で読むためのオフセット（ミリ秒）。app.jsのJST_OFFSET_MSと同じ値 */
+  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
   /** 地点未指定時の既定地点 */
   const DEFAULT_LOCATION = { name: '東京', lat: 35.6785, lon: 139.6823 };
   /** 全国スライドへ追加できる都市数の上限 */
@@ -115,7 +117,7 @@
 
   /** 日本時間の現在日付（YYYY-MM-DD）・時・分を返す（端末のタイムゾーンに依存しない） */
   function nowInJst() {
-    const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const jst = new Date(Date.now() + JST_OFFSET_MS);
     return {
       date: jst.toISOString().slice(0, 10),
       hour: jst.getUTCHours(),
@@ -626,7 +628,7 @@
 
   /** 時刻（ms）を日本時間のHH:MM表記にする（前日以前は「M/D HH:MM」で日付も示す） */
   function jstClockText(ms) {
-    const jst = new Date(ms + 9 * 60 * 60 * 1000);
+    const jst = new Date(ms + JST_OFFSET_MS);
     const time = `${String(jst.getUTCHours()).padStart(2, '0')}:${String(jst.getUTCMinutes()).padStart(2, '0')}`;
     if (jst.toISOString().slice(0, 10) === nowInJst().date) {
       return time;

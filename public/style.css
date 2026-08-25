@@ -577,6 +577,13 @@ input[type='number'] {
   vertical-align: -0.15em;
 }
 
+/* 応急対応ページの赤パネル（.emergency-call）内のリンク: 既定のリンク色は
+   level-3-surface上で4.23:1とWCAG AAに届かないため、.alert-notice aと同じ
+   濃色（ライト#094F73=7.21:1、ダークは明水色）へ寄せる */
+.emergency-call a {
+  color: var(--color-code-text);
+}
+
 /* 地点ラベル直下の常設注記（開催日の予報ではない、など）。
    #statusの注意状態と同じ「注意」レベルの配色+△!アイコンで、
    「予報を更新」でステータスが流れても画面に残り続ける */
