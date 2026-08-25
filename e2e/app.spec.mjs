@@ -757,3 +757,111 @@ test('見やすさ設定・音声ボタン・ホーム画面案内が動く', as
   await page.getByText('ホーム画面に追加して毎日見る').click();
   await expect(page.locator('#a2hs-generic')).toBeVisible();
 });
+
+/** 予報の全時間帯を指定時刻（'05'・'14'など）の内容へ固定する。
+ * デモデータは時間帯で判定が変わるため、現在時刻に連動する機能（いまの判定・
+ * 着用タイマー）をテストの実行時刻に依存させないために使う */
+async function mockForecastFixedHour(page, templateHour) {
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    const template = body.hours.find((hour) => hour.time.endsWith(`T${templateHour}:00`));
+    body.hours = body.hours.map((hour) => ({ ...template, time: hour.time }));
+    await route.fulfill({ json: body });
+  });
+}
+
+test('実測WBGTの会場ログ: 記録・リロード保持・削除・CSV書き出しができる', async ({ page }) => {
+  await page.goto('/#tab-measured');
+
+  // 判定するまでは記録ボタンが押せない（未判定の記録を防ぐ）
+  await expect(page.locator('#wbgt-log-button')).toBeDisabled();
+  await page.fill('#wbgt-input', '20');
+  await page.click('#wbgt-judge-button');
+  await page.fill('#wbgt-place', 'ステージ横');
+  await page.click('#wbgt-log-button');
+
+  // 記録すると履歴の表に場所・実測・補正後・判定バッジが並ぶ
+  await expect(page.locator('#wbgt-log-section')).toBeVisible();
+  await expect(page.locator('#wbgt-log-body tr')).toHaveCount(1);
+  await expect(page.locator('#wbgt-log-body')).toContainText('ステージ横');
+  await expect(page.locator('#wbgt-log-body')).toContainText('20℃');
+  await expect(page.locator('#wbgt-log-body')).toContainText('31℃');
+  await expect(page.locator('#wbgt-log-body .badge')).toBeVisible();
+
+  // 記録はこの端末に保存され、リロード後も残る
+  // （予報の読み込みでURLは地点パラメータへ置き換わりハッシュが消えるため、
+  //   タブは明示的に開き直す）
+  await page.reload();
+  await page.click('#tab-measured');
+  await expect(page.locator('#wbgt-log-section')).toBeVisible();
+  await expect(page.locator('#wbgt-log-body tr')).toHaveCount(1);
+
+  // CSV書き出しはBOM付きUTF-8のファイルをダウンロードする
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#wbgt-log-csv-button');
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^wbgt-log-\d{4}-\d{2}-\d{2}\.csv$/);
+
+  // 行の削除で表から消え、0件になると履歴ごと隠れる
+  await page.click('#wbgt-log-body button');
+  await expect(page.locator('#wbgt-log-section')).toBeHidden();
+});
+
+test('シェア画像: Web Share非対応環境ではPNGのダウンロードになる', async ({ page }) => {
+  await page.goto('/');
+  await waitForForecast(page);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#share-image-button');
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('fursuit-weather.png');
+  // 保存の案内（説明文のコピーは環境の許可に依存するため文頭のみ検証する）
+  await expect(page.locator('#status')).toContainText('画像を保存し');
+});
+
+test('着用タイマー: 開始→リロード継続→休憩→終了ができる', async ({ page }) => {
+  // 早朝（着用可能な判定）に固定し、実行時刻に依存させない
+  await mockForecastFixedHour(page, '05');
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.click('#timer-start-button');
+  await expect(page.locator('#timer-overlay')).toBeVisible();
+  await expect(page.locator('#timer-mode')).toHaveText('着用中');
+  await expect(page.locator('#timer-limit')).toContainText('上限');
+  await expect(page.locator('#timer-clock')).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.locator('#timer-judgment .badge')).toBeVisible();
+
+  // 開始時刻はこの端末に保存され、リロードしても継続する
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#timer-overlay')).toBeVisible();
+  await expect(page.locator('#timer-mode')).toHaveText('着用中');
+
+  // 休憩へ切り替えるとカウントアップになり、同じ長さ以上の休憩を促す
+  await page.click('#timer-rest-button');
+  await expect(page.locator('#timer-mode')).toHaveText('休憩中');
+  await expect(page.locator('#timer-limit')).toContainText('同じ長さ以上の休憩');
+  await expect(page.locator('#timer-rest-button')).toHaveText('着用を再開');
+
+  // 終了で閉じ、保存も消える（リロードしても再表示されない）
+  await page.click('#timer-stop-button');
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+  await page.reload();
+  await waitForForecast(page);
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+});
+
+test('着用タイマー: 判定が「着用中止」のときは開始できない', async ({ page }) => {
+  // 昼14時（危険レベル・着用中止）に固定する
+  await mockForecastFixedHour(page, '14');
+  await page.goto('/');
+  await waitForForecast(page);
+
+  await page.click('#timer-start-button');
+  await expect(page.locator('#timer-overlay')).toBeHidden();
+  await expect(page.locator('#status-error')).toContainText('タイマーは開始できません');
+});

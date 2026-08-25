@@ -1446,7 +1446,8 @@ section h3 {
   .table-scroll-hint,
   .about,
   .skeleton-card,
-  .skeleton-line {
+  .skeleton-line,
+  #timer-overlay {
     display: none !important;
   }
 
@@ -1502,4 +1503,83 @@ section h3 {
 .display-mode-link:focus {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* 着用タイマー（アテンド用の全画面ダイアログ）。表示はapp.jsがhidden属性で切り替える */
+.timer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: var(--color-background);
+}
+
+/* display: flexはUAスタイルのhidden（display: none）より優先されるため、非表示を明示する */
+.timer-overlay[hidden] {
+  display: none;
+}
+
+.timer-panel {
+  width: 100%;
+  max-width: 30rem;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 4px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background-color: var(--color-surface);
+}
+
+.timer-mode {
+  margin: 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.timer-clock {
+  margin: 0.5rem 0;
+  font-size: 5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timer-limit {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+}
+
+/* 判定・警告文の領域は高さを事前確保し、出現時のレイアウトシフトを防ぐ */
+.timer-judgment {
+  min-height: 3rem;
+  margin: 0.5rem 0;
+}
+
+.timer-note {
+  min-height: 3rem;
+  margin: 0.5rem 0;
+  font-weight: 700;
+}
+
+.timer-controls {
+  justify-content: center;
+}
+
+/* 残り5分（注意）と超過（危険）は枠と地の色でも段階を示す（文言・音・バイブと併用し、
+ * 色だけに頼らない）。休憩中は青系にして着用中との取り違えを防ぐ */
+.timer-warning .timer-panel {
+  border-color: var(--level-1-accent);
+  background-color: var(--level-1-surface);
+}
+
+.timer-over .timer-panel {
+  border-color: var(--level-3-accent);
+  background-color: var(--level-3-surface);
+}
+
+.timer-rest .timer-panel {
+  border-color: var(--level-cold-accent);
+  background-color: var(--level-cold-surface);
 }

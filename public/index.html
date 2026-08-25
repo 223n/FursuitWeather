@@ -218,6 +218,7 @@
           <!-- 印刷用ワンシート: 前日に印刷して持参・救護所へ掲示する用途。
                レイアウトは@media print（style.css）が担う -->
           <button type="button" id="print-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-print"/></svg>印刷用シート</button>
+          <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
         </div>
         <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
         <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、見ている日付とプランナーの時間帯を含める</label>
@@ -266,8 +267,10 @@
         <div class="skeleton-line w80"></div>
       </div>
       <!-- 音声で聞く今日の要点: 端末内蔵の音声合成（speechSynthesis）で読み上げる。
-           非対応の環境ではapp.jsがボタンを出さない（hiddenのまま） -->
+           非対応の環境ではapp.jsがボタンを出さない（hiddenのまま）。
+           着用タイマーはアテンド（付き添い）のスマホでの利用を想定 -->
       <div class="control-row">
+        <button type="button" id="timer-start-button" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>着用開始（タイマー）</button>
         <button type="button" id="speak-button" hidden>今日の要点を聞く</button>
       </div>
     </section>
@@ -394,6 +397,35 @@
         </div>
         <!-- 結果は事前に高さを確保した領域へ書き込み、判定時のレイアウトシフトを防ぐ -->
         <div id="wbgt-result" class="wbgt-result" role="status"></div>
+        <!-- 会場ログ: 判定した実測値を場所ラベル付きでこの端末に記録する（wbgt-tool.js） -->
+        <div class="control-row">
+          <label for="wbgt-place">場所</label>
+          <input type="text" id="wbgt-place" maxlength="30" placeholder="例: ステージ横" enterkeyhint="done">
+          <button type="button" id="wbgt-log-button" disabled>この結果を記録</button>
+        </div>
+      </div>
+      <div id="wbgt-log-section" class="wbgt-log-section" hidden>
+        <h3 id="wbgt-log-heading">会場ログ（この端末に保存）</h3>
+        <div class="table-wrapper">
+          <table id="wbgt-log-table" aria-labelledby="wbgt-log-heading">
+            <caption class="sr-only">実測WBGTの記録。行ごとに記録時刻、場所、実測値、補正後の値、判定、削除ボタンを示します。</caption>
+            <thead>
+              <tr>
+                <th scope="col">時刻</th>
+                <th scope="col">場所</th>
+                <th scope="col">実測</th>
+                <th scope="col">補正後</th>
+                <th scope="col">判定</th>
+                <th scope="col"><span class="sr-only">操作</span></th>
+              </tr>
+            </thead>
+            <tbody id="wbgt-log-body"></tbody>
+          </table>
+        </div>
+        <div class="control-row">
+          <button type="button" id="wbgt-log-csv-button">CSVで書き出す</button>
+        </div>
+        <p class="hint">記録はこの端末にのみ保存されます（最大200件）。イベント後の振り返りにCSVを使えます。</p>
       </div>
       <p class="hint">
         判定の根拠としきい値は<a href="/about#how-it-works">判定の仕組み</a>をご覧ください。
@@ -497,6 +529,28 @@
       </details>
     </section>
   </main>
+
+  <!-- 着用タイマー（アテンド用の全画面表示）: 「着用開始」で開き、現在の判定の
+       連続活動時間を上限に経過を表示する。開始時刻はこの端末に保存され、
+       リロード・スリープ復帰後も継続する（app.js） -->
+  <div id="timer-overlay" class="timer-overlay" role="dialog" aria-modal="true" aria-labelledby="timer-heading" hidden>
+    <div class="timer-panel">
+      <h2 id="timer-heading" tabindex="-1">着用タイマー</h2>
+      <p id="timer-mode" class="timer-mode">着用中</p>
+      <p id="timer-clock" class="timer-clock" aria-hidden="true">00:00</p>
+      <p id="timer-limit" class="timer-limit"></p>
+      <div id="timer-judgment" class="timer-judgment"></div>
+      <p id="timer-note" class="timer-note" role="status" aria-live="assertive"></p>
+      <div class="control-row timer-controls">
+        <button type="button" id="timer-rest-button">休憩開始</button>
+        <button type="button" id="timer-stop-button">タイマー終了</button>
+      </div>
+      <p class="hint">
+        対応端末では表示中に画面が消灯しません。着用中は残り5分と超過を音・バイブ・表示でお知らせします。
+        判定は約10分ごとに最新の予報で更新されます。
+      </p>
+    </div>
+  </div>
 
   <!-- 印刷専用の補足（画面では非表示）: 応急対応の要点と手書きの連絡先欄。
        白黒印刷でも読めるよう記号+文字のみで構成する -->
