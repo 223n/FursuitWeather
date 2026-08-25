@@ -84,6 +84,7 @@ export async function handleForecast(request: Request): Promise<Response> {
     model,
     now.toISOString(),
     weather.sunTimes,
+    weather.airQuality,
   );
 
   const firstDay = forecast.days[0];

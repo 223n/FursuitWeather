@@ -490,6 +490,13 @@
     high: { grade: 3 },
   };
 
+  /** 空気のよごれ（黄砂・PM2.5）レベルごとのバッジ設定（静電気と同じ3段階の配色） */
+  const AIR_BADGES = {
+    low: { grade: 0 },
+    medium: { grade: 2 },
+    high: { grade: 3 },
+  };
+
   /** 冷房要否ごとのバッジ設定（色+記号）。ラベルはAPIのcoolingLabelを使う */
   const COOLING_BADGES = {
     required: { grade: 3, symbol: [{ icon: 'snowflake' }, '✕'] },
@@ -645,6 +652,17 @@
             label: day.staticElectricity.label,
           },
           day.staticElectricity.advice,
+        ),
+      );
+    }
+    // 空気のよごれ（黄砂・PM2.5）。取得失敗・欠測（null）の日は行ごと出さない。
+    // CAMS推定値に基づく目安のため、注記はaboutページ側に記載している
+    if (day.airQuality) {
+      addRow(
+        '空気のよごれ（黄砂・PM2.5）',
+        badgeWithText(
+          { ...(AIR_BADGES[day.airQuality.level] ?? { grade: 2 }), label: day.airQuality.label },
+          day.airQuality.advice,
         ),
       );
     }

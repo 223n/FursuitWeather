@@ -32,6 +32,8 @@ import { readFileSync } from 'node:fs';
 
 const styleCss = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
 import {
+  AIR_QUALITY,
+  AIR_QUALITY_LABELS,
   COLD_BANDS,
   COLD_SWITCH_TEMPERATURE,
   HEAT_STROKE_ALERT_WBGT,
@@ -425,6 +427,29 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     for (const doc of [aboutHtml, apiMd, llmsTxt, openapiYaml]) {
       expect(doc).toContain(high);
       expect(doc).toContain(medium);
+    }
+  });
+
+  it('AIR_BADGESに全「空気のよごれ」レベルのキーがある', () => {
+    const block = appJs.match(/const AIR_BADGES = \{([\s\S]*?)\n {2}\};/);
+    expect(block).not.toBeNull();
+    for (const key of Object.keys(AIR_QUALITY_LABELS)) {
+      expect(block![1]).toContain(`${key}: {`);
+    }
+  });
+
+  it('空気のよごれのしきい値の記述はconstantsと一致する', () => {
+    // 折り返しをまたがない最小単位（数値+単位+以上）で全公開仕様を突き合わせる
+    const atoms = [
+      `日平均${AIR_QUALITY.pm25MediumMean}μg/m³以上`,
+      `日平均${AIR_QUALITY.pm25HighMean}μg/m³以上`,
+      `黄砂${AIR_QUALITY.dustMediumMax}μg/m³以上`,
+      `黄砂${AIR_QUALITY.dustHighMax}μg/m³以上`,
+    ];
+    for (const doc of [aboutHtml, apiMd, llmsTxt, openapiYaml]) {
+      for (const atom of atoms) {
+        expect(doc).toContain(atom);
+      }
     }
   });
 

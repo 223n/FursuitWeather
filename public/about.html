@@ -351,6 +351,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
               </ul>
             </td></tr>
             <tr><th scope="row"><code>staticElectricity</code></th><td>object</td><td>静電気の起きやすさ（<code>level</code>: <code>low</code>／<code>medium</code>／<code>high</code>、<code>label</code>: 低／中／高、<code>advice</code>: 「高」の日の対策の一言・それ以外は<code>null</code>）。日中の最も乾いた時間帯の湿度・気温で判定（湿度25%未満で「高」、湿度40%未満かつ気温20℃未満で「中」）。帯電対策の一般的な目安に基づく生活指数です</td></tr>
+            <tr><th scope="row"><code>airQuality</code></th><td>object・null</td><td>空気のよごれ（黄砂・PM2.5。<code>level</code>: <code>low</code>／<code>medium</code>／<code>high</code>、<code>label</code>: 低／中／高、<code>pm25Mean</code>: PM2.5の日平均μg/m³、<code>dustMax</code>: 黄砂の最大濃度μg/m³、<code>advice</code>: 「高」の日の注意・それ以外は<code>null</code>）。PM2.5の日平均35μg/m³以上または黄砂100μg/m³以上で「中」、PM2.5の日平均70μg/m³以上または黄砂500μg/m³以上で「高」。Open-Meteo Air Quality API（CAMS全球モデル）の推定値に基づく目安で、公式の観測・注意報ではありません。取得できない日は<code>null</code></td></tr>
           </tbody>
         </table>
       </div>

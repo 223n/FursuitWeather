@@ -2,6 +2,7 @@
 // 係数・しきい値はすべて本ファイルに集約し、出典を明記する
 
 import type {
+  AirQualityLevelId,
   Attribution,
   ColdLevelId,
   CoolingNeed,
@@ -283,6 +284,38 @@ export const STATIC_ELECTRICITY_LABELS: Readonly<Record<StaticElectricityLevelId
 export const STATIC_ELECTRICITY_ADVICE = 'グリーティング前に帯電防止スプレーを。';
 
 /**
+ * 空気のよごれ（黄砂・PM2.5）指数のしきい値（μg/m³）
+ * PM2.5は環境省の環境基準（日平均35μg/m³）と、注意喚起のための暫定的な
+ * 指針となる値（日平均70μg/m³。超過時は屋外での長時間の激しい運動を
+ * 減らすことが推奨される）に準拠する。
+ * 黄砂（dust）は気象庁の黄砂解析予測モデルの地表付近濃度の段階に準拠し、
+ * 0.1mg/m³（=100μg/m³）を「黄砂が観測される目安」、0.5mg/m³（=500μg/m³）を
+ * 「視程5km未満相当で屋外活動への影響が出やすい濃度」として扱う。
+ * いずれもCAMS全球モデル（約25kmメッシュ）の推定値に対する「目安」であり、
+ * 公式の観測・注意報ではない（画面にもその旨を明記する）
+ */
+export const AIR_QUALITY = {
+  /** PM2.5の日平均がこの値以上で「中」 */
+  pm25MediumMean: 35,
+  /** PM2.5の日平均がこの値以上で「高」 */
+  pm25HighMean: 70,
+  /** 黄砂の最大濃度がこの値以上で「中」 */
+  dustMediumMax: 100,
+  /** 黄砂の最大濃度がこの値以上で「高」 */
+  dustHighMax: 500,
+} as const;
+
+/** 空気のよごれレベルの表示ラベル */
+export const AIR_QUALITY_LABELS: Readonly<Record<AirQualityLevelId, string>> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+/** 空気のよごれ「高」の日に添える注意の一言 */
+export const AIR_QUALITY_ADVICE = '白系ファーの長時間屋外は汚れに注意。屋外撮影はかすむことがあります。';
+
+/**
  * 強風の注意を出す風速（m/s、1時間平均）
  * 気象庁「風の強さと吹き方」の「やや強い風」（平均10m/s以上）に相当。
  * 着ぐるみは頭部が大きく視界・聴覚が制限されるため、設営物の飛散や
@@ -341,6 +374,14 @@ export const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/jma';
  * 降水確率は気象庁モデルAPIでは提供されないため、この標準APIから補完取得する
  */
 export const OPEN_METEO_FORECAST_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
+/**
+ * Open-Meteo Air Quality API（CAMS全球モデル・無料）
+ * 空気のよごれ指数（黄砂・PM2.5）の推定値をここから補完取得する
+ * （降水確率と同じベストエフォート。失敗しても予報本体を巻き込まない）
+ */
+export const OPEN_METEO_AIR_QUALITY_BASE_URL =
+  'https://air-quality-api.open-meteo.com/v1/air-quality';
 
 /** Open-Meteoジオコーディングv1 API（都市名・郵便番号から座標を検索する） */
 export const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1/search';

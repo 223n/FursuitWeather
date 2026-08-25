@@ -17,6 +17,7 @@ import type {
   HourlyWeather,
   LevelSummary,
 } from '../types';
+import { assessAirQuality, type AirQualityValues } from './airQuality';
 import { assessIndoor, assessOutdoor } from './fursuit';
 import { assessLaundry } from './laundry';
 import { assessStaticElectricity } from './staticElectricity';
@@ -40,11 +41,13 @@ export interface DaySunTimes {
 }
 
 /** 日別サマリーを組み立てる
- * @param sun 日の出・日の入り（補助情報。取得できなかった日はnullのまま） */
+ * @param sun 日の出・日の入り（補助情報。取得できなかった日はnullのまま）
+ * @param air 大気質の生値（補助情報。取得できなかった日はairQualityがnullになる） */
 export function buildDayForecast(
   date: string,
   hours: readonly HourForecast[],
   sun?: DaySunTimes,
+  air?: AirQualityValues,
 ): DayForecast {
   const temperatures = hours.map((h) => h.weather.temperature);
   const daytime = filterByHourRange(hours, DAYTIME_START_HOUR, DAYTIME_END_HOUR);
@@ -89,6 +92,7 @@ export function buildDayForecast(
     maxWindSpeed: Math.max(...hours.map((h) => h.weather.windSpeed)),
     laundry: assessLaundry(hours.map((h) => h.weather)),
     staticElectricity: assessStaticElectricity(hours.map((h) => h.weather)),
+    airQuality: air ? assessAirQuality(air) : null,
   };
 }
 
@@ -99,6 +103,7 @@ export function buildForecast(
   model: string,
   generatedAt: string,
   sunTimes: ReadonlyMap<string, DaySunTimes> = new Map(),
+  airQuality: ReadonlyMap<string, AirQualityValues> = new Map(),
 ): ForecastResponse {
   const hours = weatherHours.map(buildHourForecast);
 
@@ -114,7 +119,7 @@ export function buildForecast(
   }
 
   const days = [...byDate.entries()].map(([date, dayHours]) =>
-    buildDayForecast(date, dayHours, sunTimes.get(date)),
+    buildDayForecast(date, dayHours, sunTimes.get(date), airQuality.get(date)),
   );
 
   return {
