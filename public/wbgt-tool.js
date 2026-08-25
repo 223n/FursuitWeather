@@ -91,11 +91,16 @@
     // 範囲の話から始めると「まず値を入れる」ことが伝わりにくいため分ける
     if (input.value.trim() === '') {
       resultArea.textContent = '実測したWBGTの値を入力してください。';
+      // 前回の判定を誤って記録しないよう、記録の対象も無効にする
+      lastJudged = null;
+      logButton.disabled = true;
       return;
     }
     const measured = Number.parseFloat(input.value);
     if (!Number.isFinite(measured) || measured < -20 || measured > 50) {
       resultArea.textContent = '実測WBGTは−20℃から50℃までの数値で入力してください。';
+      lastJudged = null;
+      logButton.disabled = true;
       return;
     }
 
@@ -155,6 +160,8 @@
   const logButton = document.getElementById('wbgt-log-button');
   const logSection = document.getElementById('wbgt-log-section');
   const logBody = document.getElementById('wbgt-log-body');
+  /** 記録・削除の完了通知欄（role=status。判定結果の表示を上書きしないよう分ける） */
+  const logStatus = document.getElementById('wbgt-log-status');
   const WBGT_LOG_KEY = 'fursuitweatherWbgtLog';
   /** 保存件数の上限（超えたら古い記録から削除する） */
   const WBGT_LOG_LIMIT = 200;
@@ -235,6 +242,14 @@
         latest.splice(i, 1);
         writeLog(latest);
         renderLog();
+        // 押した削除ボタンは表の再描画で消えるため、フォーカスを迷子にしない
+        // （記録が残っていればログの見出しへ、空になったら入力欄へ返す）
+        logStatus.textContent = '記録を削除しました。';
+        if (latest.length === 0) {
+          input.focus();
+        } else {
+          document.getElementById('wbgt-log-heading').focus();
+        }
       });
       addCell(remove);
       logBody.appendChild(row);
@@ -258,16 +273,32 @@
     // 上限を超えたら古い記録から削除する
     writeLog(entries.slice(-WBGT_LOG_LIMIT));
     renderLog();
-    resultArea.appendChild(document.createTextNode('記録しました。'));
+    // 連打（手袋越しの二重タップなど）で同じ判定が重複記録されないよう、
+    // 1回の判定につき1回だけ記録できるようにする（次の判定で再び有効になる）
+    logButton.disabled = true;
+    logStatus.textContent = '記録しました。';
   });
 
   document.getElementById('wbgt-log-csv-button').addEventListener('click', () => {
     const entries = readLog().filter(isValidEntry);
     const escapeCsv = (text) => `"${String(text).replace(/"/g, '""')}"`;
+    // 記録時刻は画面の表と同じこの端末のローカル時刻で出す
+    // （保存値のISO文字列（UTC）のままだと表計算ソフトで9時間ずれて見える）
+    const csvTime = (iso) => {
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) {
+        return iso;
+      }
+      const two = (value) => String(value).padStart(2, '0');
+      return (
+        `${date.getFullYear()}/${two(date.getMonth() + 1)}/${two(date.getDate())} ` +
+        `${two(date.getHours())}:${two(date.getMinutes())}`
+      );
+    };
     const lines = [
       ['記録時刻', '場所', '実測WBGT（℃）', '補正後WBGT（℃）', '判定'].map(escapeCsv).join(','),
       ...entries.map((entry) =>
-        [entry.at, entry.place, entry.measured, entry.suitWbgt, entry.label]
+        [csvTime(entry.at), entry.place, entry.measured, entry.suitWbgt, entry.label]
           .map(escapeCsv)
           .join(','),
       ),

@@ -109,6 +109,9 @@
   /** 表示中の予報がService Workerの保存分（オフライン表示）かどうか。
    * 追加の案内を出すときも、鮮度の注記を消さずに前置きするために保持する */
   let displayedFromCache = false;
+  /** オフライン表示中の予報の取得時刻の表示文（印刷・シェア画像へ「いつの予報か」を
+   * 刻むために保持する。オンライン表示中はnull） */
+  let displayedCachedAtText = null;
   /** 表示中の地点がお気に入りに登録可能か（現在地=persist:falseは不可）と、登録に使う情報 */
   let displayedStorable = false;
   let displayedStoredName = null;
@@ -1097,10 +1100,27 @@
     }
   }
 
+  /** スナップショットを残してよい地点か（記憶中の地点とお気に入りに限定する）。
+   * 検索などで一時的に見ただけの地点まで保存すると、画面で約束している保存内容
+   * （記憶した地点・お気に入り）を超えた閲覧履歴が端末に残るため */
+  function isSnapshotAllowed(query) {
+    const stored = readStoredLocation();
+    if (stored && stored.query === query) {
+      return true;
+    }
+    return readFavorites().some((fav) => fav.query === query);
+  }
+
   /** 表示した予報の日別判定を地点クエリごとに保存する */
   function writeForecastSnapshot(query, body) {
     try {
       const snapshots = readForecastSnapshots();
+      // 対象外になった地点（過去に保存した分を含む）は残さない
+      for (const key of Object.keys(snapshots)) {
+        if (!isSnapshotAllowed(key)) {
+          delete snapshots[key];
+        }
+      }
       snapshots[query] = {
         at: Date.now(),
         days: body.days.map((day) => ({
@@ -1187,7 +1207,13 @@
         // 保存できなくても閉じる操作自体は成立させる
       }
     });
-    diffBanner.replaceChildren(faIcon('triangle-exclamation', 'btn-icon'), text, close);
+    // 悪化のときだけ警告アイコンを付ける（改善の知らせに△!を付けると文意と食い違う。
+    // 悪化/改善の別は本文と配色クラスが担う）
+    diffBanner.replaceChildren(
+      ...(worsened ? [faIcon('triangle-exclamation', 'btn-icon')] : []),
+      text,
+      close,
+    );
     diffBanner.hidden = false;
   }
 
@@ -1249,6 +1275,7 @@
       // 取得後に空白へ戻さず、完了が分かるメッセージを表示したままにする
       // （詳細な読み上げは#sr-announceのサマリーが担うため、ここは短い文言でよい）
       displayedFromCache = response.headers.get('X-Served-From-Cache') === '1';
+      displayedCachedAtText = displayedFromCache ? cachedAtTimeText(response) : null;
       setStatus(displayedFromCache ? cachedStatusText(response) : '予報を取得しました。', false);
       setLocationLabel(locationName);
       // 共有ボタンは「表示に成功した地点」を対象にする（失敗し得るlastQueryとは分ける）。
@@ -1277,14 +1304,21 @@
         }
       }
       renderForecast();
-      // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）
+      // 印刷用ワンシートの発行情報（いつ・どの地点の予報を印刷したかを紙に残す）。
+      // オフライン表示の保存済み予報は、発行時刻だけだと最新と誤認されるため
+      // 取得時刻を明記する
       const printedAt = new Date();
       document.getElementById('print-meta').textContent =
         `発行: ${printedAt.getFullYear()}年${printedAt.getMonth() + 1}月${printedAt.getDate()}日` +
         `${printedAt.getHours()}時${String(printedAt.getMinutes()).padStart(2, '0')}分・` +
-        `${locationName}・最新の予報は https://fursuit-weather.223n.tech/`;
-      // 前回見た予報との差分（記憶可能な地点のみ。現在地・デモはスナップショットも残さない）
-      if (displayedStorable) {
+        `${locationName}・` +
+        (displayedFromCache
+          ? `※${displayedCachedAtText ?? '以前'}に取得したオフライン表示の予報（最新ではない可能性があります）・`
+          : '') +
+        '最新の予報は https://fursuit-weather.223n.tech/';
+      // 前回見た予報との差分（記憶中の地点・お気に入りのみ。現在地・デモ・
+      // 一時的に見ただけの地点はスナップショットも残さない）
+      if (displayedStorable && isSnapshotAllowed(query)) {
         renderForecastDiff(query, body);
         writeForecastSnapshot(query, body);
       } else {
@@ -1310,16 +1344,20 @@
     }
   }
 
-  /**
-   * オフライン表示（Service Workerの保存済み予報）の案内文を作る
-   * その旨と取得時刻を利用者へ明示する（X-*ヘッダーはsw.jsが付ける）
-   */
-  function cachedStatusText(response) {
+  /** オフライン表示の予報の取得時刻の表示文を作る（X-*ヘッダーはsw.jsが付ける） */
+  function cachedAtTimeText(response) {
     const cachedAt = new Date(response.headers.get('X-Cached-At') ?? NaN);
-    const timeText = Number.isNaN(cachedAt.getTime())
+    return Number.isNaN(cachedAt.getTime())
       ? '以前'
       : `${cachedAt.getMonth() + 1}月${cachedAt.getDate()}日${cachedAt.getHours()}時${String(cachedAt.getMinutes()).padStart(2, '0')}分`;
-    return `オフライン表示: ${timeText}に取得した予報を表示しています。最新ではない可能性があります。`;
+  }
+
+  /**
+   * オフライン表示（Service Workerの保存済み予報）の案内文を作る
+   * その旨と取得時刻を利用者へ明示する
+   */
+  function cachedStatusText(response) {
+    return `オフライン表示: ${cachedAtTimeText(response)}に取得した予報を表示しています。最新ではない可能性があります。`;
   }
 
   /** 取得済みの予報（currentForecast・selectedDate）から画面全体を描画し直す */
@@ -1905,7 +1943,9 @@
       // 読み上げサマリーは常に当日の予報を述べるため、対象日が今日でない
       // ときに食い違う。開催日を明示した文で上書きする
       srAnnounce.textContent = message;
-      return;
+      // 固定リンク（?event=）の呼び出し元が失敗時のフォールバックを判断できるよう、
+      // 予報の表示まで成功したことをtrueで返す（失敗・破棄時はundefined）
+      return true;
     }
     // 開催日が予報範囲外。表示中がいつの予報かを明示し、開催日の予報では
     // ないことを言い切る（「直近の予報」だけでは開催日の予報と誤読されうる）
@@ -1920,6 +1960,7 @@
       `表示しているのは開催地の${range}の予報で、開催日の予報ではありません。`;
     setStatus(message, false, true);
     srAnnounce.textContent = message;
+    return true;
   }
 
   eventButton.addEventListener('click', showEventForecast);
@@ -1931,20 +1972,40 @@
     }
     const name = pendingEventName;
     pendingEventName = null;
+    // 一覧の読み込みを待つ間に利用者が地点を明示的に操作していたら（読み込みや
+    // 検索はrequestSeq・searchSeqを必ず進める）、自動選択でその表示を上書きしない
+    // （「最後の明示操作が勝つ」不変条件。?event=分岐は初期ロードを行わないため、
+    //   どちらかが0でなければ利用者の操作があったと判断できる）
+    if (requestSeq !== 0 || searchSeq !== 0) {
+      return;
+    }
     const index = eventList.findIndex((event) => event.name === name);
     if (index >= 0) {
       eventSelect.value = String(index);
-      showEventForecast();
+      const shown = await showEventForecast();
+      // 開催地の解決や予報の取得に失敗して何も表示されていないときは、
+      // スケルトンのまま放置せず通常の予報へフォールバックする
+      if (!shown && !currentForecast) {
+        await loadInitialStoredOrDefault();
+        setStatus(
+          `URLで指定されたイベント「${name}」の開催地の予報を表示できませんでした。かわりに通常の予報を表示しています。`,
+          false,
+          true,
+        );
+      }
       return;
     }
     // 通常表示の完了メッセージで消えないよう、読み込み後に案内を出す
-    // （通信エラーではないため、赤のエラーではなく黄の注意で示す）
-    await loadInitialStoredOrDefault();
-    setStatus(
-      `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
-      false,
-      true,
-    );
+    // （通信エラーではないため、赤のエラーではなく黄の注意で示す）。
+    // 読み込み自体が失敗したときはエラー表示を残し、虚偽の案内で上書きしない
+    const loaded = await loadInitialStoredOrDefault();
+    if (loaded) {
+      setStatus(
+        `URLで指定されたイベント「${name}」は一覧にありません（開催終了・名称変更の可能性があります）。かわりに通常の予報を表示しています。`,
+        false,
+        true,
+      );
+    }
   });
 
   // 活動プランナー: 選んだ日付の指定時間帯から、休憩を挟んだ着用計画の目安を作る
@@ -2081,35 +2142,68 @@
       'あくまで目安です。体調を最優先し、予定より早めの休憩・中止をためらわないでください。';
     notes.appendChild(generalNote);
 
-    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
-    planResult.replaceChildren(heading, list, total, notes, buildRestGuide(worstGrade));
+    // 休憩ガイド・持ち物は暑熱と低温で内容が逆になるため、gradeを側別に分けて渡す
+    // （低温警戒=grade 2・低温危険=grade 4を暑熱の厳しさとして扱うと、氷点下の日に
+    //   冷却手順や保冷剤を案内してしまう）
+    const heatWorstGrade = worstGradeOf(hours, false);
+    const coldWorstGrade = worstGradeOf(hours, true);
+    planResult.replaceChildren(
+      heading,
+      list,
+      total,
+      notes,
+      buildRestGuide(heatWorstGrade, coldWorstGrade),
+    );
     renderPacking(planDateValue, hours);
     setStatus('活動計画を作成しました。', false);
   }
 
-  /** 休憩の質ガイドを作る。判定が厳しいほど手順を足す（クールダウンの優先順） */
-  function buildRestGuide(worstGrade) {
+  /** 時間帯の中の最も厳しいgradeを、暑熱側/低温側に分けて求める（該当なしは0） */
+  function worstGradeOf(hours, cold) {
+    return Math.max(
+      0,
+      ...hours
+        .filter((h) => String(h.outdoor.level).startsWith('cold') === cold)
+        .map((h) => h.outdoor.grade),
+    );
+  }
+
+  /** 休憩の質ガイドを作る。暑熱の厳しさに応じて冷却手順を、低温の厳しさに応じて
+   * 保温手順を足す（判定が厳しいほど手順を増やす） */
+  function buildRestGuide(heatGrade, coldGrade) {
     const guide = document.createElement('div');
     guide.className = 'rest-guide';
     const heading = document.createElement('h4');
     heading.appendChild(faIcon('snowflake', 'btn-icon'));
     heading.appendChild(document.createTextNode('休憩の質ガイド'));
     const list = document.createElement('ul');
+    // 低温が主リスクの日は「風を当てる」を勧めない（体温を奪う方向のため）
     const items = [
-      'ヘッドとハンドを外し、顔と手に風を当てる',
+      coldGrade >= 2 && heatGrade < 2
+        ? 'ヘッドとハンドを外し、呼吸を整えて体調を確認する'
+        : 'ヘッドとハンドを外し、顔と手に風を当てる',
       '水分と塩分を一緒にとる（汗をかいたら水だけにしない）',
     ];
-    if (worstGrade >= 2) {
+    if (heatGrade >= 2) {
       items.push(
         '前腕から手を冷たい水につける（手のひら・前腕の冷却は体温を下げやすい）',
         '冷房の効いた室内か、日陰で風通しのよい場所に座って休む',
       );
     }
-    if (worstGrade >= 3) {
+    if (heatGrade >= 3) {
       items.push(
         '首・脇の下・足の付け根を保冷剤で冷やす',
         '「30分着たら30分休む」を守り、次の着用前に体調を互いに確認する',
       );
+    }
+    if (coldGrade >= 2) {
+      items.push(
+        '風を避けた暖かい室内で休み、汗で湿ったインナーは早めに着替える',
+        '温かい飲み物で体の内側から温める',
+      );
+    }
+    if (coldGrade >= 3) {
+      items.push('手足の感覚のにぶり・ふるえがあれば着用を中止し、保温を最優先する');
     }
     for (const text of items) {
       const item = document.createElement('li');
@@ -2133,6 +2227,16 @@
   /** 直近に生成した持ち物リストの条件（自由入力の追加後に同じ条件で作り直す用） */
   let lastPacking = null;
 
+  /** 対象日のチェック状態を読む（日付が変わったら白紙から始める。
+   * 前回イベントのチェック済み状態が別の日の準備に持ち越されると、
+   * 「持った」と誤認して忘れ物につながるため） */
+  function readPackingChecked(dateText) {
+    const state = readPackingState(PACKING_CHECKED_KEY, null);
+    return state && state.date === dateText && state.items && typeof state.items === 'object'
+      ? state.items
+      : {};
+  }
+
   /** localStorageのJSON値を読む（壊れた保存・保存不可の環境はfallback） */
   function readPackingState(key, fallback) {
     try {
@@ -2155,8 +2259,8 @@
   /** 対象日の予報から持ち物を自動生成する */
   function buildPackingItems(day, hours) {
     const items = ['飲み物（いつもより多めに）', 'タオル・着替えのインナー'];
-    const worstGrade = Math.max(...hours.map((h) => h.outdoor.grade));
-    if (worstGrade >= 2) {
+    // 保冷グッズは暑熱側の判定だけで決める（低温警戒のgrade 2で保冷剤を出さない）
+    if (worstGradeOf(hours, false) >= 2) {
       items.push(
         '保冷剤・凍らせたペットボトル',
         '経口補水液または塩分タブレット',
@@ -2190,15 +2294,16 @@
     const label = document.createElement('label');
     const box = document.createElement('input');
     box.type = 'checkbox';
-    box.checked = readPackingState(PACKING_CHECKED_KEY, {})[text] === true;
+    box.checked = readPackingChecked(lastPacking.dateText)[text] === true;
     box.addEventListener('change', () => {
-      const state = readPackingState(PACKING_CHECKED_KEY, {});
+      const dateText = lastPacking ? lastPacking.dateText : '';
+      const items = readPackingChecked(dateText);
       if (box.checked) {
-        state[text] = true;
+        items[text] = true;
       } else {
-        delete state[text];
+        delete items[text];
       }
-      writePackingState(PACKING_CHECKED_KEY, state);
+      writePackingState(PACKING_CHECKED_KEY, { date: dateText, items });
     });
     label.append(box, document.createTextNode(` ${text}`));
     item.appendChild(label);
@@ -2337,9 +2442,11 @@
     ctx.stroke();
   }
 
-  /** 時間帯セル・判定見出しの記号を描く（記号+色で段階を示す。危険は禁止マーク） */
+  /** 時間帯セル・判定見出しの記号を描く（記号+色で段階を示す。中止級は禁止マーク）
+   * 低温危険（cold・grade 4）も着用中止のため同じ禁止マークにする
+   * （文字配列の範囲外参照で「?」が描かれるのを防ぐ。低温側は青系の配色が区別を担う） */
   function shareDrawSymbol(ctx, outdoor, x, y, size, color) {
-    if (!String(outdoor.level).startsWith('cold') && outdoor.grade === 4) {
+    if (outdoor.grade === 4) {
       shareDrawBan(ctx, x, y, size * 0.55, color);
       return;
     }
@@ -2424,10 +2531,20 @@
       ctx.textAlign = align;
     }
 
-    // 注意文と出典・URL・生成時刻（「いつの判定か」を画像自体に残す）
+    // 注意文と出典・URL・生成時刻（「いつの判定か」を画像自体に残す）。
+    // オフライン表示の保存済み予報は、生成時刻だけだと最新と誤認されるため
+    // 取得時刻の警告を赤字で入れる
     ctx.fillStyle = '#1A1A1A';
     ctx.font = '26px sans-serif';
-    ctx.fillText('判定は目安です。体調を最優先し、早めの休憩と水分・塩分補給を。', 40, 544);
+    ctx.fillText('判定は目安です。体調を最優先し、早めの休憩と水分・塩分補給を。', 40, 536);
+    if (displayedFromCache) {
+      ctx.fillStyle = '#CC3311';
+      ctx.fillText(
+        `※${displayedCachedAtText ?? '以前'}に取得したオフライン表示の予報です。最新ではない可能性があります。`,
+        40,
+        566,
+      );
+    }
     ctx.fillStyle = '#555555';
     ctx.font = '22px sans-serif';
     const generatedAt = new Date();
@@ -2436,7 +2553,7 @@
         `${generatedAt.getHours()}時${String(generatedAt.getMinutes()).padStart(2, '0')}分生成・` +
         '天気データ: Open-Meteo（気象庁モデル）',
       40,
-      588,
+      596,
     );
     return canvas;
   }
@@ -2510,6 +2627,9 @@
   const TIMER_STATE_KEY = 'fursuitweatherWearTimer';
   /** タイマー表示中に最新の予報で判定を取り直す間隔（ベストエフォート） */
   const TIMER_REFRESH_MS = 10 * 60 * 1000;
+  /** 保存済みタイマーの有効期限。これより古い開始時刻は復元しない
+   * （前日の消し忘れが翌日に全画面の「上限超過」で開くのを防ぐ） */
+  const TIMER_STATE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
   /** 動作中のタイマー状態（null=停止中）。localStorageと同じ内容を保持する */
   let timerState = null;
   /** 1秒ごとの表示更新タイマー */
@@ -2541,8 +2661,36 @@
     // 判定できる時間帯がない日（深夜の欠測など）はボタン自体を出さない。
     // 「着用中止」でもボタンは出し、押したときに理由を案内する
     timerStartButton.hidden = target === null;
-    if (timerState) {
-      renderTimerJudgment(target ? target.outdoor : null);
+    // タイマーが開始時と同じ地点の表示のときだけ追従させる（着用中に別の地点の
+    // 予報を眺めても、着用者と無関係な判定でタイマーが更新されないようにする。
+    // 別地点表示中の追従は約10分ごとのrefreshTimerJudgmentが開始時の地点で行う）
+    if (timerState && (!timerState.query || timerState.query === displayedQuery)) {
+      applyTimerOutdoor(target ? target.outdoor : null);
+    }
+  }
+
+  /** タイマーへ最新の判定を反映する（バッジ更新+悪化時の上限短縮。
+   * リロード復帰後の再取得・約10分ごとの取り直しの両経路で共通に使い、
+   * どちらの経路でも判定悪化が上限へ確実に反映されるようにする） */
+  function applyTimerOutdoor(outdoor) {
+    if (!timerState) {
+      return;
+    }
+    renderTimerJudgment(outdoor);
+    if (!outdoor || timerState.mode !== 'wear') {
+      return;
+    }
+    if (outdoor.activityMinutes < timerState.limitMinutes) {
+      // 判定が悪化していたら上限を安全側へ短縮し、警告を新しい上限で出し直す
+      timerState.limitMinutes = outdoor.activityMinutes;
+      timerState.warned5 = false;
+      timerState.warnedOver = false;
+      writeTimerState();
+      timerNote.textContent =
+        outdoor.activityMinutes > 0
+          ? `最新の予報で判定が変わりました。上限を${outdoor.activityMinutes}分に短縮します。`
+          : '最新の予報で判定が「着用中止」になりました。すぐに休憩してください。';
+      updateTimerDisplay();
     }
   }
 
@@ -2563,27 +2711,44 @@
     timerJudgmentElement.replaceChildren(line);
   }
 
+  /** 警告音用のAudioContext（最初のユーザー操作で作成し、以後使い回す。
+   * 警告の瞬間に新規作成すると自動再生制限で無音になるため、操作の中で準備しておく） */
+  let timerAudio = null;
+
+  /** 警告音を出せる状態を整える（ユーザー操作のハンドラー内で呼ぶと再生制限が解ける。
+   * リロード復帰後もダイアログ内の最初の操作で解けるよう、操作系リスナーからも呼ぶ） */
+  function prepareTimerAudio() {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!timerAudio && AudioContextClass) {
+        timerAudio = new AudioContextClass();
+      }
+      if (timerAudio && timerAudio.state === 'suspended') {
+        timerAudio.resume().catch(() => {});
+      }
+    } catch {
+      // 音を出せない環境では表示とバイブのみ
+    }
+  }
+
   /** 警告音（短いビープ）とバイブレーション。音を出せない環境では表示のみになる */
   function timerAlert(times) {
     try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const audio = new AudioContextClass();
-      for (let i = 0; i < times; i += 1) {
-        const oscillator = audio.createOscillator();
-        const gain = audio.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = 880;
-        gain.gain.value = 0.2;
-        oscillator.connect(gain);
-        gain.connect(audio.destination);
-        const at = audio.currentTime + i * 0.4;
-        oscillator.start(at);
-        oscillator.stop(at + 0.25);
+      prepareTimerAudio();
+      if (timerAudio && timerAudio.state === 'running') {
+        for (let i = 0; i < times; i += 1) {
+          const oscillator = timerAudio.createOscillator();
+          const gain = timerAudio.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.value = 880;
+          gain.gain.value = 0.2;
+          oscillator.connect(gain);
+          gain.connect(timerAudio.destination);
+          const at = timerAudio.currentTime + i * 0.4;
+          oscillator.start(at);
+          oscillator.stop(at + 0.25);
+        }
       }
-      // 鳴らし終えたらコンテキストを閉じる（タブの音声リソースを残さない）
-      setTimeout(() => {
-        audio.close().catch(() => {});
-      }, times * 400 + 500);
     } catch {
       // 音を出せない環境（自動再生制限など）では表示とバイブのみ
     }
@@ -2635,15 +2800,17 @@
     }
   }
 
-  /** 保存済みのタイマー状態を読む（壊れた保存・古い形式はnull） */
+  /** 保存済みのタイマー状態を読む（壊れた保存・古い形式・期限切れはnull） */
   function readTimerState() {
     const state = readStorageJson(TIMER_STATE_KEY);
     if (
       state &&
       (state.mode === 'wear' || state.mode === 'rest') &&
       Number.isFinite(state.startedAt) &&
+      Date.now() - state.startedAt < TIMER_STATE_MAX_AGE_MS &&
       Number.isFinite(state.limitMinutes) &&
-      (state.mode !== 'rest' || Number.isFinite(state.wearMinutes))
+      (state.mode !== 'rest' || Number.isFinite(state.wearMinutes)) &&
+      (state.query === undefined || typeof state.query === 'string')
     ) {
       return state;
     }
@@ -2694,13 +2861,16 @@
     }
   }
 
-  /** 表示中の地点の最新予報で判定を取り直す（失敗しても次の周期で再試行） */
+  /** タイマー開始時の地点の最新予報で判定を取り直す（失敗しても次の周期で再試行）。
+   * 表示中の地点ではなく開始時の地点（timerState.query）を使い、着用中に別の地点の
+   * 予報を確認しても着用者の場所の判定でタイマーが更新されるようにする */
   async function refreshTimerJudgment() {
-    if (!displayedQuery) {
+    const query = timerState && timerState.query ? timerState.query : displayedQuery;
+    if (!query) {
       return;
     }
     try {
-      const response = await fetch(`/api/forecast?${displayedQuery}&days=${FORECAST_DAYS}`);
+      const response = await fetch(`/api/forecast?${query}&days=${FORECAST_DAYS}`);
       if (!response.ok) {
         return;
       }
@@ -2718,19 +2888,7 @@
       if (!target || !target.outdoor || !Number.isFinite(target.outdoor.activityMinutes)) {
         return;
       }
-      renderTimerJudgment(target.outdoor);
-      // 判定が悪化していたら上限を安全側へ短縮し、警告を新しい上限で出し直す
-      if (timerState.mode === 'wear' && target.outdoor.activityMinutes < timerState.limitMinutes) {
-        timerState.limitMinutes = target.outdoor.activityMinutes;
-        timerState.warned5 = false;
-        timerState.warnedOver = false;
-        writeTimerState();
-        timerNote.textContent =
-          target.outdoor.activityMinutes > 0
-            ? `最新の予報で判定が変わりました。上限を${target.outdoor.activityMinutes}分に短縮します。`
-            : '最新の予報で判定が「着用中止」になりました。すぐに休憩してください。';
-        updateTimerDisplay();
-      }
+      applyTimerOutdoor(target.outdoor);
     } catch {
       // 取得できないときは前回の判定表示のまま続行する
     }
@@ -2754,10 +2912,20 @@
     writeTimerState();
     timerNote.textContent = '';
     updateTimerModeUi();
+    // リロード復帰時: 警告済み・超過済みの視覚状態と注意文を復元する
+    // （音・バイブは鳴らし直さない。復元なしだと超過中でも通常配色に見えてしまう）
+    if (state.mode === 'wear' && state.warnedOver) {
+      timerOverlay.classList.add('timer-over');
+      timerNote.textContent = '上限を超えました。すぐに休憩してください。';
+    } else if (state.mode === 'wear' && state.warned5) {
+      timerOverlay.classList.add('timer-warning');
+      timerNote.textContent = '残り5分です。休憩場所への移動を始めてください。';
+    }
     const target = currentOutdoorTarget();
     renderTimerJudgment(target ? target.outdoor : null);
     updateTimerDisplay();
     timerOverlay.hidden = false;
+    setBackgroundInert(true);
     clearInterval(timerTickId);
     timerTickId = setInterval(timerTick, 1000);
     timerNextRefreshAt = Date.now() + TIMER_REFRESH_MS;
@@ -2778,6 +2946,7 @@
     }
     releaseTimerWakeLock();
     timerOverlay.hidden = true;
+    setBackgroundInert(false);
     timerOverlay.classList.remove('timer-warning', 'timer-over', 'timer-rest');
     timerNote.textContent = '';
     // フォーカスをタイマーを開いた操作元へ返す（キーボード利用者が迷子にならない）
@@ -2788,14 +2957,19 @@
   }
 
   timerStartButton.addEventListener('click', () => {
+    // クリック（ユーザー操作）の中で音声の再生制限を解いておく
+    prepareTimerAudio();
     const target = currentOutdoorTarget();
     if (!target) {
       setStatus('先に予報を読み込んでください。', true);
       return;
     }
     if (target.outdoor.activityMinutes === 0) {
+      // 中止の理由が暑熱か低温かで、優先すべき行動（冷却/保温）を出し分ける
       setStatus(
-        '現在の判定は「着用中止」のため、タイマーは開始できません。休憩・冷却を優先してください。',
+        String(target.outdoor.level).startsWith('cold')
+          ? '現在の判定は「着用中止」のため、タイマーは開始できません。保温と休憩を優先してください。'
+          : '現在の判定は「着用中止」のため、タイマーは開始できません。休憩・冷却を優先してください。',
         true,
       );
       return;
@@ -2806,6 +2980,8 @@
       limitMinutes: target.outdoor.activityMinutes,
       warned5: false,
       warnedOver: false,
+      // 判定の取り直しは開始時の地点で行う（表示地点の切り替えに追従させない）
+      query: displayedQuery,
     });
   });
 
@@ -2813,6 +2989,8 @@
     if (!timerState) {
       return;
     }
+    // クリック（ユーザー操作）の中で音声の再生制限を解いておく（リロード復帰後の保険）
+    prepareTimerAudio();
     if (timerState.mode === 'wear') {
       // 休憩へ: 着用した長さを控えて「同じ長さ以上の休憩」の目安に使う
       const wearMinutes = Math.max(1, Math.round((Date.now() - timerState.startedAt) / 60000));
@@ -2823,6 +3001,7 @@
         wearMinutes,
         warned5: false,
         warnedOver: false,
+        query: timerState.query,
       };
       writeTimerState();
       updateTimerModeUi();
@@ -2840,6 +3019,7 @@
         limitMinutes: target.outdoor.activityMinutes,
         warned5: false,
         warnedOver: false,
+        query: timerState.query,
       };
       writeTimerState();
       updateTimerModeUi();
@@ -2852,14 +3032,29 @@
 
   timerStopButton.addEventListener('click', stopTimer);
 
-  // 全画面ダイアログ内にフォーカスを留める（背後のページは操作対象外のため）
-  timerOverlay.addEventListener('keydown', (event) => {
+  // リロード復帰はユーザー操作を経ないため音声の再生制限が残る。
+  // ダイアログ内の最初の操作（タップ）で解いておく（キー入力は下のトラップが担う）
+  timerOverlay.addEventListener('pointerdown', prepareTimerAudio);
+
+  // 全画面ダイアログ内にフォーカスを留める。overlay上のリスナーだと、フォーカスが
+  // 背面（body等）にあるときのTabを捕まえられず背面ページへ抜けられるため、
+  // documentで監視して表示中だけ働かせる（背面はopenTimerがinert化するが、
+  // inert未対応の環境の保険としてトラップも残す）
+  document.addEventListener('keydown', (event) => {
+    if (timerOverlay.hidden) {
+      return;
+    }
+    prepareTimerAudio();
     if (event.key !== 'Tab') {
       return;
     }
     const focusables = [timerRestButton, timerStopButton];
     const index = focusables.indexOf(document.activeElement);
-    if (event.shiftKey && index <= 0) {
+    if (index === -1 && !timerOverlay.contains(document.activeElement)) {
+      // フォーカスが背面へ出ていたらダイアログへ戻す
+      event.preventDefault();
+      focusables[0].focus();
+    } else if (event.shiftKey && index <= 0) {
       event.preventDefault();
       focusables[focusables.length - 1].focus();
     } else if (!event.shiftKey && index === focusables.length - 1) {
@@ -2867,6 +3062,13 @@
       focusables[0].focus();
     }
   });
+
+  /** タイマー表示中は背面ページを操作・読み上げの対象から外す（対応ブラウザのみ） */
+  function setBackgroundInert(inert) {
+    for (const element of document.querySelectorAll('body > :not(#timer-overlay)')) {
+      element.inert = inert;
+    }
+  }
 
   // リロード・再訪時: 保存済みのタイマーがあれば表示を復元する
   // （予報の読み込み前でも経過は正しく出る。判定は読み込み完了後に埋まる）
@@ -2898,11 +3100,22 @@
     }
   }
 
+  /** 適用中の文字サイズの添字。保存値とは別にメモリで持ち、localStorageが使えない
+   * 環境（保存の読み書きが常に失敗する設定）でも巡回が成立するようにする */
+  let fontSizeIndex = currentFontSizeIndex();
+
+  /** ボタンの表記と読み上げ用ラベルを現在のサイズに合わせる */
+  function updateFontSizeButton(entry) {
+    fontSizeButton.textContent = `Aa ${entry.label}`;
+    fontSizeButton.setAttribute('aria-label', `文字の大きさを切り替え（現在: ${entry.label}）`);
+  }
+
   /** 文字サイズを適用・保存し、ボタンの表記を合わせる */
   function applyFontSize(index) {
+    fontSizeIndex = index;
     const entry = FONT_SIZES[index];
     document.documentElement.style.fontSize = entry.id === 'standard' ? '' : entry.size;
-    fontSizeButton.textContent = `Aa ${entry.label}`;
+    updateFontSizeButton(entry);
     try {
       localStorage.setItem(FONT_SIZE_KEY, entry.id);
     } catch {
@@ -2910,9 +3123,9 @@
     }
   }
 
-  fontSizeButton.textContent = `Aa ${FONT_SIZES[currentFontSizeIndex()].label}`;
+  updateFontSizeButton(FONT_SIZES[fontSizeIndex]);
   fontSizeButton.addEventListener('click', () => {
-    const next = (currentFontSizeIndex() + 1) % FONT_SIZES.length;
+    const next = (fontSizeIndex + 1) % FONT_SIZES.length;
     applyFontSize(next);
     setStatus(`文字の大きさを「${FONT_SIZES[next].label}」にしました。`, false);
   });
