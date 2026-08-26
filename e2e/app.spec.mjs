@@ -80,6 +80,29 @@ test('初期表示とタブ切り替え: 各タブの内容が描画される', 
   await expect(page).toHaveURL(/lat=35\.68&lon=139\.68/);
 });
 
+test('操作エリアは初期描画後にレイアウトシフトを起こさない', async ({ page }) => {
+  // 地点の選び方・注記・そのほかの操作は判定カードより上にあるため、
+  // 描画後に高さが変わるとタブや判定カードが押し下げられ、触った瞬間に位置がずれる。
+  // 実測で押さえておく（docs/accessibility.mdのCLS対策）
+  await page.addInitScript(() => {
+    window.__controlsShift = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.hadRecentInput) continue;
+        for (const source of entry.sources ?? []) {
+          if (source.node?.closest?.('.controls')) {
+            window.__controlsShift += entry.value;
+            break;
+          }
+        }
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await page.goto('/');
+  await waitForForecast(page);
+  expect(await page.evaluate(() => window.__controlsShift)).toBe(0);
+});
+
 test('地点の選び方タブ: 1つのパネルだけが表示され、キーボードで移動できる', async ({ page }) => {
   await page.goto('/');
   await waitForForecast(page);
@@ -1008,6 +1031,19 @@ test('印刷用シート: 発行情報が用意され、印刷専用ブロック
   expect(meta).toContain('東京');
   await openMoreActions(page);
   await expect(page.locator('#print-button')).toBeVisible();
+
+  // 操作UIは紙に出さない。地点の選び方は折りたたみの外にあるため、
+  // 祖先ごと消える前提が効かない（選択中のパネルだけが残る回帰が起きやすい）
+  await page.click('#picker-tab-event');
+  await page.emulateMedia({ media: 'print' });
+  for (const selector of ['#picker-tabs', '#picker-event', '#picker-city', '.displayed-location .control-row']) {
+    await expect(page.locator(selector)).toBeHidden();
+  }
+  // textContentは非表示要素の文字も拾うため、実際に紙へ出る文字（innerText）で見る
+  await expect(page.locator('body')).not.toContainText('カレンダーに登録', {
+    useInnerText: true,
+  });
+  await page.emulateMedia({ media: null });
 });
 
 test('見やすさ設定・音声ボタン・ホーム画面案内が動く', async ({ page }) => {
