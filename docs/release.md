@@ -23,6 +23,9 @@
    - フッターのバージョン表記（`index.html`・`about.html`・`404.html`）と
      `display.html`のバージョンコメントも更新します
      （`package.json`との不一致はhtmlSyncテストがCIで検出）
+   - 公開ページの内容を変えたときは`public/sitemap.xml`の`lastmod`も
+     その日付へ更新します（登録漏れ・noindexページの混入は
+     `test/sitemap.test.ts`がCIで検出しますが、日付の鮮度は検出しません）
 2. PRを作成してmainへマージする（マージで本番デプロイが走る）
 3. リリースを作成する。方法は2つあります
    - **Actionsタブから**: mainを対象に`Release`ワークフローを手動実行
