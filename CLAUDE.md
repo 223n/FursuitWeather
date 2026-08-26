@@ -69,6 +69,10 @@ npm run build                        # minify + CSSインライン化（下記�
 ## 開発フロー
 
 - mainへは直接pushできない（ブランチ保護）。PR必須で、CI+CodeQL（デフォルトセットアップ運用のためワークフローファイルはない）がマージを阻む
+- **1つのPRにつき1つのブランチを作る**（例: `claude/print-picker-cls-20260826`）。
+  1本のブランチを使い回すと、ブランチからPRを逆引きする仕組み（GitHubや周辺ツール）が
+  同じブランチの過去のPRを引き当て、無関係な古いPRが表示される。
+  マージ済みブランチはリポジトリ設定の「Automatically delete head branches」で自動削除する
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
 - リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページとdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
