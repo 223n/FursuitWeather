@@ -165,19 +165,35 @@
     return span;
   }
 
-  /** 「着ぐるみ」の読み補正付きでテキストのフラグメントを組み立てる。
-   * スクリーンリーダーが「ちゃくぐるみ」と誤読するため、視覚は「着ぐるみ」のまま
-   * 読み上げだけ「きぐるみ」へ分離する（範囲記号「〜」を「から」と読ませる方針と同じ）。
+  /** 読みを補正する語句（視覚はそのまま、読み上げだけ差し替える）。
+   * 「着ぐるみ」は「ちゃくぐるみ」、日付の曜日「（水）」は「みず」と誤読されるため */
+  const YOMI_PATTERN = /着ぐるみ|（[日月火水木金土]）/gu;
+
+  /** 視覚表記に対する読み上げ用テキストを返す */
+  function yomiOf(visible) {
+    if (visible === '着ぐるみ') {
+      return 'きぐるみ';
+    }
+    // 曜日は単漢字だと訓読み（みず・ひ・つち…）になるため、読みは曜日名で書き下す
+    return `（${visible.slice(1, 2)}曜日）`;
+  }
+
+  /** 読み補正付きでテキストのフラグメントを組み立てる。
+   * 視覚は元の表記のまま、読み上げだけを分離する
+   * （範囲記号「〜」を「から」と読ませる方針と同じ）。
    * textContentでは分離できないため、動的な可視文言はこの関数で書き込む */
   function yomiText(text) {
     const fragment = document.createDocumentFragment();
-    const parts = text.split('着ぐるみ');
-    parts.forEach((part, index) => {
-      if (index > 0) {
-        fragment.append(hiddenSpan('着'), srOnlySpan('き'), 'ぐるみ');
-      }
-      fragment.append(part);
-    });
+    let last = 0;
+    for (const match of text.matchAll(YOMI_PATTERN)) {
+      fragment.append(
+        text.slice(last, match.index),
+        hiddenSpan(match[0]),
+        srOnlySpan(yomiOf(match[0])),
+      );
+      last = match.index + match[0].length;
+    }
+    fragment.append(text.slice(last));
     return fragment;
   }
 
@@ -478,8 +494,10 @@
    *   食い違うのを構造的に防ぐ。見守り・当日ボードの一時通知は
    *   srAnnounceのみを書く現行の使い分けを維持する） */
   function announceSummary(text) {
-    spokenSummaryText = text;
-    srAnnounce.textContent = text;
+    // 読み上げ専用テキストのため、曜日は「（水曜日）」と書き下す
+    // （単漢字の「（水）」は「みず」と誤読される。マークアップでの分離ができない経路）
+    spokenSummaryText = yomiSpokenText(text);
+    srAnnounce.textContent = spokenSummaryText;
   }
 
   /** 地点ラベル直下の常設注記を表示・非表示する（開催日の予報ではない、など）
@@ -492,11 +510,7 @@
     if (text) {
       // 見出しのない注意文の共通規約: sr-onlyの「注意: 」で読み上げにも役割を伝える
       // （アイコンは装飾（aria-hidden）のまま。docs/accessibility.mdの方針）
-      note.append(
-        faIcon('triangle-exclamation'),
-        srOnlySpan('注意: '),
-        document.createTextNode(text),
-      );
+      note.append(faIcon('triangle-exclamation'), srOnlySpan('注意: '), yomiText(text));
     }
   }
 
@@ -515,9 +529,10 @@
   /** ステータスメッセージを表示する */
   function setStatus(message, isError, isWarning) {
     // エラーはrole=alert領域に書き、スクリーンリーダーへ即時に通知する
-    // （politeの#statusだと他の読み上げ待ちで遅延・埋没するため）
-    statusElement.textContent = isError ? '' : message;
-    statusErrorElement.textContent = isError ? message : '';
+    // （politeの#statusだと他の読み上げ待ちで遅延・埋没するため）。
+    // 本文はyomiTextを通し、着ぐるみ・曜日の誤読をライブ領域でも防ぐ
+    statusElement.replaceChildren(isError ? '' : yomiText(message));
+    statusErrorElement.replaceChildren(isError ? yomiText(message) : '');
     // 注意状態（開催日の予報ではない、など）は黄系の配色と△!アイコンで区別する。
     // 色だけに頼らせないため、アイコンは装飾（aria-hidden）で、意味は本文が担う
     const warn = !isError && Boolean(isWarning) && Boolean(message);
@@ -662,10 +677,24 @@
   const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
   /** 日付文字列（YYYY-MM-DD）を「8月15日（土）」形式にする
-   * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める */
+   * 予報の日付はJST基準のため、閲覧環境のタイムゾーンに依存しないようUTC基準で曜日を求める。
+   * 括弧内の曜日はyomiTextが読み上げ用に「（土曜日）」へ分離する（単漢字は誤読されるため）。
+   * マークアップを持てない経路（option要素）ではformatDateSpokenを使う */
   function formatDate(dateText) {
     const { month, day, utc } = parseDateText(dateText);
     return `${month}月${day}日（${WEEKDAYS[new Date(utc).getUTCDay()]}）`;
+  }
+
+  /** 曜日を書き下した日付表記（「8月15日（土曜日）」）。
+   * option要素のように子要素で読みを分離できない場所で使う */
+  function formatDateSpoken(dateText) {
+    return yomiSpokenText(formatDate(dateText));
+  }
+
+  /** 読み上げできない経路向けに、視覚表記の読み補正を文字列のまま適用する
+   * （曜日の単漢字を曜日名へ。yomiTextのマークアップ版と対の関係） */
+  function yomiSpokenText(text) {
+    return text.replace(/（([日月火水木金土])）/gu, '（$1曜日）');
   }
 
   /** 選択状態の見た目とARIA属性を更新する（カードは再生成せずフォーカスを保つ） */
@@ -705,7 +734,7 @@
     const titleButton = document.createElement('button');
     titleButton.type = 'button';
     titleButton.className = 'day-card-button';
-    titleButton.textContent = formatDate(day.date);
+    titleButton.replaceChildren(yomiText(formatDate(day.date)));
     // スクリーンリーダーにはボタンの目的（時間別予報の切り替え）も読み上げる
     titleButton.appendChild(srOnlySpan('の時間別予報を表示'));
     title.appendChild(titleButton);
@@ -1019,10 +1048,14 @@
         // ままだと前日のデータに「今日」と付く。プランナーの日付候補と同じ基準）
         const relative = ['今日', '明日', '明後日'][daysBetween(nowInJst().date, day.date)];
         const label = relative ? `${relative}の天気` : `${formatDate(day.date)}の天気`;
-        // 先頭のアイコン（svg）は保持し、テキストノードだけを差し替える
-        const textNode = [...tab.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
-        if (textNode && textNode.textContent !== label) {
-          textNode.textContent = label;
+        // 先頭のアイコン（svg）は保持し、ラベル部分だけを差し替える
+        // （日付ラベルの曜日はyomiTextが読み上げ用に書き下す）。
+        // 描画後のtextContentには読み上げ用の文字も混ざるため、
+        // 差分の判定には書き込んだラベルそのものを覚えておく
+        const icon = tab.querySelector('svg');
+        if (tab.dataset.label !== label) {
+          tab.replaceChildren(icon, yomiText(label));
+          tab.dataset.label = label;
         }
       }
     }
@@ -1180,7 +1213,7 @@
   function renderHours() {
     const now = nowInJst();
     const hours = dropPastHoursToday(hoursOnDate(selectedDate), selectedDate, now);
-    hoursTitle.textContent = `時間別予報（${formatDate(selectedDate)}）`;
+    hoursTitle.replaceChildren(yomiText(`時間別予報（${formatDate(selectedDate)}）`));
     hoursBody.replaceChildren();
 
     // 日の入りの区切りマーク用（その日のデータが無ければ出さない）
@@ -1517,9 +1550,12 @@
           `（${c.after.grade > c.before.grade ? '悪化' : '改善'}）`,
       )
       .join('、');
-    text.textContent =
-      `前回の閲覧（${at.getMonth() + 1}月${at.getDate()}日${at.getHours()}時ごろ）から` +
-      `判定が変わりました: ${changeText}`;
+    text.replaceChildren(
+      yomiText(
+        `前回の閲覧（${at.getMonth() + 1}月${at.getDate()}日${at.getHours()}時ごろ）から` +
+          `判定が変わりました: ${changeText}`,
+      ),
+    );
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'diff-close';
@@ -2337,7 +2373,11 @@
     }
     eventList.forEach((event, index) => {
       eventSelect.appendChild(
-        new Option(`${event.name}（${formatEventPeriod(event)}・${event.place}）`, String(index)),
+        // option要素は子要素を持てず読みを分離できないため、曜日は書き下した表記にする
+        new Option(
+          `${event.name}（${yomiSpokenText(formatEventPeriod(event))}・${event.place}）`,
+          String(index),
+        ),
       );
     });
     eventSelect.disabled = false;
@@ -2640,7 +2680,8 @@
       // days[0]が前日になり得るため、位置ベースだと前日に「今日」と付いてしまう
       const relative = names[daysBetween(today, day.date)] ?? '';
       const prefix = relative ? `${relative} ` : '';
-      planDate.appendChild(new Option(`${prefix}${formatDate(day.date)}`, day.date));
+      // option要素は読みを分離できないため、曜日は「（水曜日）」と書き下す
+      planDate.appendChild(new Option(`${prefix}${formatDateSpoken(day.date)}`, day.date));
     });
     if ([...planDate.options].some((option) => option.value === previous)) {
       planDate.value = previous;
@@ -2694,7 +2735,9 @@
     }
 
     const heading = document.createElement('h3');
-    heading.textContent = `${formatDate(planDateValue)} ${start}時から${end}時の計画`;
+    heading.replaceChildren(
+      yomiText(`${formatDate(planDateValue)} ${start}時から${end}時の計画`),
+    );
 
     const list = document.createElement('ul');
     list.className = 'plan-hours';
