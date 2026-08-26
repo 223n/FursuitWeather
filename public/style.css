@@ -256,10 +256,10 @@ h2 {
 }
 
 /* 表示中の地点と、その地点に対する操作。選ぶ操作と区切って示す */
-/* 表示中の地点は操作エリアの先頭に置く（判定より前に「どこの予報か」を示す）。
-   区切り線は下の「地点を選ぶ」（.picker-heading）側が持つ */
 .displayed-location {
-  margin-top: 0.25rem;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
 }
 
 /* お気に入りが未登録のときの案内（チップと同じ行に収める） */
@@ -737,15 +737,6 @@ input[type='number'] {
   border: 2px solid var(--color-border);
   border-radius: 6px;
   background-color: var(--color-surface);
-}
-
-/* 地点の選び方の見出し。折りたたみの上に置き、見出しナビゲーションからも
-   到達できるようにする（h2だが判定カードの見出しより控えめに見せる） */
-.picker-heading {
-  margin: 0.75rem 0 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
-  font-size: 1rem;
 }
 
 /* 当日の運用ツール（見守り・体調チェック・着用記録・当日ボード）。
@@ -1575,7 +1566,6 @@ section h3 {
   #font-size-button,
   #now-section .control-row,
   .day-tools,
-  .picker-heading,
   .share-plan-option {
     display: none !important;
   }

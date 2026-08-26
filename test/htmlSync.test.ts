@@ -838,29 +838,6 @@ describe('説明ページ（about.html）への相互リンクの同期', () => 
   });
 });
 
-describe('地点の選び方の折りたたみ（初回描画前の確定）の同期', () => {
-  // 折りたたみの開閉は、判定カード・タブが押し下げられるのを防ぐため
-  // index.html内のインラインスクリプトがパース中に確定させる。
-  // 保存キーと判定条件はapp.jsの初期表示の分岐と同じものを見る必要がある
-  it('インラインスクリプトの保存キーはapp.jsのLOCATION_STORAGE_KEYと一致する', () => {
-    const appKey = appJs.match(/const LOCATION_STORAGE_KEY = '([^']+)'/);
-    expect(appKey).not.toBeNull();
-    expect(html).toContain(`localStorage.getItem('${appKey![1]!}')`);
-  });
-
-  it('detailsの既定はopenで、閉じる判定はdemo・event・共有座標・記憶した地点を見る', () => {
-    expect(html).toMatch(/<details id="picker-details"[^>]*\sopen>/);
-    for (const condition of ["params.get('event')", "params.get('demo') === '1'"]) {
-      expect(html).toContain(condition);
-    }
-    for (const key of ['lat', 'lon']) {
-      expect(html).toContain(`params.get('${key}')`);
-    }
-    // app.js側に後付けで開くコードが復活していないこと（あると再びシフトする）
-    expect(appJs).not.toContain("getElementById('picker-details')");
-  });
-});
-
 describe('この端末に保存されるもの（about.html）の件数の同期', () => {
   // 説明はトップページからabout.htmlへ集約したため、ここが利用者にとって
   // 唯一の確認場所になる。件数はapp.js・wbgt-tool.jsの定数が単一情報源
