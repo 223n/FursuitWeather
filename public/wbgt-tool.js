@@ -253,7 +253,20 @@
         row.appendChild(cell);
       };
       addCell(formatLogTime(entry.at));
-      addCell(entry.place === '' ? '-' : entry.place);
+      // 場所未記入の「-」は読み上げで意味が伝わらないため、読みだけ「場所の記録なし」に分ける
+      if (entry.place === '') {
+        const noPlace = document.createElement('span');
+        const dash = document.createElement('span');
+        dash.setAttribute('aria-hidden', 'true');
+        dash.textContent = '-';
+        const spoken = document.createElement('span');
+        spoken.className = 'sr-only';
+        spoken.textContent = '場所の記録なし';
+        noPlace.append(dash, spoken);
+        addCell(noPlace);
+      } else {
+        addCell(entry.place);
+      }
       addCell(`${entry.measured}℃`);
       addCell(`${entry.suitWbgt}℃`);
       addCell(

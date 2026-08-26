@@ -101,7 +101,7 @@
     <section id="mechanism" aria-label="判定の仕組み">
       <h2 id="how-it-works"><svg class="fa-icon heading-icon" viewBox="0 0 320 512" aria-hidden="true"><path d="M160 0C107 0 64 43 64 96l0 164.7C34.5 287 16 325.4 16 368 16 447.5 80.5 512 160 512s144-64.5 144-144c0-42.6-18.5-81-48-107.3L256 96c0-53-43-96-96-96zm64 368c0 35.3-28.7 64-64 64s-64-28.7-64-64c0-26.9 16.5-49.9 40-59.3l0-92.7c0-13.3 10.7-24 24-24s24 10.7 24 24l0 92.7c23.5 9.5 40 32.5 40 59.3z"/></svg>判定の仕組み</h2>
 
-      <h3><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M96 96c0-53 43-96 96-96s96 43 96 96l0 164.7c29.5 26.4 48 64.7 48 107.3 0 79.5-64.5 144-144 144S48 447.5 48 368c0-42.6 18.5-81 48-107.3L96 96zm96 336c35.3 0 64-28.7 64-64 0-26.9-16.5-49.9-40-59.3L216 96c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 212.7c-23.5 9.5-40 32.5-40 59.3 0 35.3 28.7 64 64 64zM464 80a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM352 80a80 80 0 1 1 160 0 80 80 0 1 1 -160 0z"/></svg>暑さ指数（WBGT）と着ぐるみ補正</h3>
+      <h3><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M96 96c0-53 43-96 96-96s96 43 96 96l0 164.7c29.5 26.4 48 64.7 48 107.3 0 79.5-64.5 144-144 144S48 447.5 48 368c0-42.6 18.5-81 48-107.3L96 96zm96 336c35.3 0 64-28.7 64-64 0-26.9-16.5-49.9-40-59.3L216 96c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 212.7c-23.5 9.5-40 32.5-40 59.3 0 35.3 28.7 64 64 64zM464 80a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM352 80a80 80 0 1 1 160 0 80 80 0 1 1 -160 0z"/></svg>暑さ指数（WBGT）と<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ補正</h3>
       <p>
         環境省の熱中症予防情報サイトと同じ推定式（小野ら2014）で暑さ指数（WBGT）を計算しています。
       </p>
@@ -118,9 +118,10 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
         気温の単位は摂氏度、相対湿度はパーセント、日射量はキロワット毎平方メートル、風速はメートル毎秒です。
       </p>
       <p>
-        着ぐるみの熱負荷は、厚生労働省「職場における熱中症予防基本対策要綱」のWBGT着衣補正値
+        <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの熱負荷は、厚生労働省「職場における熱中症予防基本対策要綱」のWBGT着衣補正値
         （フード付き蒸気不透過つなぎ服 = <strong>+11℃</strong>）で補正し、
-        環境省の5段階（21/25/28/31℃）で判定します。
+        <!-- しきい値の区切りは「スラッシュ」と読まれない「・」を使う（読み上げ対応） -->
+        環境省の5段階（21・25・28・31℃）で判定します。
       </p>
 
       <div class="table-wrapper">
@@ -145,12 +146,12 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
         </table>
       </div>
       <p>
-        連続活動時間は、次のような自治体の着ぐるみ運用マニュアル（1回30分以内、夏季は10<span aria-hidden="true">〜</span><span class="sr-only">から</span>20分）や
+        連続活動時間は、次のような自治体の<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ運用マニュアル（1回30分以内、夏季は10<span aria-hidden="true">〜</span><span class="sr-only">から</span>20分）や
         イベントガイドなど（30<span aria-hidden="true">〜</span><span class="sr-only">から</span>45分で休憩）を参考に段階化した上限の目安です。
         基本は「30分着たら30分休む」を推奨します。
       </p>
       <ul>
-        <li><a href="https://www.city.saitama.lg.jp/006/012/001/004/004/p010212_d/fil/kigurumi-m.pdf" rel="noopener">さいたま市「着ぐるみ使用マニュアル」（PDF）</a></li>
+        <li><a href="https://www.city.saitama.lg.jp/006/012/001/004/004/p010212_d/fil/kigurumi-m.pdf" rel="noopener">さいたま市「<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ使用マニュアル」（PDF）</a></li>
         <li><a href="https://www.city.mihara.hiroshima.jp/uploaded/life/150268_522697_misc.pdf" rel="noopener">三原市「公式マスコットキャラクター使用に関するマニュアル」（PDF）</a></li>
         <li><a href="https://www.anthrocon.org/guides/fursuiting-in-the-summer/" rel="noopener">Anthrocon「Fursuiting in the Summer」</a></li>
         <li><a href="https://melbfurcon.com/fursuiting-guidelines/" rel="noopener">Melbourne Fur Con「Fursuiting Guidelines」</a></li>
@@ -165,15 +166,15 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
 
       <h3><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M96 96c0-53 43-96 96-96s96 43 96 96l0 164.7c29.5 26.4 48 64.7 48 107.3 0 79.5-64.5 144-144 144S48 447.5 48 368c0-42.6 18.5-81 48-107.3L96 96zm96 336c35.3 0 64-28.7 64-64 0-26.9-16.5-49.9-40-59.3l0-28.7c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 28.7c-23.5 9.5-40 32.5-40 59.3 0 35.3 28.7 64 64 64zM464 80a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM352 80a80 80 0 1 1 160 0 80 80 0 1 1 -160 0z"/></svg>低温側の判定</h3>
       <p>
-        気温15℃未満では体感温度による低温判定（0／−10／−20℃境界）を併用し、
-        汗冷え・凍結路面・凍傷などの注意を表示します。着ぐるみは低温でも発熱するため、
+        気温15℃未満では体感温度による低温判定（0・−10・−20℃境界）を併用し、
+        汗冷え・凍結路面・凍傷などの注意を表示します。<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみは低温でも発熱するため、
         暑熱判定と低温判定の深刻な方を採用します。
       </p>
 
       <h3><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M277.8 8.6c-12.3-11.4-31.3-11.4-43.5 0l-224 208c-9.6 9-12.8 22.9-8 35.1S18.8 272 32 272l16 0 0 176c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-176 16 0c13.2 0 25-8.1 29.8-20.3s1.6-26.2-8-35.1l-224-208zM240 320l32 0c26.5 0 48 21.5 48 48l0 96-128 0 0-96c0-26.5 21.5-48 48-48z"/></svg>屋内判定と冷房要否</h3>
       <p>
         屋内は日射なし・微風（空調のない会場で室温が外気温と同程度になる場合）を想定した参考値です。
-        着ぐるみ補正後のWBGTが25℃以上で
+        <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ補正後のWBGTが25℃以上で
         <span class="badge grade-3"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M288.2 0c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 62.1-15-15c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l49 49 0 70.6-61.2-35.3-17.9-66.9c-3.4-12.8-16.6-20.4-29.4-17S95.3 98 98.7 110.8l5.5 20.5-53.7-31C35.2 91.5 15.6 96.7 6.8 112s-3.6 34.9 11.7 43.7l53.7 31-20.5 5.5c-12.8 3.4-20.4 16.6-17 29.4s16.6 20.4 29.4 17l66.9-17.9 61.2 35.3-61.2 35.3-66.9-17.9c-12.8-3.4-26 4.2-29.4 17s4.2 26 17 29.4l20.5 5.5-53.7 31C3.2 365.1-2 384.7 6.8 400s28.4 20.6 43.7 11.7l53.7-31-5.5 20.5c-3.4 12.8 4.2 26 17 29.4s26-4.2 29.4-17l17.9-66.9 61.2-35.3 0 70.6-49 49c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l15-15 0 62.1c0 17.7 14.3 32 32 32s32-14.3 32-32l0-62.1 15 15c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-49-49 0-70.6 61.2 35.3 17.9 66.9c3.4 12.8 16.6 20.4 29.4 17s20.4-16.6 17-29.4l-5.5-20.5 53.7 31c15.3 8.8 34.9 3.6 43.7-11.7s3.6-34.9-11.7-43.7l-53.7-31 20.5-5.5c12.8-3.4 20.4-16.6 17-29.4s-16.6-20.4-29.4-17l-66.9 17.9-61.2-35.3 61.2-35.3 66.9 17.9c12.8 3.4 26-4.2 29.4-17s-4.2-26-17-29.4l-20.5-5.5 53.7-31c15.3-8.8 20.6-28.4 11.7-43.7s-28.4-20.5-43.7-11.7l-53.7 31 5.5-20.5c3.4-12.8-4.2-26-17-29.4s-26 4.2-29.4 17l-17.9 66.9-61.2 35.3 0-70.6 49-49c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-15 15 0-62.1z"/></svg>✕</span>冷房必須</span>、
         21℃以上で
         <span class="badge grade-1"><span class="symbol" aria-hidden="true"><svg class="fa-icon" viewBox="0 0 512 512"><path d="M288.2 0c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 62.1-15-15c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l49 49 0 70.6-61.2-35.3-17.9-66.9c-3.4-12.8-16.6-20.4-29.4-17S95.3 98 98.7 110.8l5.5 20.5-53.7-31C35.2 91.5 15.6 96.7 6.8 112s-3.6 34.9 11.7 43.7l53.7 31-20.5 5.5c-12.8 3.4-20.4 16.6-17 29.4s16.6 20.4 29.4 17l66.9-17.9 61.2 35.3-61.2 35.3-66.9-17.9c-12.8-3.4-26 4.2-29.4 17s4.2 26 17 29.4l20.5 5.5-53.7 31C3.2 365.1-2 384.7 6.8 400s28.4 20.6 43.7 11.7l53.7-31-5.5 20.5c-3.4 12.8 4.2 26 17 29.4s26-4.2 29.4-17l17.9-66.9 61.2-35.3 0 70.6-49 49c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l15-15 0 62.1c0 17.7 14.3 32 32 32s32-14.3 32-32l0-62.1 15 15c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-49-49 0-70.6 61.2 35.3 17.9 66.9c3.4 12.8 16.6 20.4 29.4 17s20.4-16.6 17-29.4l-5.5-20.5 53.7 31c15.3 8.8 34.9 3.6 43.7-11.7s3.6-34.9-11.7-43.7l-53.7-31 20.5-5.5c12.8-3.4 20.4-16.6 17-29.4s-16.6-20.4-29.4-17l-66.9 17.9-61.2-35.3 61.2-35.3 66.9 17.9c12.8 3.4 26-4.2 29.4-17s-4.2-26-17-29.4l-20.5-5.5 53.7-31c15.3-8.8 20.6-28.4 11.7-43.7s-28.4-20.5-43.7-11.7l-53.7 31 5.5-20.5c3.4-12.8-4.2-26-17-29.4s-26 4.2-29.4 17l-17.9 66.9-61.2 35.3 0-70.6 49-49c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-15 15 0-62.1z"/></svg>○</span>冷房推奨</span>
@@ -202,7 +203,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
         </p>
       </div>
       <p>
-        着ぐるみの全身洗いは扇風機併用で24<span aria-hidden="true">〜</span><span class="sr-only">から</span>48時間の乾燥目安を表示し、
+        <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの全身洗いは扇風機併用で24<span aria-hidden="true">〜</span><span class="sr-only">から</span>48時間の乾燥目安を表示し、
         乾きにくい日はカビ警告を出します。乾燥機は熱でファーが傷むため使用禁止です。
       </p>
     </section>
@@ -299,7 +300,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
               </ul>
             </td></tr>
             <tr><th scope="row"><code>weatherLabel</code></th><td>string</td><td>天気の日本語ラベル（晴れ・曇りなど）</td></tr>
-            <tr><th scope="row"><code>outdoor</code></th><td>object</td><td>屋外の着ぐるみ判定（下記の判定オブジェクト）</td></tr>
+            <tr><th scope="row"><code>outdoor</code></th><td>object</td><td>屋外の<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ判定（下記の判定オブジェクト）</td></tr>
             <tr><th scope="row"><code>indoor</code></th><td>object</td><td>屋内の判定。<br>判定オブジェクトに<code>cooling</code>（<code>none</code>／<code>recommended</code>／<code>required</code>）と<code>coolingLabel</code>が加わる</td></tr>
           </tbody>
         </table>
@@ -314,7 +315,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
           </thead>
           <tbody>
             <tr><th scope="row"><code>wbgt</code></th><td>number</td><td>素のWBGT推定値（℃）</td></tr>
-            <tr><th scope="row"><code>suitWbgt</code></th><td>number</td><td>着ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
+            <tr><th scope="row"><code>suitWbgt</code></th><td>number</td><td><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ着衣補正（+11℃）後のWBGT（℃）</td></tr>
             <tr><th scope="row"><code>level</code></th><td>string</td><td>レベルID:
               <ul class="field-list">
                 <li>暑熱側: <code>safe</code>／<code>caution</code>／<code>warning</code>／<code>severe</code>／<code>danger</code></li>
@@ -341,7 +342,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
             <tr><th scope="row"><code>temperatureMin</code>・<code>temperatureMax</code></th><td>number</td><td>最低・最高気温（℃）</td></tr>
             <tr><th scope="row"><code>weatherCode</code>・<code>weatherLabel</code></th><td>number・string</td><td>日中の代表天気</td></tr>
             <tr><th scope="row"><code>sunrise</code>・<code>sunset</code></th><td>string・null</td><td>日の出・日の入り時刻（<code>HH:mm</code>）。上流が提供しない場合・欠測時は<code>null</code></td></tr>
-            <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい／穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
+            <tr><th scope="row"><code>outdoorWorst</code>・<code>outdoorBest</code></th><td>object</td><td>日中（9<span aria-hidden="true">〜</span><span class="sr-only">から</span>18時）の最も厳しい・最も穏やかな屋外判定（<code>level</code>・<code>label</code>・<code>grade</code>）</td></tr>
             <tr><th scope="row"><code>recommendedHours</code></th><td>string[]</td><td>屋外活動に適した時間帯（<code>HH:00</code>形式）。<br>深刻度1以下かつ降水なしの時間帯が対象</td></tr>
             <tr><th scope="row"><code>coolingRequired</code></th><td>boolean</td><td>日中に冷房必須となる時間があるか</td></tr>
             <tr><th scope="row"><code>maxWbgt</code></th><td>number</td><td>その日の素のWBGT（着衣補正前）の最大値（℃）。33以上は環境省の熱中症警戒アラートの発表基準に相当</td></tr>
@@ -504,7 +505,7 @@ SR: 全天日射量（kW/m²）  WS: 風速（m/s）</pre>
       <ul>
         <li>本予報は目安であり、安全を保証するものではありません。医学的な助言に代わるものでもありません。</li>
         <li>体調・装備・活動内容により安全な活動時間は変わります。最終判断はご自身で行ってください。</li>
-        <li>着ぐるみ活動は必ず2人以上で行い、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。吐き気・めまい・頭痛などの体調の変化を感じたら直ちに中止してください。</li>
+        <li><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動は必ず2人以上で行い、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。吐き気・めまい・頭痛などの体調の変化を感じたら直ちに中止してください。</li>
         <li>予報データは数値予報モデルによる推定値であり、実際の気象と異なる場合があります。</li>
         <li>本サービスの利用により生じたいかなる損害についても、開発者は責任を負いません。</li>
         <li>本サービスは予告なく変更・停止することがあります。</li>

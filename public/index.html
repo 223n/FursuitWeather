@@ -125,7 +125,7 @@
 
   <header class="site-header">
     <h1><svg class="fa-icon" aria-hidden="true"><use href="#fa-paw"/></svg> FursuitWeather</h1>
-    <p class="tagline">着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報します</p>
+    <p class="tagline"><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ天気予報 - 気象データから<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動の適否を予報します</p>
     <!-- 見やすさ設定: 押すたびに文字サイズが標準→大→特大と切り替わる。
          選択はこの端末に保存され、全ページへ適用される（prefs.js） -->
     <button type="button" id="font-size-button" class="font-size-button" aria-label="文字の大きさを切り替え（標準・大・特大）">Aa 標準</button>
@@ -426,7 +426,7 @@
         <table id="hours-table">
           <caption class="sr-only">
             選択した日の時間別予報。行ごとに時刻、天気、気温、湿度、降水確率、風速、
-            着ぐるみ補正後の暑さ指数、屋外判定、連続活動時間の上限目安、
+            きぐるみ補正後の暑さ指数、屋外判定、連続活動時間の上限目安、
             空調なしの場合の屋内判定と冷房要否を示します。
           </caption>
           <thead>
@@ -437,7 +437,7 @@
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-droplet"/></svg>湿度</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-cloud-rain"/></svg>降水<br>確率</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-wind"/></svg>風速</th>
-              <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-temperature-high"/></svg>暑さ指数<br><span class="th-note">（着ぐるみ補正後）</span></th>
+              <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-temperature-high"/></svg>暑さ指数<br><span class="th-note">（<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ補正後）</span></th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-tree"/></svg>屋外判定</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-stopwatch"/></svg>連続活動<br>目安</th>
               <th scope="col"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-house"/></svg>屋内判定<br><span class="th-note">（空調なしの場合）</span></th>
@@ -513,7 +513,7 @@
       <h2 id="measured-heading">実測WBGTから判定</h2>
       <div class="wbgt-tool-box">
         <p>
-          イベント会場などでWBGT計（暑さ指数計）で測った値から、着ぐるみ着用時の判定を確認できます。
+          イベント会場などでWBGT計（暑さ指数計）で測った値から、<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ着用時の判定を確認できます。
           実測値に着衣補正を加えて、予報と同じ基準で判定します。
         </p>
         <div class="control-row">
@@ -601,7 +601,7 @@
       </div>
       <!-- しきい値はsrc/constants.tsのWIND_CAUTION_SPEEDと同期（htmlSyncテストが検証） -->
       <p class="hint">
-        時間別予報の風速は、風速10m/s以上（気象庁の「やや強い風」以上）のとき
+        時間別予報の風速は、風速10<span aria-hidden="true">m/s</span><span class="sr-only">メートル毎秒</span>以上（気象庁の「やや強い風」以上）のとき
         <svg class="fa-icon" aria-hidden="true"><use href="#fa-wind"/></svg>マークと太字で強調します。
       </p>
       </details>
@@ -612,7 +612,7 @@
       <!-- 初期表示から高さを確保するため静的に記載する（内容はsrc/constants.tsの
            YEAR_ROUND_NOTICESと同期し、データ到着時にAPIの値で上書きされる） -->
       <ul id="notices-list">
-        <li>着ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。</li>
+        <li><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ内は冬でも数分で発汗する高温多湿環境です。季節を問わず熱中症対策が必要です。</li>
         <li>必ず2人以上で行動し、着用者以外の付き添い（ハンドラー・アテンド）を付けてください。</li>
         <li>表示の連続活動時間は気象条件から見た上限の目安です。「30分着たら30分休む」を基本に、吐き気・めまい・頭痛を感じたら直ちに脱いでください。</li>
         <li>本予報は目安です。体調や装備により安全な活動時間は変わります。最終判断はご自身で行ってください。</li>
@@ -626,9 +626,9 @@
     <section class="about" aria-labelledby="about-heading">
       <h2 id="about-heading">この予報について</h2>
       <ul>
-        <li>暑さ指数（WBGT）は環境省と同じ推定式（小野ら2014）で計算し、着ぐるみの着衣補正値+11℃（厚生労働省の要綱に基づく）を加えて判定しています。</li>
+        <li>暑さ指数（WBGT）は環境省と同じ推定式（小野ら2014）で計算し、<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの着衣補正値+11℃（厚生労働省の要綱に基づく）を加えて判定しています。</li>
         <li>屋外は日射・風速込み、屋内は日射なし・微風（空調のない会場を想定）で計算した参考値です。</li>
-        <li>洗濯指数は飽差（空気の乾きやすさ）と風速から計算し、着ぐるみの乾燥時間目安も表示します。</li>
+        <li>洗濯指数は飽差（空気の乾きやすさ）と風速から計算し、<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの乾燥時間目安も表示します。</li>
       </ul>
       <p class="notice-panel">
         <svg class="fa-icon" aria-hidden="true"><use href="#fa-triangle-exclamation"/></svg><span class="sr-only">注意: </span>判定は目安です。体調・装備・活動内容により安全な時間は変わります。

@@ -618,11 +618,41 @@
   }
 
   /** 警告帯の1行を作る */
+  /** スクリーンリーダー専用テキストのspanを組み立てる（app.jsのsrOnlySpanの複製部品） */
+  function srOnlySpan(text) {
+    const span = document.createElement('span');
+    span.className = 'sr-only';
+    span.textContent = text;
+    return span;
+  }
+
+  /** 読み上げから除外する視覚専用spanを組み立てる（app.jsのhiddenSpanの複製部品） */
+  function hiddenSpan(text) {
+    const span = document.createElement('span');
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = text;
+    return span;
+  }
+
+  /** 「着ぐるみ」の読み補正付きでテキストのフラグメントを組み立てる
+   * （app.jsのyomiTextの複製部品。視覚は漢字のまま読み上げだけ「きぐるみ」に分離する） */
+  function yomiText(text) {
+    const fragment = document.createDocumentFragment();
+    const parts = text.split('着ぐるみ');
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        fragment.append(hiddenSpan('着'), srOnlySpan('き'), 'ぐるみ');
+      }
+      fragment.append(part);
+    });
+    return fragment;
+  }
+
   function alertRow(text, heat) {
     const row = document.createElement('p');
     row.className = `display-alert${heat ? ' display-alert-heat' : ''}`;
     row.appendChild(faIcon('triangle-exclamation'));
-    row.appendChild(document.createTextNode(text));
+    row.appendChild(yomiText(text));
     return row;
   }
 
@@ -754,12 +784,14 @@
 
     const advice = document.createElement('p');
     advice.className = 'now-advice';
-    advice.textContent = target.outdoor.advice;
+    advice.appendChild(yomiText(target.outdoor.advice));
 
     // 表示値は着ぐるみ着衣補正後であることを明示する（会場据付のWBGT計との食い違い防止）
     const wbgtNote = document.createElement('p');
     wbgtNote.className = 'display-wbgt-note';
-    wbgtNote.textContent = `暑さ指数（WBGT）${target.outdoor.wbgt}℃・着ぐるみ補正後${target.outdoor.suitWbgt}℃（推定値）`;
+    wbgtNote.appendChild(
+      yomiText(`暑さ指数（WBGT）${target.outdoor.wbgt}℃・着ぐるみ補正後${target.outdoor.suitWbgt}℃（推定値）`),
+    );
 
     container.replaceChildren(timeLine, badge, minutes, advice, wbgtNote);
   }
@@ -834,7 +866,8 @@
 
       const temp = document.createElement('span');
       temp.className = 'display-cell-temp';
-      temp.textContent = `最高${day.temperatureMax.toFixed(0)}℃／最低${day.temperatureMin.toFixed(0)}℃`;
+      // 「／」は「スラッシュ」と読まれるため、区切りは「・」を使う（読み上げ対応）
+      temp.textContent = `最高${day.temperatureMax.toFixed(0)}℃・最低${day.temperatureMin.toFixed(0)}℃`;
 
       const laundry = document.createElement('span');
       laundry.className = 'display-day-laundry';
@@ -909,10 +942,17 @@
       number.textContent = String(index + 1);
       const heading = document.createElement('span');
       heading.className = 'display-emergency-title';
-      heading.textContent = title;
+      heading.appendChild(yomiText(title));
       const note = document.createElement('span');
       note.className = 'display-emergency-detail';
-      note.textContent = detail;
+      // 「→」は「右矢印」と読まれ手順の流れが伝わらないため、読みは読点に分ける
+      // （emergency.htmlの手順見出しと同じ方針。視覚の文言は同期を保つ）
+      detail.split(' → ').forEach((step, stepIndex) => {
+        if (stepIndex > 0) {
+          note.append(hiddenSpan(' → '), srOnlySpan('、'));
+        }
+        note.append(step);
+      });
       item.replaceChildren(number, heading, note);
       list.appendChild(item);
     });

@@ -213,7 +213,7 @@ test('活動プランナー: 日付と時間帯を選んで計画を表示する
   await expect(page.locator('#plan-date option')).toHaveCount(2);
 
   await page.click('#plan-button');
-  await expect(page.locator('#plan-result')).toContainText('10時〜16時の計画');
+  await expect(page.locator('#plan-result')).toContainText('10時から16時の計画');
   expect(await page.locator('#plan-result .badge').count()).toBeGreaterThan(0);
 
   // 日付を明日へ変えて再作成すると、見出しの日付が変わる
@@ -285,7 +285,7 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
   // 開催時間はプランナーへ設定される（終了17:30は18時へ切り上げ）
   await expect(page.locator('#plan-start')).toHaveValue('11');
   await expect(page.locator('#plan-end')).toHaveValue('18');
-  await expect(page.locator('#status')).toContainText('開催時間（11時〜18時）');
+  await expect(page.locator('#status')).toContainText('開催時間（11時から18時）');
   // 記憶する地点名はイベント名ではなく解決した地名（イベントは日付を過ぎると意味を失う）
   const stored = await page.evaluate(() =>
     JSON.parse(window.localStorage.getItem('fursuitweather:lastLocation') ?? '{}'),
@@ -525,7 +525,7 @@ test('当日ボード: 追加・状態移動・上限超過の強調と、ニッ
 
   await page.click('#board-waiting .board-card-actions button:has-text("出演開始")');
   await expect(page.locator('#board-wearing .board-card-status')).toContainText(
-    '経過0分／上限20分',
+    '経過0分（上限20分）',
   );
 
   // 21分経過 → 超過の強調と交代を促す文言（色だけに依存しない）
@@ -788,7 +788,8 @@ test('風速列と応急対応ページ: 時間別に風速が出て、/emergenc
   // 時間別テーブル: 「風速」列ヘッダーとセル値（デモデータは2.5m/s固定）
   await page.click('#tab-day-0');
   await expect(page.locator('#hours-table thead th', { hasText: '風速' })).toBeVisible();
-  await expect(page.locator('#hours-body tr').first().locator('td').nth(4)).toHaveText(
+  // 風速セルは視覚「m/s」+読み上げ「メートル毎秒」の分離表記のため部分一致で検証する
+  await expect(page.locator('#hours-body tr').first().locator('td').nth(4)).toContainText(
     '2.5m/s',
   );
 
@@ -847,7 +848,7 @@ test('共有URLの日付・時間帯（date/from/to）がタブとプランナ�
   await expect(page.locator('#plan-date')).toHaveValue(tomorrow);
   await expect(page.locator('#plan-start')).toHaveValue('9');
   await expect(page.locator('#plan-end')).toHaveValue('15');
-  await expect(page.locator('#status')).toContainText('9時〜15時');
+  await expect(page.locator('#status')).toContainText('9時から15時');
 
   // 予報範囲外の日付は固定の日本語文で案内し、地点のみの表示へフォールバック
   await page.goto('/?lat=35.68&lon=139.68&date=2030-01-01');

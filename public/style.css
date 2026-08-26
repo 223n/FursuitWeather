@@ -64,7 +64,9 @@
   box-sizing: border-box;
 }
 
-/* スクリーンリーダーにのみ読み上げさせるテキスト（視覚的には非表示） */
+/* スクリーンリーダーにのみ読み上げさせるテキスト（視覚的には非表示）。
+   user-select: noneで、範囲選択のコピーへ読み上げ用テキスト
+   （「〜」の「から」、「着ぐるみ」の「き」など）が混入しないようにする */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -75,6 +77,9 @@
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+  /* Safariは接頭辞なしのuser-selectを解釈しないため併記する */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* スキップリンク: 通常は画面外に置き、キーボードフォーカス時のみ表示する */

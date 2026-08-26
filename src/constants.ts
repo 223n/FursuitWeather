@@ -578,6 +578,9 @@ export const PREFECTURE_POINTS: readonly PrefecturePoint[] = [
 export const BADGE = {
   /** 左セグメントの固定ラベル */
   leftLabel: '着ぐるみ判定',
+  /** 読み上げ用ラベル（aria-label・title側）。スクリーンリーダーが
+   * 「着ぐるみ」を「ちゃくぐるみ」と誤読するため、読みだけかなにする */
+  leftLabelSpoken: 'きぐるみ判定',
   /** gradeごとの記号（0〜3はapp.jsのGRADE_SYMBOLSと同一） */
   gradeSymbols: ['◎', '○', '△', '✕', '✕'],
   /** gradeごとの背景色（style.cssの--level-N-surface） */
