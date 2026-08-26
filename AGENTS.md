@@ -31,7 +31,7 @@ npm run build                        # minify + CSSインライン化（下記�
   - `public/app.js`のCITIES配列 ↔ index.htmlの地点セレクト、preloadのURL
   - `public/wbgt-tool.js`の判定表（HEAT_BANDSの形式まで完全一致で検証される）
   - `docs/api.md`・`docs/logic.md`・`public/llms.txt`の数値記述
-  - フッターのバージョン表記（3ページ）・display.htmlのバージョンコメント ↔ `package.json`のversion
+  - フッターのバージョン表記（index・about・404・emergencyの4ページ）・display.htmlのバージョンコメント ↔ `package.json`のversion
   - `src/constants.ts`のNATIONAL_CITIES ↔ app.jsのCITIES、`public/display.js`の複製部品（GRADE_SYMBOLS・天気アイコン対応など） ↔ app.js
   - index.htmlの`/about#…`リンク・about.htmlの目次リンク ↔ about.htmlの見出しid（説明をabout.htmlへ集約したため、飛び先が消えると無言でリンクが壊れる）
 - HTMLページを追加する場合、`<link rel="stylesheet" href="/style.css">`の完全一致タグがないとビルドが失敗する（`scripts/inline-css.mjs`の安全確認）
@@ -73,7 +73,7 @@ npm run build                        # minify + CSSインライン化（下記�
   同じブランチの過去のPRを引き当て、無関係な古いPRが表示される。
   マージ済みブランチはリポジトリ設定の「Automatically delete head branches」で自動削除する
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
-- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター3ページとdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
+- リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター4ページ（index・about・404・emergency）とdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
 ## アクセシビリティ
 
