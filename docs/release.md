@@ -20,7 +20,7 @@
 
    - 上のコマンドで`package.json`と`package-lock.json`が同時に
      更新されます（手で編集するとlock側が取り残されるため非推奨）
-   - フッターのバージョン表記（`index.html`・`about.html`・`404.html`）と
+   - フッターのバージョン表記（`index.html`・`about.html`・`404.html`・`emergency.html`）と
      `display.html`のバージョンコメントも更新します
      （`package.json`との不一致はhtmlSyncテストがCIで検出）
    - 公開ページの内容を変えたときは`public/sitemap.xml`の`lastmod`も
