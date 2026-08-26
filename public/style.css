@@ -1552,6 +1552,11 @@ section h3 {
 
   .controls .control-row,
   .controls .legend-details,
+  /* 地点の選び方のパネルと検索候補。折りたたみ（.legend-details）の中から
+     出したため、祖先ごと消える前提が効かなくなった。選択中のパネルだけが
+     紙に残ってしまうので、クラスで直接落とす */
+  .controls .picker-panel,
+  .controls .search-results-box,
   .status-area,
   #diff-banner,
   .tabs,
