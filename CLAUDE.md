@@ -34,6 +34,7 @@ npm run build                        # minify + CSSインライン化（下記�
   - `docs/api.md`・`docs/logic.md`・`public/llms.txt`の数値記述
   - フッターのバージョン表記（3ページ）・display.htmlのバージョンコメント ↔ `package.json`のversion
   - `src/constants.ts`のNATIONAL_CITIES ↔ app.jsのCITIES、`public/display.js`の複製部品（GRADE_SYMBOLS・天気アイコン対応など） ↔ app.js
+  - index.htmlの`/about#…`リンク・about.htmlの目次リンク ↔ about.htmlの見出しid（説明をabout.htmlへ集約したため、飛び先が消えると無言でリンクが壊れる）
 - HTMLページを追加する場合、`<link rel="stylesheet" href="/style.css">`の完全一致タグがないとビルドが失敗する（`scripts/inline-css.mjs`の安全確認）
 
 ## アーキテクチャの要点

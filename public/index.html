@@ -137,78 +137,8 @@
     <p id="sr-announce" class="sr-only" role="status" aria-live="polite"></p>
 
     <section class="controls" aria-label="地点の選択">
-      <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
-           選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
-           表示中の地点に対する操作（更新・共有・お気に入り登録）は下の枠へ分離する -->
-      <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
-        <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
-        <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
-        <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
-        <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
-      </div>
-      <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
-        <div class="control-row">
-          <label for="city-select">都市</label>
-          <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
-               並び順はapp.jsのCITIES配列と同期させること -->
-          <select id="city-select">
-            <option value="0">札幌</option>
-            <option value="1">仙台</option>
-            <option value="2" selected>東京</option>
-            <option value="3">新潟</option>
-            <option value="4">金沢</option>
-            <option value="5">名古屋</option>
-            <option value="6">大阪</option>
-            <option value="7">広島</option>
-            <option value="8">高松</option>
-            <option value="9">福岡</option>
-            <option value="10">鹿児島</option>
-            <option value="11">那覇</option>
-          </select>
-          <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
-        </div>
-      </div>
-      <!-- イベント予報: あらかじめ定義したイベント（events.json）から開催地の予報を表示する。
-           セレクトの幅は固定し、選択肢の読み込みによるレイアウトシフトを抑える。
-           選択肢はJSが読み込み時に差し替える（終了済みイベントは表示しない） -->
-      <div id="picker-event" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-event" tabindex="0" hidden>
-        <div class="control-row event-row">
-          <label for="event-select">イベント</label>
-          <select id="event-select" disabled>
-            <option value="">イベント情報を読み込んでいます…</option>
-          </select>
-          <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
-          <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
-        </div>
-        <!-- 「選択中のイベントだけ登録」はイベントの選択後にapp.jsが表示し、
-             リンク先（/api/events.ics?event=イベント名）を選択に追随させる -->
-        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル・全件）できます。<span id="event-ics-single" hidden><a id="event-ics-link" href="/api/events.ics" download="fursuit-weather-events.ics">選択中のイベントだけ登録</a>もできます。</span>「固定リンクをコピー」は、開くと選んだイベントの予報が表示されるURLです（告知への掲載用）。告知ページに当日判定を貼れるSVGバッジもあります（<a href="/about#badge">使い方はサイトについて</a>）。開催の詳細は主催者の告知をご確認ください。イベントの掲載を希望する主催者の方は<a href="https://github.com/223n/FursuitWeather/issues/new?template=event_request.yml" rel="noopener">GitHubリポジトリのissue（イベント掲載依頼フォーム）</a>からご連絡ください。</p>
-      </div>
-      <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
-        <div class="control-row">
-          <label for="place-search">検索</label>
-          <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off" enterkeyhint="search">
-          <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
-          <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
-        </div>
-      </div>
-      <!-- お気に入り地点。チップはlocalStorageから初期化時に描画される。
-           未登録時の案内は初期描画から高さを確保するため静的に記載し
-           （文言はapp.jsのrenderFavoritesと同期）、登録があればJSが置き換える -->
-      <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
-        <div class="control-row favorites-row">
-          <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
-            <li class="favorites-empty">（下の「お気に入りに追加」で登録できます）</li>
-          </ul>
-        </div>
-      </div>
-      <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
-           候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
-      <div id="search-results-box" class="search-results-box" hidden>
-        <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
-        <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
-      </div>
-      <!-- 表示中の地点と、その地点に対する操作。上の「選ぶ」操作と区切り線で分ける -->
+      <!-- 表示中の地点と、その地点に対する操作。下の「選ぶ」操作と区切り線で分ける
+           （「どこの予報か」を先に示すため、選ぶ操作より前に置く） -->
       <div class="displayed-location">
         <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
         <p id="location-label" class="location-label"></p>
@@ -219,19 +149,131 @@
           <button type="button" id="reload-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-arrows-rotate"/></svg>予報を更新</button>
           <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>
           <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
-          <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
-               開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
-          <a id="display-link" class="display-mode-link" href="/display" target="_blank" rel="noopener" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-tv"/></svg>会場表示モードで開く</a>
-          <!-- 印刷用ワンシート: 前日に印刷して持参・救護所へ掲示する用途。
-               レイアウトは@media print（style.css）が担う -->
-          <button type="button" id="print-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-print"/></svg>印刷用シート</button>
-          <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
         </div>
-        <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
-        <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
-             未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
-        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
+        <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）と共有URLの設定は折りたたむ。
+             毎回見る判定を画面の上へ寄せるため。よく使う更新・共有・お気に入りは上に出したまま -->
+        <details class="legend-details location-more">
+          <summary>そのほかの操作（会場表示・印刷・画像で共有・共有URLの設定）</summary>
+          <div class="control-row" role="group" aria-label="表示中の地点のそのほかの操作">
+            <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
+                 開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
+            <a id="display-link" class="display-mode-link" href="/display" target="_blank" rel="noopener" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-tv"/></svg>会場表示モードで開く</a>
+            <!-- 印刷用ワンシート: 前日に印刷して持参・救護所へ掲示する用途。
+                 レイアウトは@media print（style.css）が担う -->
+            <button type="button" id="print-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-print"/></svg>印刷用シート</button>
+            <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
+          </div>
+          <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
+          <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
+               未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
+          <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
+        </details>
       </div>
+
+      <!-- 地点の選び方は折りたたむ（判定を先に見せるため）。ただし記憶した地点・
+           共有URLの座標・イベント指定のいずれも無い初めての訪問では開いた状態にする
+           （既定都市の判定を自分の会場のものと取り違えないよう、選べることを示す）。
+           HTMLの既定をopenにして、直後のインラインスクリプトが再訪時だけ閉じる。
+           defer（app.js）で後から開くと、描画済みのタブ・判定カードが137px押し下げられ、
+           触りに行った瞬間に位置がずれる（CLS対策。docs/accessibility.md） -->
+      <h2 class="picker-heading">地点を選ぶ</h2>
+      <details id="picker-details" class="legend-details" open>
+        <summary>主な都市・イベント・検索/現在地・お気に入りから選ぶ</summary>
+        <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
+             選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
+             表示中の地点に対する操作（更新・共有・お気に入り登録）は上の枠へ分離する -->
+        <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
+          <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
+          <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
+          <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
+          <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
+        </div>
+        <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
+          <div class="control-row">
+            <label for="city-select">都市</label>
+            <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
+                 並び順はapp.jsのCITIES配列と同期させること -->
+            <select id="city-select">
+              <option value="0">札幌</option>
+              <option value="1">仙台</option>
+              <option value="2" selected>東京</option>
+              <option value="3">新潟</option>
+              <option value="4">金沢</option>
+              <option value="5">名古屋</option>
+              <option value="6">大阪</option>
+              <option value="7">広島</option>
+              <option value="8">高松</option>
+              <option value="9">福岡</option>
+              <option value="10">鹿児島</option>
+              <option value="11">那覇</option>
+            </select>
+            <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
+          </div>
+        </div>
+        <!-- イベント予報: あらかじめ定義したイベント（events.json）から開催地の予報を表示する。
+             セレクトの幅は固定し、選択肢の読み込みによるレイアウトシフトを抑える。
+             選択肢はJSが読み込み時に差し替える（終了済みイベントは表示しない） -->
+        <div id="picker-event" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-event" tabindex="0" hidden>
+          <div class="control-row event-row">
+            <label for="event-select">イベント</label>
+            <select id="event-select" disabled>
+              <option value="">イベント情報を読み込んでいます…</option>
+            </select>
+            <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+            <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
+          </div>
+          <!-- 「選択中のイベントだけ登録」はイベントの選択後にapp.jsが表示し、
+               リンク先（/api/events.ics?event=イベント名）を選択に追随させる -->
+          <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル・全件）できます。<span id="event-ics-single" hidden><a id="event-ics-link" href="/api/events.ics" download="fursuit-weather-events.ics">選択中のイベントだけ登録</a>もできます。</span>開催の詳細は主催者の告知をご確認ください。<a href="/about#event-usage">固定リンク・判定バッジ・掲載依頼について</a></p>
+        </div>
+        <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
+          <div class="control-row">
+            <label for="place-search">検索</label>
+            <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off" enterkeyhint="search">
+            <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
+            <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
+          </div>
+        </div>
+        <!-- お気に入り地点。チップはlocalStorageから初期化時に描画される。
+             未登録時の案内は初期描画から高さを確保するため静的に記載し
+             （文言はapp.jsのrenderFavoritesと同期）、登録があればJSが置き換える -->
+        <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
+          <div class="control-row favorites-row">
+            <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
+              <li class="favorites-empty">（表示中の地点の「お気に入りに追加」で登録できます）</li>
+            </ul>
+          </div>
+        </div>
+        <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
+             候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
+        <div id="search-results-box" class="search-results-box" hidden>
+          <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
+          <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
+        </div>
+      </details>
+      <!-- 開閉の確定は初回描画より前に済ませる。HTMLのパース中に走るようdetailsの直後に置き、
+           deferのapp.jsを待たない。nonceはWorkerが差し込む（src/csp.ts。/と/index.htmlが
+           run_worker_firstにあることはtest/csp.test.tsが検証する）。万一Workerを経ずに
+           配信された場合はこのスクリプトが実行されず、折りたたみは開いたままになる（安全側）。
+           判定条件と保存キーはapp.jsの初期表示の分岐と同じで、test/htmlSync.test.tsが同期を検証する -->
+      <script>
+        (() => {
+          const params = new URLSearchParams(window.location.search);
+          let remembered = false;
+          try {
+            const stored = JSON.parse(localStorage.getItem('fursuitweather:lastLocation') ?? 'null');
+            remembered = Boolean(stored) && typeof stored.query === 'string';
+          } catch {
+            // 読めない・壊れている環境（プライベートモード等）は初めての訪問として扱う
+          }
+          const hasSharedLocation =
+            Number.isFinite(Number.parseFloat(params.get('lat') ?? '')) &&
+            Number.isFinite(Number.parseFloat(params.get('lon') ?? ''));
+          if (remembered || hasSharedLocation || params.get('event') || params.get('demo') === '1') {
+            document.getElementById('picker-details').open = false;
+          }
+        })();
+      </script>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
       <details class="legend-details control-note-details">
@@ -286,99 +328,6 @@
       <!-- 開始できない理由（着用中止・予報未読込）の近接表示。ページ上部の#statusは
            ボタン位置から画面外になり得るため（当日ボード等と同じannounceNearの先例） -->
       <p id="timer-start-status" class="hint" role="status"></p>
-      <!-- 見守りモード: 表示中の地点の予報を10分ごとに自動再取得し、「いまの判定」の
-           変化を画面内ハイライトと短いチャイムで知らせる（ハンドラー・アテンド向け）。
-           再取得間隔はブラウザキャッシュ（10分）と同じため上流コールは増えない。
-           バックグラウンド・画面ロック中は動かない制約の明記は必須（app.js） -->
-      <div class="watch-mode">
-        <label class="watch-toggle-label"><input type="checkbox" id="watch-toggle"> 見守りモード（10分ごとに自動更新）</label>
-        <span id="watch-status" class="watch-status" role="status" hidden></span>
-        <p class="hint">
-          この画面を前面で開いている間だけ動作し、いまの判定が変わると画面のハイライトと短いチャイムで知らせます。
-          バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
-        </p>
-      </div>
-      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
-           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
-           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
-           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない）。
-           着る前に目に入るよう、着用開始の動線（判定カード・タイマー）の近くに置く -->
-      <details class="condition-check">
-        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
-        <p class="hint">
-          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
-          当てはまるものにチェックすると、今日の心構えを表示します。
-          回答はこの端末にも保存されず、どこにも送信されません。
-        </p>
-        <ul class="condition-list">
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
-          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
-          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
-        </ul>
-        <p id="condition-note" class="condition-note" role="status"></p>
-        <p class="hint">
-          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
-          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
-        </p>
-      </details>
-      <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
-           （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
-      <div id="wear-log-section" class="wear-log-section" hidden>
-        <h3>今日の着用記録</h3>
-        <p id="wear-log-summary" class="wear-log-summary"></p>
-        <div class="control-row">
-          <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
-        </div>
-        <!-- 操作結果の近接表示: ページ上部の#statusはこの位置から画面外になるため、
-             ボタンの直近にも同じ結果を出す（実測WBGTタブの#wbgt-log-statusと同じ先例） -->
-        <p id="wear-log-status" class="hint" role="status"></p>
-        <p class="hint">
-          着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
-          前回できた長さを、今日の目安を緩める根拠にしないでください。
-        </p>
-      </div>
-      <!-- 当日ボード: 複数の着用者を1台の端末で見守る掲示ボード（ハンドラー・救護スタッフ向け）。
-           データはこの端末のlocalStorageのみで、翌日に自動リセットされる。
-           ニックネームは共有URL・会場表示モードへ一切載せない（E2Eで担保）。
-           上限の目安の判定ソースは予報（自動）と手動（実測WBGTタブの結果の転記）を選べる -->
-      <details class="board-section">
-        <summary>当日ボード（複数着用者の見守り・この端末のみ）</summary>
-        <p class="hint">
-          画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
-          記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
-          終日の運用では、予報の変化を取りこぼさないよう見守りモード（10分ごとに自動更新）をONにしてください。
-        </p>
-        <div class="control-row">
-          <label for="board-name-input">ニックネーム</label>
-          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ" enterkeyhint="done">
-          <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
-        </div>
-        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
-        <p id="board-status" class="hint" role="status"></p>
-        <fieldset class="board-limit-row">
-          <legend>連続活動の上限の目安</legend>
-          <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
-          <label><input type="radio" name="board-limit-mode" value="manual"> 手動</label>
-          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30" aria-label="手動の連続活動の上限（分）"> 分</label>
-          <span id="board-limit-note" class="board-limit-note" role="status"></span>
-        </fieldset>
-        <p class="hint">
-          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。また自動の目安は表示中の地点のいまの判定に連動するため、会場の地点を表示したままお使いください。
-        </p>
-        <div id="board-groups">
-          <h3>出演中</h3>
-          <ul id="board-wearing" class="board-list"></ul>
-          <h3>休憩中</h3>
-          <ul id="board-resting" class="board-list"></ul>
-          <h3>待機</h3>
-          <ul id="board-waiting" class="board-list"></ul>
-        </div>
-        <p class="hint">
-          これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
-        </p>
-      </details>
     </section>
 
     <section id="days-section" role="tabpanel" aria-labelledby="tab-days" tabindex="0" hidden>
@@ -488,22 +437,18 @@
         <p class="hint">チェックと追加した持ち物はこの端末にのみ保存されます。「リストをコピー」でグループチャットへ貼れます。</p>
       </div>
 
-      <!-- 暑熱順化（暑さへの体の慣れ）の啓発パネル。動的な記録・警告は持たず、
-           知識の提供と「間が空いたら短めに」の一般注意に留める（静的テキストのみ） -->
+      <!-- 暑熱順化（暑さへの体の慣れ）の啓発パネル。ここには行動の要点だけを置き、
+           根拠と出典を含む説明は/about#acclimatizationへ集約している
+           （計画中の画面で読む文章を短く保つため） -->
       <details class="acclimatization-note">
         <summary>しばらく着ていない人へ（暑熱順化について）</summary>
         <p>
-          体が暑さに慣れる「暑熱順化」は、7日以上かけて暑さにさらされる時間を
-          少しずつ延ばすことで得られ、おおむね4日以上暑さから離れると失われ始めます
-          （厚生労働省「職場における熱中症予防基本対策要綱」より）。
-          シーズン最初のイベントや数週間ぶりの活動では、真夏と同じ感覚で着ると
-          熱中症のリスクが高くなります。
+          体が暑さに慣れる「暑熱順化」は7日以上かけて得られ、おおむね4日以上
+          暑さから離れると失われ始めます。数週間ぶりの活動では、真夏と同じ感覚で着ると
+          熱中症のリスクが高くなります。再開の初日は計画の目安のおよそ半分から始め、
+          数回かけて段階的に延ばしてください。
         </p>
-        <p>
-          再開の初日は計画の目安のおよそ半分から始め、数回かけて段階的に延ばすのが
-          安全です（米国の労働安全衛生機関（NIOSH/OSHA）の再順化スケジュール
-          （初日は通常の50%から漸増）に基づく目安です）。
-        </p>
+        <p><a href="/about#acclimatization">根拠と出典（厚生労働省・NIOSH/OSHA）はこちら</a></p>
       </details>
     </section>
 
@@ -566,7 +511,7 @@
     <section class="legend" aria-labelledby="legend-heading">
       <h2 id="legend-heading">判定の見方</h2>
       <details class="legend-details">
-        <summary>説明を見る（押すと開閉できます）</summary>
+        <summary>◎○△✕の意味と連続活動時間の目安（押すと開きます）</summary>
       <p class="hint">
         段階は色だけでなく、記号・アイコンと文字の組み合わせで表しています。
         低温側の判定には温度計マークが付きます。
@@ -623,20 +568,121 @@
       </p>
     </section>
 
+    <!-- 当日の運用ツール: 見守り・体調チェック・着用記録・当日ボード。
+         予報のどのタブを見ていても使えるよう、タブパネルの外に置く
+         （タブ内に置くと、そのタブを開いている間しか到達できない） -->
+    <section class="day-tools" aria-labelledby="day-tools-heading">
+      <h2 id="day-tools-heading">当日の運用</h2>
+      <!-- 見守りモード: 表示中の地点の予報を10分ごとに自動再取得し、「いまの判定」の
+           変化を画面内ハイライトと短いチャイムで知らせる（ハンドラー・アテンド向け）。
+           再取得間隔はブラウザキャッシュ（10分）と同じため上流コールは増えない。
+           バックグラウンド・画面ロック中は動かない制約の明記は必須（app.js） -->
+      <div class="watch-mode">
+        <label class="watch-toggle-label"><input type="checkbox" id="watch-toggle"> 見守りモード（10分ごとに自動更新）</label>
+        <span id="watch-status" class="watch-status" role="status" hidden></span>
+        <p class="hint">
+          この画面を前面で開いている間だけ動作し、いまの判定が変わると画面のハイライトと短いチャイムで知らせます。
+          バックグラウンド・画面ロック中は更新も音も止まります。表示されるのは予報の更新であり実況ではないため、現場の体感・実測と併せてご判断ください。
+        </p>
+      </div>
+      <!-- 当日コンディションチェック: 環境側の予報に対して、着用者側の体調リスクを
+           自覚するための任意チェック。項目は厚労省「職場における熱中症予防基本対策要綱」の
+           作業開始前の健康状態の確認に対応する。回答はこの端末にも保存しない
+           （その場限りの表示。app.jsが判定のしきい値・記号・色を変えることはない）。
+           着る前に目に入るよう、着用開始の動線（判定カード・タイマー）の近くに置く -->
+      <details class="condition-check">
+        <summary>今日のコンディションチェック（任意・回答は保存されません）</summary>
+        <p class="hint">
+          同じ暑さ指数でも、体調によって熱中症のリスクは大きく上がります。
+          当てはまるものにチェックすると、今日の心構えを表示します。
+          回答はこの端末にも保存されず、どこにも送信されません。
+        </p>
+        <ul class="condition-list">
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 睡眠が6時間未満だった</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 前日にお酒を飲んだ</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 朝食・水分をとっていない</label></li>
+          <li><label><input type="checkbox" class="condition-item" data-severe="true" autocomplete="off"> 発熱・下痢など体調不良がある</label></li>
+          <li><label><input type="checkbox" class="condition-item" autocomplete="off"> 最近2週間以上着ていない（暑さに体が慣れていない）</label></li>
+        </ul>
+        <p id="condition-note" class="condition-note" role="status"></p>
+        <p class="hint">
+          項目は厚生労働省「職場における熱中症予防基本対策要綱」の
+          作業開始前の健康状態の確認に基づいています。表示の判定そのものは変わりません。
+        </p>
+      </details>
+      <!-- 活動ふりかえり: 着用タイマーの記録から今日のサマリーを表示する
+           （この端末のみ・最新20件。今日の記録があるときだけ表示する。app.js） -->
+      <div id="wear-log-section" class="wear-log-section" hidden>
+        <h3>今日の着用記録</h3>
+        <p id="wear-log-summary" class="wear-log-summary"></p>
+        <div class="control-row">
+          <button type="button" id="wear-log-copy-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>記録をコピー</button>
+        </div>
+        <!-- 操作結果の近接表示: ページ上部の#statusはこの位置から画面外になるため、
+             ボタンの直近にも同じ結果を出す（実測WBGTタブの#wbgt-log-statusと同じ先例） -->
+        <p id="wear-log-status" class="hint" role="status"></p>
+        <p class="hint">
+          着用タイマーの記録はこの端末にのみ保存されます（最新20件・ブラウザのデータ削除で消えます）。
+          前回できた長さを、今日の目安を緩める根拠にしないでください。
+        </p>
+      </div>
+      <!-- 当日ボード: 複数の着用者を1台の端末で見守る掲示ボード（ハンドラー・救護スタッフ向け）。
+           データはこの端末のlocalStorageのみで、翌日に自動リセットされる。
+           ニックネームは共有URL・会場表示モードへ一切載せない（E2Eで担保）。
+           上限の目安の判定ソースは予報（自動）と手動（実測WBGTタブの結果の転記）を選べる -->
+      <details class="board-section">
+        <summary>当日ボード（複数着用者の見守り・この端末のみ）</summary>
+        <p class="hint">
+          画面を点灯したままの端末で使う掲示ボードです。通知（チャイム）は補助で、バックグラウンド・画面ロック中は鳴りません。
+          記録はこの端末にのみ保存され、ほかの端末とは同期できません。ニックネームが共有URLや会場表示モードに載ることはなく、翌日には自動でリセットされます。
+          終日の運用では、予報の変化を取りこぼさないよう見守りモード（10分ごとに自動更新）をONにしてください。
+        </p>
+        <div class="control-row">
+          <label for="board-name-input">ニックネーム</label>
+          <input type="text" id="board-name-input" maxlength="20" autocomplete="off" placeholder="例: ポチ" enterkeyhint="done">
+          <button type="button" id="board-add-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-paw"/></svg>追加</button>
+        </div>
+        <!-- 操作結果の近接表示（ページ上部の#statusだけだと画面外で気づけないため） -->
+        <p id="board-status" class="hint" role="status"></p>
+        <fieldset class="board-limit-row">
+          <legend>連続活動の上限の目安</legend>
+          <label><input type="radio" name="board-limit-mode" value="auto" checked> 予報から自動</label>
+          <label><input type="radio" name="board-limit-mode" value="manual"> 手動</label>
+          <label class="board-manual-label"><input type="number" id="board-manual-limit" min="5" max="120" step="5" value="30" aria-label="手動の連続活動の上限（分）"> 分</label>
+          <span id="board-limit-note" class="board-limit-note" role="status"></span>
+        </fieldset>
+        <p class="hint">
+          屋内会場など実環境が予報と異なるときは、「実測WBGT」タブでWBGT計の実測値から確認した連続活動時間を「手動」に設定してください。予報に基づく自動の目安は現場の実環境とずれることがあります。また自動の目安は表示中の地点のいまの判定に連動するため、会場の地点を表示したままお使いください。
+        </p>
+        <div id="board-groups">
+          <h3>出演中</h3>
+          <ul id="board-wearing" class="board-list"></ul>
+          <h3>休憩中</h3>
+          <ul id="board-resting" class="board-list"></ul>
+          <h3>待機</h3>
+          <ul id="board-waiting" class="board-list"></ul>
+        </div>
+        <p class="hint">
+          これは労務管理・法令対応のためのツールではありません。表示に関わらず、体調の異変を感じたら直ちに中止してください。休憩は「30分着たら30分休む」が基本です。
+        </p>
+      </details>
+    </section>
+
     <section class="about" aria-labelledby="about-heading">
       <h2 id="about-heading">この予報について</h2>
-      <ul>
-        <li>暑さ指数（WBGT）は環境省と同じ推定式（小野ら2014）で計算し、<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの着衣補正値+11℃（厚生労働省の要綱に基づく）を加えて判定しています。</li>
-        <li>屋外は日射・風速込み、屋内は日射なし・微風（空調のない会場を想定）で計算した参考値です。</li>
-        <li>洗濯指数は飽差（空気の乾きやすさ）と風速から計算し、<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの乾燥時間目安も表示します。</li>
-      </ul>
       <p class="notice-panel">
         <svg class="fa-icon" aria-hidden="true"><use href="#fa-triangle-exclamation"/></svg><span class="sr-only">注意: </span>判定は目安です。体調・装備・活動内容により安全な時間は変わります。
       </p>
-      <p>
-        <a href="/about">判定の仕組み・API仕様・免責事項の詳細はこちら</a><br>
-        <a href="/emergency">もしものとき（熱中症の応急対応）</a>
-      </p>
+      <!-- 説明はサイトについてのページへ集約し、ここからは行き先の分かるリンクで辿らせる
+           （リンク文は「こちら」ではなく行き先の内容で書く。リンクだけを読み上げる
+           操作でも何のページか分かるようにするため） -->
+      <ul class="about-links">
+        <li><a href="/about#how-it-works">判定の仕組み（暑さ指数WBGTと<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの着衣補正+11℃）</a></li>
+        <li><a href="/about#usage">使い方（暑熱順化・イベント予報・ホーム画面への追加）</a></li>
+        <li><a href="/about#privacy">この端末に保存されるもの（位置情報の扱い）</a></li>
+        <li><a href="/about#disclaimer">免責事項・データ出典・API仕様</a></li>
+        <li><a href="/emergency">もしものとき（熱中症の応急対応）</a></li>
+      </ul>
       <!-- ホーム画面追加のかんたん案内: 環境に応じてapp.jsが該当する案内だけを表示する -->
       <details class="legend-details">
         <summary>ホーム画面に追加して毎日見る（かんたん案内）</summary>

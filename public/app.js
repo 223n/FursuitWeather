@@ -2094,7 +2094,7 @@
       // 未登録のときは空欄にせず、登録方法への導線を示す
       const hint = document.createElement('li');
       hint.className = 'favorites-empty';
-      hint.textContent = '（下の「お気に入りに追加」で登録できます）';
+      hint.textContent = '（表示中の地点の「お気に入りに追加」で登録できます）';
       favoritesList.replaceChildren(hint);
       return;
     }

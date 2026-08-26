@@ -805,3 +805,77 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     }
   });
 });
+
+describe('説明ページ（about.html）への相互リンクの同期', () => {
+  // トップページは判定を先に見せるため、読み物になる説明をabout.htmlへ移した。
+  // 移動先の見出しidが変わるとリンクが無言で壊れる（クリックしても何も起きない）
+  // ため、index.htmlが指すすべてのアンカーがabout.html側に実在することを検証する
+  it('index.htmlの/about#…リンクの飛び先はabout.htmlに存在する', () => {
+    const anchors = [...html.matchAll(/href="\/about#([\w-]+)"/g)].map((m) => m[1]!);
+    // 集約先（使い方・保存されるもの）へのリンクは必ず残す
+    expect(anchors).toEqual(expect.arrayContaining(['usage', 'privacy']));
+    for (const anchor of new Set(anchors)) {
+      expect(aboutHtml).toContain(`id="${anchor}"`);
+    }
+  });
+
+  it('about.htmlの目次リンクの飛び先は同じページに存在する', () => {
+    const anchors = [...aboutHtml.matchAll(/<a href="#([\w-]+)"/g)].map((m) => m[1]!);
+    expect(anchors.length).toBeGreaterThan(0);
+    for (const anchor of new Set(anchors)) {
+      expect(aboutHtml).toContain(`id="${anchor}"`);
+    }
+  });
+
+  it('about.htmlからトップページへの/#…リンクの飛び先はindex.htmlに存在し、折りたたみ自体を指さない', () => {
+    const anchors = [...aboutHtml.matchAll(/href="\/#([\w-]+)"/g)].map((m) => m[1]!);
+    expect(anchors.length).toBeGreaterThan(0);
+    for (const anchor of new Set(anchors)) {
+      expect(html).toContain(`id="${anchor}"`);
+      // detailsそのもののidを指してもブラウザは開かない（祖先のdetailsしか開かない）
+      expect(html).not.toContain(`<details id="${anchor}"`);
+    }
+  });
+});
+
+describe('地点の選び方の折りたたみ（初回描画前の確定）の同期', () => {
+  // 折りたたみの開閉は、判定カード・タブが押し下げられるのを防ぐため
+  // index.html内のインラインスクリプトがパース中に確定させる。
+  // 保存キーと判定条件はapp.jsの初期表示の分岐と同じものを見る必要がある
+  it('インラインスクリプトの保存キーはapp.jsのLOCATION_STORAGE_KEYと一致する', () => {
+    const appKey = appJs.match(/const LOCATION_STORAGE_KEY = '([^']+)'/);
+    expect(appKey).not.toBeNull();
+    expect(html).toContain(`localStorage.getItem('${appKey![1]!}')`);
+  });
+
+  it('detailsの既定はopenで、閉じる判定はdemo・event・共有座標・記憶した地点を見る', () => {
+    expect(html).toMatch(/<details id="picker-details"[^>]*\sopen>/);
+    for (const condition of ["params.get('event')", "params.get('demo') === '1'"]) {
+      expect(html).toContain(condition);
+    }
+    for (const key of ['lat', 'lon']) {
+      expect(html).toContain(`params.get('${key}')`);
+    }
+    // app.js側に後付けで開くコードが復活していないこと（あると再びシフトする）
+    expect(appJs).not.toContain("getElementById('picker-details')");
+  });
+});
+
+describe('この端末に保存されるもの（about.html）の件数の同期', () => {
+  // 説明はトップページからabout.htmlへ集約したため、ここが利用者にとって
+  // 唯一の確認場所になる。件数はapp.js・wbgt-tool.jsの定数が単一情報源
+  it('about.htmlの件数はapp.js・wbgt-tool.jsの上限と一致する', () => {
+    const wearLimit = appJs.match(/const WEAR_LOG_LIMIT = (\d+);/);
+    const snapshotLimit = appJs.match(/const SNAPSHOT_LIMIT = (\d+);/);
+    const wbgtLimit = wbgtTool.match(/const WBGT_LOG_LIMIT = (\d+);/);
+    expect(wearLimit).not.toBeNull();
+    expect(snapshotLimit).not.toBeNull();
+    expect(wbgtLimit).not.toBeNull();
+    expect(aboutHtml).toContain(`着用記録（最新${wearLimit![1]!}件）`);
+    expect(aboutHtml).toContain(`実測WBGTの会場ログ（最大${wbgtLimit![1]!}件）`);
+    expect(aboutHtml).toContain(`前回表示した日別の判定（最大${snapshotLimit![1]!}日分`);
+    // 画面側の説明とも一致させる（着用記録の件数はindex.htmlにも出る）
+    expect(html).toContain(`最新${wearLimit![1]!}件`);
+    expect(html).toContain(`最大${wbgtLimit![1]!}件`);
+  });
+});

@@ -14,6 +14,8 @@
   `docs/api.md`・`docs/logic.md`・`public/llms.txt`・フッターの
   バージョン表記（`display.html`はバージョンコメント）に複製があり、
   `test/htmlSync.test.ts`が同期を機械検証する。片側だけ変えるとCIが落ちる
+- 長い説明は`public/about.html`へ集約する。index.htmlからの`/about#…`
+  リンクは、飛び先の見出しidが実在するかも`test/htmlSync.test.ts`が検証する
 - `npm run build`は`public/`を破壊的に上書きする。コミット後に実行し、
   `git checkout -- public/`で復元する
 - エラー処理: 利用者向けは固定の日本語文、詳細は`console.error`のみ。
