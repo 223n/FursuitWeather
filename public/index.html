@@ -137,8 +137,79 @@
     <p id="sr-announce" class="sr-only" role="status" aria-live="polite"></p>
 
     <section class="controls" aria-label="地点の選択">
-      <!-- 表示中の地点と、その地点に対する操作。下の「選ぶ」操作と区切り線で分ける
-           （「どこの予報か」を先に示すため、選ぶ操作より前に置く） -->
+      <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
+           選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
+           表示中の地点に対する操作（更新・共有・お気に入り登録）は下の枠へ分離する -->
+      <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
+        <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
+        <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
+        <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
+        <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
+      </div>
+      <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
+        <div class="control-row">
+          <label for="city-select">都市</label>
+          <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
+               並び順はapp.jsのCITIES配列と同期させること -->
+          <select id="city-select">
+            <option value="0">札幌</option>
+            <option value="1">仙台</option>
+            <option value="2" selected>東京</option>
+            <option value="3">新潟</option>
+            <option value="4">金沢</option>
+            <option value="5">名古屋</option>
+            <option value="6">大阪</option>
+            <option value="7">広島</option>
+            <option value="8">高松</option>
+            <option value="9">福岡</option>
+            <option value="10">鹿児島</option>
+            <option value="11">那覇</option>
+          </select>
+          <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
+        </div>
+      </div>
+      <!-- イベント予報: あらかじめ定義したイベント（events.json）から開催地の予報を表示する。
+           セレクトの幅は固定し、選択肢の読み込みによるレイアウトシフトを抑える。
+           選択肢はJSが読み込み時に差し替える（終了済みイベントは表示しない） -->
+      <div id="picker-event" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-event" tabindex="0" hidden>
+        <div class="control-row event-row">
+          <label for="event-select">イベント</label>
+          <select id="event-select" disabled>
+            <option value="">イベント情報を読み込んでいます…</option>
+          </select>
+          <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
+          <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
+        </div>
+        <!-- 「選択中のイベントだけ登録」はイベントの選択後にapp.jsが表示し、
+             リンク先（/api/events.ics?event=イベント名）を選択に追随させる -->
+        <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル・全件）できます。<span id="event-ics-single" hidden><a id="event-ics-link" href="/api/events.ics" download="fursuit-weather-events.ics">選択中のイベントだけ登録</a>もできます。</span>開催の詳細は主催者の告知をご確認ください。<a href="/about#event-usage">固定リンク・判定バッジ・掲載依頼について</a></p>
+      </div>
+      <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
+        <div class="control-row">
+          <label for="place-search">検索</label>
+          <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off" enterkeyhint="search">
+          <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
+          <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
+        </div>
+      </div>
+      <!-- お気に入り地点。チップはlocalStorageから初期化時に描画される。
+           未登録時の案内は初期描画から高さを確保するため静的に記載し
+           （文言はapp.jsのrenderFavoritesと同期）、登録があればJSが置き換える -->
+      <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
+        <div class="control-row favorites-row">
+          <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
+            <li class="favorites-empty">（表示中の地点の「お気に入りに追加」で登録できます）</li>
+          </ul>
+        </div>
+      </div>
+      <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
+           候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
+      <div id="search-results-box" class="search-results-box" hidden>
+        <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
+        <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
+      </div>
+
+      <!-- 表示中の地点と、その地点に対する操作。上の「選ぶ」操作と区切り線で分ける -->
       <div class="displayed-location">
         <!-- 地点名の読み上げは#sr-announceのサマリーに一本化しているため、ここは視覚表示専用 -->
         <p id="location-label" class="location-label"></p>
@@ -150,130 +221,8 @@
           <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>
           <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
         </div>
-        <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）と共有URLの設定は折りたたむ。
-             毎回見る判定を画面の上へ寄せるため。よく使う更新・共有・お気に入りは上に出したまま -->
-        <details class="legend-details location-more">
-          <summary>そのほかの操作（会場表示・印刷・画像で共有・共有URLの設定）</summary>
-          <div class="control-row" role="group" aria-label="表示中の地点のそのほかの操作">
-            <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
-                 開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
-            <a id="display-link" class="display-mode-link" href="/display" target="_blank" rel="noopener" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-tv"/></svg>会場表示モードで開く</a>
-            <!-- 印刷用ワンシート: 前日に印刷して持参・救護所へ掲示する用途。
-                 レイアウトは@media print（style.css）が担う -->
-            <button type="button" id="print-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-print"/></svg>印刷用シート</button>
-            <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
-          </div>
-          <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
-          <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
-               未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
-          <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
-        </details>
       </div>
 
-      <!-- 地点の選び方は折りたたむ（判定を先に見せるため）。ただし記憶した地点・
-           共有URLの座標・イベント指定のいずれも無い初めての訪問では開いた状態にする
-           （既定都市の判定を自分の会場のものと取り違えないよう、選べることを示す）。
-           HTMLの既定をopenにして、直後のインラインスクリプトが再訪時だけ閉じる。
-           defer（app.js）で後から開くと、描画済みのタブ・判定カードが137px押し下げられ、
-           触りに行った瞬間に位置がずれる（CLS対策。docs/accessibility.md） -->
-      <h2 class="picker-heading">地点を選ぶ</h2>
-      <details id="picker-details" class="legend-details" open>
-        <summary>主な都市・イベント・検索/現在地・お気に入りから選ぶ</summary>
-        <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
-             選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
-             表示中の地点に対する操作（更新・共有・お気に入り登録）は上の枠へ分離する -->
-        <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
-          <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
-          <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
-          <button type="button" role="tab" id="picker-tab-search" aria-selected="false" aria-controls="picker-search" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索・現在地</button>
-          <button type="button" role="tab" id="picker-tab-favorites" aria-selected="false" aria-controls="picker-favorites" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入り</button>
-        </div>
-        <div id="picker-city" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-city" tabindex="0">
-          <div class="control-row">
-            <label for="city-select">都市</label>
-            <!-- 選択肢はJSで追加せず静的に記載する（初期描画後のレイアウトシフト防止）。
-                 並び順はapp.jsのCITIES配列と同期させること -->
-            <select id="city-select">
-              <option value="0">札幌</option>
-              <option value="1">仙台</option>
-              <option value="2" selected>東京</option>
-              <option value="3">新潟</option>
-              <option value="4">金沢</option>
-              <option value="5">名古屋</option>
-              <option value="6">大阪</option>
-              <option value="7">広島</option>
-              <option value="8">高松</option>
-              <option value="9">福岡</option>
-              <option value="10">鹿児島</option>
-              <option value="11">那覇</option>
-            </select>
-            <button type="button" id="city-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>この地点を使う</button>
-          </div>
-        </div>
-        <!-- イベント予報: あらかじめ定義したイベント（events.json）から開催地の予報を表示する。
-             セレクトの幅は固定し、選択肢の読み込みによるレイアウトシフトを抑える。
-             選択肢はJSが読み込み時に差し替える（終了済みイベントは表示しない） -->
-        <div id="picker-event" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-event" tabindex="0" hidden>
-          <div class="control-row event-row">
-            <label for="event-select">イベント</label>
-            <select id="event-select" disabled>
-              <option value="">イベント情報を読み込んでいます…</option>
-            </select>
-            <button type="button" id="event-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>開催地の予報を表示</button>
-            <button type="button" id="event-link-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>固定リンクをコピー</button>
-          </div>
-          <!-- 「選択中のイベントだけ登録」はイベントの選択後にapp.jsが表示し、
-               リンク先（/api/events.ics?event=イベント名）を選択に追随させる -->
-          <p class="hint">一覧のイベントは<a href="/api/events.ics" download="fursuit-weather-events.ics">カレンダーに登録</a>（.icsファイル・全件）できます。<span id="event-ics-single" hidden><a id="event-ics-link" href="/api/events.ics" download="fursuit-weather-events.ics">選択中のイベントだけ登録</a>もできます。</span>開催の詳細は主催者の告知をご確認ください。<a href="/about#event-usage">固定リンク・判定バッジ・掲載依頼について</a></p>
-        </div>
-        <div id="picker-search" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-search" tabindex="0" hidden>
-          <div class="control-row">
-            <label for="place-search">検索</label>
-            <input type="search" id="place-search" placeholder="都市名・郵便番号" maxlength="100" autocomplete="off" enterkeyhint="search">
-            <button type="button" id="search-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索</button>
-            <button type="button" id="geolocation-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-crosshairs"/></svg>現在地を使う</button>
-          </div>
-        </div>
-        <!-- お気に入り地点。チップはlocalStorageから初期化時に描画される。
-             未登録時の案内は初期描画から高さを確保するため静的に記載し
-             （文言はapp.jsのrenderFavoritesと同期）、登録があればJSが置き換える -->
-        <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
-          <div class="control-row favorites-row">
-            <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
-              <li class="favorites-empty">（表示中の地点の「お気に入りに追加」で登録できます）</li>
-            </ul>
-          </div>
-        </div>
-        <!-- 検索結果の候補ボタン。表示時のみ現れる（利用者の操作起点のためCLS対策の対象外）。
-             候補が1件のときは自動選択されるため、この枠は複数候補のときだけ表示される -->
-        <div id="search-results-box" class="search-results-box" hidden>
-          <p id="search-results-label" class="search-results-label"><svg class="fa-icon th-icon" aria-hidden="true"><use href="#fa-magnifying-glass"/></svg>検索結果（選択すると予報を表示します）</p>
-          <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
-        </div>
-      </details>
-      <!-- 開閉の確定は初回描画より前に済ませる。HTMLのパース中に走るようdetailsの直後に置き、
-           deferのapp.jsを待たない。nonceはWorkerが差し込む（src/csp.ts。/と/index.htmlが
-           run_worker_firstにあることはtest/csp.test.tsが検証する）。万一Workerを経ずに
-           配信された場合はこのスクリプトが実行されず、折りたたみは開いたままになる（安全側）。
-           判定条件と保存キーはapp.jsの初期表示の分岐と同じで、test/htmlSync.test.tsが同期を検証する -->
-      <script>
-        (() => {
-          const params = new URLSearchParams(window.location.search);
-          let remembered = false;
-          try {
-            const stored = JSON.parse(localStorage.getItem('fursuitweather:lastLocation') ?? 'null');
-            remembered = Boolean(stored) && typeof stored.query === 'string';
-          } catch {
-            // 読めない・壊れている環境（プライベートモード等）は初めての訪問として扱う
-          }
-          const hasSharedLocation =
-            Number.isFinite(Number.parseFloat(params.get('lat') ?? '')) &&
-            Number.isFinite(Number.parseFloat(params.get('lon') ?? ''));
-          if (remembered || hasSharedLocation || params.get('event') || params.get('demo') === '1') {
-            document.getElementById('picker-details').open = false;
-          }
-        })();
-      </script>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
       <details class="legend-details control-note-details">
@@ -282,6 +231,26 @@
           現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
           最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
         </p>
+      </details>
+
+      <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）と共有URLの設定は折りたたむ。
+           毎回見る判定を画面の上へ寄せるため。よく使う更新・共有・お気に入りは上に出したまま。
+           現在地の扱いの注記より後ろに置き、操作エリアの末尾にまとめる -->
+      <details class="legend-details location-more">
+        <summary>そのほかの操作（会場表示・印刷・画像で共有・共有URLの設定）</summary>
+        <div class="control-row" role="group" aria-label="表示中の地点のそのほかの操作">
+          <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
+               開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
+          <a id="display-link" class="display-mode-link" href="/display" target="_blank" rel="noopener" hidden><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-tv"/></svg>会場表示モードで開く</a>
+          <!-- 印刷用ワンシート: 前日に印刷して持参・救護所へ掲示する用途。
+               レイアウトは@media print（style.css）が担う -->
+          <button type="button" id="print-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-print"/></svg>印刷用シート</button>
+          <button type="button" id="share-image-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>画像で共有</button>
+        </div>
+        <!-- 共有URLへ日付・時間帯（date/from/to）を含める任意設定。既定はオフ（従来どおり地点のみ） -->
+        <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
+             未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
+        <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
       </details>
     </section>
 

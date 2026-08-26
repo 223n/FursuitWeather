@@ -30,17 +30,6 @@ async function installMorningClock(page) {
   await page.clock.install({ time: new Date(`${jstToday}T09:00:00+09:00`) });
 }
 
-/** 地点の選び方（#picker-details）を開く。判定を先に見せるため既定は折りたたみで、
- * 初回訪問（記憶した地点なし）のときだけapp.jsが自動で開く。
- * 中の操作を検証するテストは、開いた状態を前提にせず必ずこれを通す */
-async function openPicker(page) {
-  const isOpen = await page.locator('#picker-details').evaluate((el) => el.open);
-  if (!isOpen) {
-    await page.click('#picker-details > summary');
-  }
-  await expect(page.locator('#picker-tabs')).toBeVisible();
-}
-
 /** 表示中の地点の「そのほかの操作」（会場表示・印刷・画像で共有）を開く。
  * 判定を画面の上へ寄せるため既定は折りたたみ */
 async function openMoreActions(page) {
@@ -91,63 +80,10 @@ test('初期表示とタブ切り替え: 各タブの内容が描画される', 
   await expect(page).toHaveURL(/lat=35\.68&lon=139\.68/);
 });
 
-test('地点の選び方の折りたたみ: 初めての訪問だけ開き、初回描画より前に確定する', async ({
-  page,
-  context,
-}) => {
-  // 開閉はindex.html内のインラインスクリプトがパース中に決める。deferのapp.jsで
-  // 後から開くと、描画済みのタブ・判定カードが押し下げられて位置がずれる（CLS）。
-  // 「予報の描画を待たずに」確定していることを、読み込み直後の状態で検証する
-  await page.goto('/');
-  expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(true);
-
-  // 記憶した地点・共有URLの座標・イベント指定・デモのときは閉じたまま
-  for (const url of ['/?demo=1', '/?lat=35.63&lon=139.79', `/?event=${encodeURIComponent('any')}`]) {
-    await page.goto(url);
-    expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(false);
-  }
-
-  // 記憶した地点があれば閉じたまま（app.jsのLOCATION_STORAGE_KEYと同じキー）
-  await context.addInitScript(() => {
-    try {
-      localStorage.setItem(
-        'fursuitweather:lastLocation',
-        JSON.stringify({ query: 'lat=35.68&lon=139.68', locationName: '東京', cityIndex: 2 }),
-      );
-    } catch {
-      // 保存できない環境では初めての訪問として扱われる（この検証はスキップされる）
-    }
-  });
-  await page.goto('/');
-  expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(false);
-
-  // 折りたたみの開閉によるレイアウトシフトが起きていないこと
-  const shift = await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        let total = 0;
-        new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
-            if (!entry.hadRecentInput) {
-              for (const source of entry.sources ?? []) {
-                if (source.node?.closest?.('.controls')) {
-                  total += entry.value;
-                }
-              }
-            }
-          }
-        }).observe({ type: 'layout-shift', buffered: true });
-        setTimeout(() => resolve(total), 300);
-      }),
-  );
-  expect(shift).toBe(0);
-});
-
 test('地点の選び方タブ: 1つのパネルだけが表示され、キーボードで移動できる', async ({ page }) => {
   await page.goto('/');
   await waitForForecast(page);
 
-  await openPicker(page);
   // 既定は「主な都市」。他の選び方のパネルは隠れている
   await expect(page.locator('#picker-city')).toBeVisible();
   await expect(page.locator('#picker-event')).toBeHidden();
@@ -218,8 +154,7 @@ test('地点検索: 候補1件は自動選択され、複数件は一覧から�
 
   await page.goto('/');
   await waitForForecast(page);
-  // 地点の選び方は折りたたみの中でタブに分かれている（検索欄は「検索・現在地」タブ）
-  await openPicker(page);
+  // 地点の選び方はタブで分かれている（検索欄は「検索・現在地」タブの中）
   await page.click('#picker-tab-search');
 
   // 1件 → 選択なしで自動表示。座標は小数2桁へ丸められる
@@ -244,7 +179,6 @@ test('お気に入り: 追加・チップ切替・解除・再読み込み後の
 
   // 登録ボタンは表示中の地点の操作のため、タブに関係なく常に押せる
   await page.click('#favorite-toggle-button');
-  await openPicker(page);
   await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
   await expect(page.locator('#favorite-toggle-button')).toContainText('お気に入り解除');
@@ -252,7 +186,6 @@ test('お気に入り: 追加・チップ切替・解除・再読み込み後の
   // 再読み込みしても localStorage から復元される
   await page.reload();
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
 
@@ -272,7 +205,6 @@ test('現在地: 座標が約1kmへ丸められ、URLにもお気に入りにも
 
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-search');
   await page.click('#geolocation-button');
   await expect(page.locator('#location-label')).toContainText('現在地');
@@ -356,7 +288,6 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
 
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-event');
 
   // 開催中のイベント → 開催地の予報+今日のタブへ切り替わる。座標は小数2桁
@@ -418,7 +349,6 @@ test('イベント: 郵便番号で開催地が見つからないときは日本
 
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-event');
   await page.click('#event-button');
   await expect(page.locator('#status-error')).toContainText('見つかりませんでした');
@@ -431,7 +361,6 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   );
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-event');
   await expect(page.locator('#event-select')).toBeDisabled();
   await expect(page.locator('#event-select')).toContainText('予定されているイベントはありません');
@@ -454,7 +383,6 @@ test('イベント: 固定リンクをコピーで?event=のエンコード済�
   );
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-event');
   // 「選択中のイベントだけ登録」リンクが選択中のイベントに追随している
   await expect(page.locator('#event-ics-link')).toHaveAttribute(
@@ -486,7 +414,6 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
 }) => {
   await page.goto('/');
   await waitForForecast(page);
-  await openPicker(page);
   await page.click('#picker-tab-event');
   // 「選択中のイベントだけ登録」リンク（イベント選択で同じhrefになり得る）と
   // 区別するため、全件リンクは文言でも絞り込む
@@ -903,6 +830,9 @@ test('風速列と応急対応ページ: 時間別に風速が出て、/emergenc
 test('日の入り: 日別カード・時間別の目印・プランナーの日没またぎ注意に表示される', async ({
   page,
 }) => {
+  // 終盤でプランナーに当日15〜20時を指定するため、実行時刻が夕方以降だと
+  // 「すでに過ぎています」になる。日本時間の朝へ固定して時刻依存を外す
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
 
