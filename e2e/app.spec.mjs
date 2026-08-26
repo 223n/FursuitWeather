@@ -30,6 +30,26 @@ async function installMorningClock(page) {
   await page.clock.install({ time: new Date(`${jstToday}T09:00:00+09:00`) });
 }
 
+/** 地点の選び方（#picker-details）を開く。判定を先に見せるため既定は折りたたみで、
+ * 初回訪問（記憶した地点なし）のときだけapp.jsが自動で開く。
+ * 中の操作を検証するテストは、開いた状態を前提にせず必ずこれを通す */
+async function openPicker(page) {
+  const isOpen = await page.locator('#picker-details').evaluate((el) => el.open);
+  if (!isOpen) {
+    await page.click('#picker-details > summary');
+  }
+  await expect(page.locator('#picker-tabs')).toBeVisible();
+}
+
+/** 表示中の地点の「そのほかの操作」（会場表示・印刷・画像で共有）を開く。
+ * 判定を画面の上へ寄せるため既定は折りたたみ */
+async function openMoreActions(page) {
+  const isOpen = await page.locator('.location-more').evaluate((el) => el.open);
+  if (!isOpen) {
+    await page.click('.location-more > summary');
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await mockForecastWithDemo(page);
 });
@@ -75,6 +95,7 @@ test('地点の選び方タブ: 1つのパネルだけが表示され、キー�
   await page.goto('/');
   await waitForForecast(page);
 
+  await openPicker(page);
   // 既定は「主な都市」。他の選び方のパネルは隠れている
   await expect(page.locator('#picker-city')).toBeVisible();
   await expect(page.locator('#picker-event')).toBeHidden();
@@ -145,7 +166,8 @@ test('地点検索: 候補1件は自動選択され、複数件は一覧から�
 
   await page.goto('/');
   await waitForForecast(page);
-  // 地点の選び方はタブで分かれている（検索欄は「検索・現在地」タブの中）
+  // 地点の選び方は折りたたみの中でタブに分かれている（検索欄は「検索・現在地」タブ）
+  await openPicker(page);
   await page.click('#picker-tab-search');
 
   // 1件 → 選択なしで自動表示。座標は小数2桁へ丸められる
@@ -170,6 +192,7 @@ test('お気に入り: 追加・チップ切替・解除・再読み込み後の
 
   // 登録ボタンは表示中の地点の操作のため、タブに関係なく常に押せる
   await page.click('#favorite-toggle-button');
+  await openPicker(page);
   await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
   await expect(page.locator('#favorite-toggle-button')).toContainText('お気に入り解除');
@@ -177,6 +200,7 @@ test('お気に入り: 追加・チップ切替・解除・再読み込み後の
   // 再読み込みしても localStorage から復元される
   await page.reload();
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-favorites');
   await expect(page.locator('#favorites-list button')).toHaveCount(1);
 
@@ -196,6 +220,7 @@ test('現在地: 座標が約1kmへ丸められ、URLにもお気に入りにも
 
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-search');
   await page.click('#geolocation-button');
   await expect(page.locator('#location-label')).toContainText('現在地');
@@ -279,6 +304,7 @@ test('イベント: リストから選ぶと郵便番号で開催地を引き、
 
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-event');
 
   // 開催中のイベント → 開催地の予報+今日のタブへ切り替わる。座標は小数2桁
@@ -340,6 +366,7 @@ test('イベント: 郵便番号で開催地が見つからないときは日本
 
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-event');
   await page.click('#event-button');
   await expect(page.locator('#status-error')).toContainText('見つかりませんでした');
@@ -352,6 +379,7 @@ test('イベント: 定義が空のときはセレクトとボタンが無効の
   );
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-event');
   await expect(page.locator('#event-select')).toBeDisabled();
   await expect(page.locator('#event-select')).toContainText('予定されているイベントはありません');
@@ -374,6 +402,7 @@ test('イベント: 固定リンクをコピーで?event=のエンコード済�
   );
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-event');
   // 「選択中のイベントだけ登録」リンクが選択中のイベントに追随している
   await expect(page.locator('#event-ics-link')).toHaveAttribute(
@@ -405,6 +434,7 @@ test('イベント: カレンダー登録リンクからiCalendar（/api/events.
 }) => {
   await page.goto('/');
   await waitForForecast(page);
+  await openPicker(page);
   await page.click('#picker-tab-event');
   // 「選択中のイベントだけ登録」リンク（イベント選択で同じhrefになり得る）と
   // 区別するため、全件リンクは文言でも絞り込む
@@ -994,6 +1024,7 @@ test('印刷用シート: 発行情報が用意され、印刷専用ブロック
   const meta = await page.locator('#print-meta').textContent();
   expect(meta).toContain('発行:');
   expect(meta).toContain('東京');
+  await openMoreActions(page);
   await expect(page.locator('#print-button')).toBeVisible();
 });
 
@@ -1082,6 +1113,7 @@ test('シェア画像: Web Share非対応環境ではPNGのダウンロードに
   await page.goto('/');
   await waitForForecast(page);
 
+  await openMoreActions(page);
   const downloadPromise = page.waitForEvent('download');
   await page.click('#share-image-button');
   const download = await downloadPromise;

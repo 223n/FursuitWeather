@@ -805,3 +805,25 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     }
   });
 });
+
+describe('説明ページ（about.html）への相互リンクの同期', () => {
+  // トップページは判定を先に見せるため、読み物になる説明をabout.htmlへ移した。
+  // 移動先の見出しidが変わるとリンクが無言で壊れる（クリックしても何も起きない）
+  // ため、index.htmlが指すすべてのアンカーがabout.html側に実在することを検証する
+  it('index.htmlの/about#…リンクの飛び先はabout.htmlに存在する', () => {
+    const anchors = [...html.matchAll(/href="\/about#([\w-]+)"/g)].map((m) => m[1]!);
+    // 集約先（使い方・保存されるもの）へのリンクは必ず残す
+    expect(anchors).toEqual(expect.arrayContaining(['usage', 'privacy']));
+    for (const anchor of new Set(anchors)) {
+      expect(aboutHtml).toContain(`id="${anchor}"`);
+    }
+  });
+
+  it('about.htmlの目次リンクの飛び先は同じページに存在する', () => {
+    const anchors = [...aboutHtml.matchAll(/<a href="#([\w-]+)"/g)].map((m) => m[1]!);
+    expect(anchors.length).toBeGreaterThan(0);
+    for (const anchor of new Set(anchors)) {
+      expect(aboutHtml).toContain(`id="${anchor}"`);
+    }
+  });
+});

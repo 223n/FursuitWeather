@@ -256,10 +256,10 @@ h2 {
 }
 
 /* 表示中の地点と、その地点に対する操作。選ぶ操作と区切って示す */
+/* 表示中の地点は操作エリアの先頭に置く（判定より前に「どこの予報か」を示す）。
+   区切り線は下の「地点を選ぶ」（.picker-heading）側が持つ */
 .displayed-location {
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
 }
 
 /* お気に入りが未登録のときの案内（チップと同じ行に収める） */
@@ -739,6 +739,21 @@ input[type='number'] {
   background-color: var(--color-surface);
 }
 
+/* 地点の選び方の見出し。折りたたみの上に置き、見出しナビゲーションからも
+   到達できるようにする（h2だが判定カードの見出しより控えめに見せる） */
+.picker-heading {
+  margin: 0.75rem 0 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 1rem;
+}
+
+/* 当日の運用ツール（見守り・体調チェック・着用記録・当日ボード）。
+   予報のどのタブからでも使えるよう、タブパネルの外に置いている */
+.day-tools {
+  margin-top: 1.5rem;
+}
+
 /* 凡例のアコーディオン（初期状態は閉じる） */
 .legend-details summary {
   cursor: pointer;
@@ -1054,6 +1069,11 @@ tbody tr.night {
   padding-left: 1.2rem;
   font-size: 0.9rem;
   color: var(--color-text-muted);
+}
+
+/* 説明ページへの導線は1行1リンクのため、行間を空けて押し間違いを減らす */
+.about-links li + li {
+  margin-top: 0.35rem;
 }
 
 /* 「この予報について」の注意文は説明の箇条書きと同じ字送りにそろえる */
@@ -1496,12 +1516,12 @@ section h3 {
   }
 
   /* 応急対応ページへの安全導線（タイマー内・判定カード内・注意欄・
-     「この予報について」内）は、手袋・視界制限の状態で使う最重要リンクのため、
+     「この予報について」の導線リスト内）は、手袋・視界制限の状態で使う最重要リンクのため、
      リンク単位でタップ領域（約44px）を確保する */
   .timer-emergency-link a,
   .now-emergency a,
   #notices-section p a,
-  .about p a {
+  .about-links a {
     display: inline-block;
     padding: 0.6rem 0.25rem;
   }
@@ -1554,6 +1574,8 @@ section h3 {
   #timer-overlay,
   #font-size-button,
   #now-section .control-row,
+  .day-tools,
+  .picker-heading,
   .share-plan-option {
     display: none !important;
   }

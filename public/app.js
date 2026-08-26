@@ -4675,6 +4675,19 @@
     return loadSelectedCity();
   }
 
+  // 地点の選び方は既定で折りたたむが、初めて訪れた人（記憶した地点がなく、
+  // 共有URLの座標・イベント指定でもない）には開いた状態で見せる。
+  // 既定都市の判定を自分の会場のものと取り違えないよう、選べることを示す
+  const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
+  if (
+    !readStoredLocation() &&
+    !hasSharedLocation &&
+    !pageParams.get('event') &&
+    pageParams.get('demo') !== '1'
+  ) {
+    document.getElementById('picker-details').open = true;
+  }
+
   if (pageParams.get('demo') === '1') {
     loadForecast(DEMO_QUERY, 'デモデータ（架空の気象データ）');
   } else if (
