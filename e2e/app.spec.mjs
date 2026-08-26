@@ -21,6 +21,15 @@ async function waitForForecast(page) {
   );
 }
 
+/** ブラウザの時刻を「日本時間の今日の午前9時」へ固定する（page.gotoの前に呼ぶ）。
+ * 活動プランナーは当日の過ぎた時間帯を計画から外すため、固定しないと
+ * 実行時刻が夕方以降のときだけ「すでに過ぎています」になりテストが落ちる。
+ * 日付は実際の今日に合わせる（予報データの日付とずらさないため） */
+async function installMorningClock(page) {
+  const jstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await page.clock.install({ time: new Date(`${jstToday}T09:00:00+09:00`) });
+}
+
 test.beforeEach(async ({ page }) => {
   await mockForecastWithDemo(page);
 });
@@ -204,6 +213,8 @@ test('現在地: 座標が約1kmへ丸められ、URLにもお気に入りにも
 });
 
 test('活動プランナー: 日付と時間帯を選んで計画を表示する', async ({ page }) => {
+  // プランナーは当日の過ぎた時間帯を外すため、実行時刻に依存しないよう朝へ固定する
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
 
@@ -941,6 +952,8 @@ test('前回見た予報との差分: 判定が変わっていればバナーで
 test('プランナー連動: 休憩の質ガイドと持ち物リストが表示され、チェックと追加が保存される', async ({
   page,
 }) => {
+  // プランナーは当日の過ぎた時間帯を外すため、実行時刻に依存しないよう朝へ固定する
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
   await page.click('#tab-planner');
@@ -1120,7 +1133,11 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
   await expect(page.locator('#wear-log-summary')).toContainText('計1分');
 
   // プランナーには前回実績が「短めから」の注意付きで参考表示される
+  // （このテストは経過時間の実測に実時計を使うためクロックを固定できない。
+  //   当日は選んだ時間帯が過ぎている場合があるため、日付は明日を選ぶ）
   await page.click('#tab-planner');
+  const tomorrowPlan = await page.locator('#plan-date option').nth(1).getAttribute('value');
+  await page.selectOption('#plan-date', tomorrowPlan);
   await page.click('#plan-button');
   await expect(page.locator('#plan-result')).toContainText('参考: 前回の着用');
   await expect(page.locator('#plan-result')).toContainText('緩める根拠にしないでください');
@@ -1129,6 +1146,8 @@ test('着用タイマー: 開始→リロード継続→休憩→終了ができ
 test('当日コンディションチェック: 2段階の注意が出て、回答はどこにも保存されない', async ({
   page,
 }) => {
+  // プランナーは当日の過ぎた時間帯を外すため、実行時刻に依存しないよう朝へ固定する
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
 
@@ -1182,6 +1201,8 @@ test('低温の日: 休憩ガイドと持ち物が保温側になり、冷却の
     }));
     await route.fulfill({ json: body });
   });
+  // プランナーは当日の過ぎた時間帯を外すため、実行時刻に依存しないよう朝へ固定する
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
   await page.click('#tab-planner');

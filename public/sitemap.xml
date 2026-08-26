@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 検索対象のページだけを載せる（noindexのページは載せない。
+     載せると「登録したのに検索させない」矛盾したシグナルになる）。
+     ページを追加したときの登録漏れはtest/sitemap.test.tsが検出する。
+     lastmodはリリース時に更新する（手順はdocs/release.md） -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://fursuit-weather.223n.tech/</loc>
+    <lastmod>2026-08-26</lastmod>
   </url>
   <url>
     <loc>https://fursuit-weather.223n.tech/about</loc>
+    <lastmod>2026-08-26</lastmod>
   </url>
   <url>
     <loc>https://fursuit-weather.223n.tech/emergency</loc>
+    <lastmod>2026-08-26</lastmod>
   </url>
 </urlset>
