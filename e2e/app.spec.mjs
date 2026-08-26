@@ -91,6 +91,58 @@ test('初期表示とタブ切り替え: 各タブの内容が描画される', 
   await expect(page).toHaveURL(/lat=35\.68&lon=139\.68/);
 });
 
+test('地点の選び方の折りたたみ: 初めての訪問だけ開き、初回描画より前に確定する', async ({
+  page,
+  context,
+}) => {
+  // 開閉はindex.html内のインラインスクリプトがパース中に決める。deferのapp.jsで
+  // 後から開くと、描画済みのタブ・判定カードが押し下げられて位置がずれる（CLS）。
+  // 「予報の描画を待たずに」確定していることを、読み込み直後の状態で検証する
+  await page.goto('/');
+  expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(true);
+
+  // 記憶した地点・共有URLの座標・イベント指定・デモのときは閉じたまま
+  for (const url of ['/?demo=1', '/?lat=35.63&lon=139.79', `/?event=${encodeURIComponent('any')}`]) {
+    await page.goto(url);
+    expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(false);
+  }
+
+  // 記憶した地点があれば閉じたまま（app.jsのLOCATION_STORAGE_KEYと同じキー）
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem(
+        'fursuitweather:lastLocation',
+        JSON.stringify({ query: 'lat=35.68&lon=139.68', locationName: '東京', cityIndex: 2 }),
+      );
+    } catch {
+      // 保存できない環境では初めての訪問として扱われる（この検証はスキップされる）
+    }
+  });
+  await page.goto('/');
+  expect(await page.locator('#picker-details').evaluate((el) => el.open)).toBe(false);
+
+  // 折りたたみの開閉によるレイアウトシフトが起きていないこと
+  const shift = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let total = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (!entry.hadRecentInput) {
+              for (const source of entry.sources ?? []) {
+                if (source.node?.closest?.('.controls')) {
+                  total += entry.value;
+                }
+              }
+            }
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+        setTimeout(() => resolve(total), 300);
+      }),
+  );
+  expect(shift).toBe(0);
+});
+
 test('地点の選び方タブ: 1つのパネルだけが表示され、キーボードで移動できる', async ({ page }) => {
   await page.goto('/');
   await waitForForecast(page);

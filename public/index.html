@@ -153,7 +153,7 @@
         <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）と共有URLの設定は折りたたむ。
              毎回見る判定を画面の上へ寄せるため。よく使う更新・共有・お気に入りは上に出したまま -->
         <details class="legend-details location-more">
-          <summary>そのほかの操作（会場表示・印刷・画像で共有）</summary>
+          <summary>そのほかの操作（会場表示・印刷・画像で共有・共有URLの設定）</summary>
           <div class="control-row" role="group" aria-label="表示中の地点のそのほかの操作">
             <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
                  開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
@@ -170,14 +170,18 @@
         </details>
       </div>
 
-      <!-- 地点の選び方は折りたたむ（判定を先に見せるため）。記憶した地点・共有URLの
-           座標・イベント指定のいずれも無いときは、app.jsが開いた状態にする -->
+      <!-- 地点の選び方は折りたたむ（判定を先に見せるため）。ただし記憶した地点・
+           共有URLの座標・イベント指定のいずれも無い初めての訪問では開いた状態にする
+           （既定都市の判定を自分の会場のものと取り違えないよう、選べることを示す）。
+           HTMLの既定をopenにして、直後のインラインスクリプトが再訪時だけ閉じる。
+           defer（app.js）で後から開くと、描画済みのタブ・判定カードが137px押し下げられ、
+           触りに行った瞬間に位置がずれる（CLS対策。docs/accessibility.md） -->
       <h2 class="picker-heading">地点を選ぶ</h2>
-      <details id="picker-details" class="legend-details">
+      <details id="picker-details" class="legend-details" open>
         <summary>主な都市・イベント・検索/現在地・お気に入りから選ぶ</summary>
         <!-- 地点の選び方をタブで分ける（WAI-ARIAタブパターン。予報の切り替えと同じ実装）。
              選び方ごとに1行へ収め、操作エリアが縦に伸びないようにする。
-             表示中の地点に対する操作（更新・共有・お気に入り登録）は下の枠へ分離する -->
+             表示中の地点に対する操作（更新・共有・お気に入り登録）は上の枠へ分離する -->
         <div class="tabs picker-tabs" id="picker-tabs" role="tablist" aria-label="地点の選び方">
           <button type="button" role="tab" id="picker-tab-city" aria-selected="true" aria-controls="picker-city"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-location-dot"/></svg>主な都市</button>
           <button type="button" role="tab" id="picker-tab-event" aria-selected="false" aria-controls="picker-event" tabindex="-1"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-calendar-days"/></svg>イベント</button>
@@ -236,7 +240,7 @@
         <div id="picker-favorites" class="picker-panel" role="tabpanel" aria-labelledby="picker-tab-favorites" tabindex="0" hidden>
           <div class="control-row favorites-row">
             <ul id="favorites-list" class="favorites-list" aria-label="お気に入りの地点">
-              <li class="favorites-empty">（下の「お気に入りに追加」で登録できます）</li>
+              <li class="favorites-empty">（表示中の地点の「お気に入りに追加」で登録できます）</li>
             </ul>
           </div>
         </div>
@@ -247,6 +251,29 @@
           <ul id="search-results" class="search-results" aria-labelledby="search-results-label"></ul>
         </div>
       </details>
+      <!-- 開閉の確定は初回描画より前に済ませる。HTMLのパース中に走るようdetailsの直後に置き、
+           deferのapp.jsを待たない。nonceはWorkerが差し込む（src/csp.ts。/と/index.htmlが
+           run_worker_firstにあることはtest/csp.test.tsが検証する）。万一Workerを経ずに
+           配信された場合はこのスクリプトが実行されず、折りたたみは開いたままになる（安全側）。
+           判定条件と保存キーはapp.jsの初期表示の分岐と同じで、test/htmlSync.test.tsが同期を検証する -->
+      <script>
+        (() => {
+          const params = new URLSearchParams(window.location.search);
+          let remembered = false;
+          try {
+            const stored = JSON.parse(localStorage.getItem('fursuitweather:lastLocation') ?? 'null');
+            remembered = Boolean(stored) && typeof stored.query === 'string';
+          } catch {
+            // 読めない・壊れている環境（プライベートモード等）は初めての訪問として扱う
+          }
+          const hasSharedLocation =
+            Number.isFinite(Number.parseFloat(params.get('lat') ?? '')) &&
+            Number.isFinite(Number.parseFloat(params.get('lon') ?? ''));
+          if (remembered || hasSharedLocation || params.get('event') || params.get('demo') === '1') {
+            document.getElementById('picker-details').open = false;
+          }
+        })();
+      </script>
       <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
            summary自体に約束を書き、詳細だけを開閉対象にする -->
       <details class="legend-details control-note-details">
