@@ -139,8 +139,9 @@ describe('buildBadgeSvg', () => {
     expect(svg).toContain('着ぐるみ判定');
     expect(svg).toContain('✕ 厳重警戒');
     expect(svg).toContain('role="img"');
-    expect(svg).toContain('aria-label="着ぐるみ判定: ✕ 厳重警戒"');
-    expect(svg).toContain('<title>着ぐるみ判定: ✕ 厳重警戒</title>');
+    // 読み上げ側は誤読（ちゃくぐるみ）対策でかな表記、描画側は漢字表記
+    expect(svg).toContain('aria-label="きぐるみ判定: ✕ 厳重警戒"');
+    expect(svg).toContain('<title>きぐるみ判定: ✕ 厳重警戒</title>');
   });
 
   it('ラベルのXML特殊文字をエスケープする（判定文言経由の注入を防ぐ）', () => {

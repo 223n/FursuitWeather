@@ -107,14 +107,15 @@
         電話のできない端末では、近くの人に通報を頼んでください。
         <!-- #7119はtel:リンクにしない（iOSは「#」を含む番号のtel:発信を行わないため、
              緊急時に「押しても無反応」なリンクになる）。手動ダイヤルの案内を主にする -->
-        救急車を呼ぶか迷ったら、電話アプリで「<strong>#7119</strong>」（救急安心センター事業）へ発信して相談できます（実施していない地域もあります）。
+        <!-- 「#」の読みは環境差が大きい（「番号記号」等）ため、読みは「シャープ7119」に分ける -->
+        救急車を呼ぶか迷ったら、電話アプリで「<strong aria-hidden="true">#7119</strong><span class="sr-only">シャープ7119</span>」（救急安心センター事業）へ発信して相談できます（実施していない地域もあります）。
       </p>
       <p>
         呼びかけに反応がなく、<strong>普段どおりの呼吸がない</strong>ときは、
         119番の通信指令員の指示に従って胸骨圧迫（心肺蘇生）を最優先してください。
       </p>
       <p>
-        呼吸があるなら、救急車を待つ間も下の手順1〜3（着ぐるみから出す・涼しい場所へ・体を冷やす）を続けてください。
+        呼吸があるなら、救急車を待つ間も下の手順1<span aria-hidden="true">〜</span><span class="sr-only">から</span>3（<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみから出す・涼しい場所へ・体を冷やす）を続けてください。
         意識がはっきりしないうちは、<strong>飲み物を無理に飲ませないでください</strong>（気道に入る危険があります）。
       </p>
     </section>
@@ -130,7 +131,8 @@
            失われるため、role="list"で明示する（番号は見出し内のspanが担う） -->
       <ol class="emergency-steps" role="list">
         <li>
-          <h3><span class="emergency-step-number">1</span>着ぐるみから出す（ヘッド→ハンド→ジッパー）</h3>
+          <!-- 「→」は「右矢印」と読まれ手順の流れが伝わらないため、読みは読点に分ける -->
+          <h3><span class="emergency-step-number">1</span><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみから出す（ヘッド<span aria-hidden="true">→</span><span class="sr-only">、</span>ハンド<span aria-hidden="true">→</span><span class="sr-only">、</span>ジッパー）</h3>
           <p>周りの人に応援を頼み、次の順で脱がせます。</p>
           <ul>
             <li><strong>ヘッド</strong>を最初に外す（顔色・呼吸・意識を確認できるようにする）</li>
@@ -197,7 +199,7 @@
       <h2 id="prevention-heading">ふだんの予防</h2>
       <p>
         <a href="/">予報トップ</a>で当日の判定と連続活動時間の目安を確認し、
-        「30分着たら30分休む」を基本にしてください。着ぐるみ活動は必ず2人以上で行い、
+        「30分着たら30分休む」を基本にしてください。<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動は必ず2人以上で行い、
         着用者以外の付き添い（ハンドラー・アテンド）を付けてください。
       </p>
     </section>
@@ -210,13 +212,13 @@
         <li><a href="https://www.jaam.jp/" rel="noopener">日本救急医学会</a>「熱中症診療ガイドライン2024」（学会サイト内で公開）</li>
       </ul>
       <p>
-        着ぐるみの脱がせ方（ヘッド→ハンド→ジッパー）は、顔と気道の確認を最優先にする
-        考え方に基づく着ぐるみ活動特有の補足です。
+        <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの脱がせ方（ヘッド<span aria-hidden="true">→</span><span class="sr-only">、</span>ハンド<span aria-hidden="true">→</span><span class="sr-only">、</span>ジッパー）は、顔と気道の確認を最優先にする
+        考え方に基づく<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動特有の補足です。
       </p>
       <div class="notice-panel">
         <p>
           <svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480L40 480c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24l0 112c0 13.3 10.7 24 24 24s24-10.7 24-24l0-112c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg><span class="sr-only">注意: </span>このページは一般的な応急対応の目安であり、医療上の助言に代わるものではありません。
-          判断に迷うときは119番通報、または救急安心センター事業（#7119）などの窓口へ相談してください。
+          判断に迷うときは119番通報、または救急安心センター事業（<span aria-hidden="true">#7119</span><span class="sr-only">シャープ7119</span>）などの窓口へ相談してください。
         </p>
       </div>
     </section>

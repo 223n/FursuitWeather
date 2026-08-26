@@ -54,7 +54,8 @@ export function buildBadgeSvg(worst: LevelSummary): string {
   const accent = cold ? BADGE.cold.accent : BADGE.gradeAccents[worst.grade];
   const status = escapeXml(badgeStatusText(worst));
   const leftLabel = escapeXml(BADGE.leftLabel);
-  const description = `${leftLabel}: ${status}`;
+  // 読み上げ側（aria-label・title）は誤読対策のかな表記、描画側（text）は漢字表記を使う
+  const description = `${escapeXml(BADGE.leftLabelSpoken)}: ${status}`;
   const rightCenter = LEFT_WIDTH + (BADGE_WIDTH - LEFT_WIDTH) / 2;
   const fontFamily =
     'Verdana,Geneva,&quot;Hiragino Kaku Gothic ProN&quot;,&quot;Hiragino Sans&quot;,Meiryo,sans-serif';

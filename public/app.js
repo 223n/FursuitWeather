@@ -157,6 +157,30 @@
     return span;
   }
 
+  /** 読み上げから除外する視覚専用spanを組み立てる（記号・単位などの読み分離に使う） */
+  function hiddenSpan(text) {
+    const span = document.createElement('span');
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = text;
+    return span;
+  }
+
+  /** 「着ぐるみ」の読み補正付きでテキストのフラグメントを組み立てる。
+   * スクリーンリーダーが「ちゃくぐるみ」と誤読するため、視覚は「着ぐるみ」のまま
+   * 読み上げだけ「きぐるみ」へ分離する（範囲記号「〜」を「から」と読ませる方針と同じ）。
+   * textContentでは分離できないため、動的な可視文言はこの関数で書き込む */
+  function yomiText(text) {
+    const fragment = document.createDocumentFragment();
+    const parts = text.split('着ぐるみ');
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        fragment.append(hiddenSpan('着'), srOnlySpan('き'), 'ぐるみ');
+      }
+      fragment.append(part);
+    });
+    return fragment;
+  }
+
   /** URL由来のテキストから制御文字・書式文字を除去する（display.jsのsanitizeTextと
    * 同じ規則。U+202E等の双方向制御文字はtextContent経由でも表示順を反転できるため、
    * 共有URLの地点名・イベント名の見た目の偽装対策として必須。
@@ -412,13 +436,15 @@
     const parts = [
       `${formatDate(day.date)}の天気は${day.weatherLabel}、` +
         `気温は${Math.round(day.temperatureMin)}度から${Math.round(day.temperatureMax)}度です。`,
-      `屋外の着ぐるみ判定は「${day.outdoorWorst.label}」。`,
+      // 読み上げが主用途の文のため「きぐるみ」とかなで書く（漢字だと「ちゃくぐるみ」と
+      // 誤読される）。書き文字として使うコピー経路は、コピー直前に漢字へ戻す
+      `屋外のきぐるみ判定は「${day.outdoorWorst.label}」。`,
       day.recommendedHours.length > 0
         ? // 「09:00」のままだと日本語音声合成で時刻として読まれないため「9時」形式にする
           `活動しやすい時間帯は${day.recommendedHours.map((h) => `${Number.parseInt(h, 10)}時`).join('、')}です。`
         : '屋外活動に適した時間帯はありません。休憩と冷却を最優先にしてください。',
       `空調のない屋内は${day.coolingRequired ? '冷房必須です' : '冷房なしでも活動できる時間帯があります'}。`,
-      `洗濯指数は「${day.laundry.label}」、着ぐるみの乾燥目安は約${day.laundry.fursuitDryingHours}時間です。`,
+      `洗濯指数は「${day.laundry.label}」、きぐるみの乾燥目安は約${day.laundry.fursuitDryingHours}時間です。`,
       '詳しくは「3日間の天気」タブや「今日の天気」などの各タブの表をご確認ください。',
     ];
     return parts.join('');
@@ -701,7 +727,8 @@
 
     const addRow = (label, valueNode) => {
       const dt = document.createElement('dt');
-      dt.textContent = label;
+      // 「着ぐるみ乾燥目安」などの項目名も読み補正を通す（含まない項目名はそのまま）
+      dt.appendChild(yomiText(label));
       const dd = document.createElement('dd');
       appendContent(dd, valueNode);
       list.appendChild(dt);
@@ -731,7 +758,8 @@
     // 最大風速（配信済みの古いレスポンスには無い場合があるため有無を確認する）
     if (typeof day.maxWindSpeed === 'number') {
       const windValue = document.createElement('span');
-      windValue.textContent = `${day.maxWindSpeed.toFixed(1)}m/s`;
+      // 単位「m/s」は読み上げが環境依存のため、読みは「メートル毎秒」に分離する
+      windValue.append(day.maxWindSpeed.toFixed(1), hiddenSpan('m/s'), srOnlySpan('メートル毎秒'));
       if (day.maxWindSpeed >= WIND_CAUTION_SPEED) {
         windValue.appendChild(createWarningNote('看板・テントの固定を確認'));
       }
@@ -1104,7 +1132,7 @@
 
     const advice = document.createElement('p');
     advice.className = 'now-advice';
-    advice.textContent = target.outdoor.advice;
+    advice.appendChild(yomiText(target.outdoor.advice));
 
     // 屋内の冷房要否は時間別テーブルと同じバッジ（雪の結晶+記号）で示す
     const indoor = document.createElement('p');
@@ -1177,6 +1205,9 @@
       const timeHeader = document.createElement('th');
       timeHeader.scope = 'row';
       timeHeader.textContent = `${String(hourNumber).padStart(2, '0')}:00`;
+      // 「09:00」形式は日本語音声合成で時刻として読まれないことがあるため、
+      // 読みはaria-labelで「9時」形式に補う（#sr-announceの時刻表記と同じ方針）
+      timeHeader.setAttribute('aria-label', `${hourNumber}時`);
       // 日の入りを含む時間帯の行に目印を付ける（照明・撤収準備の目安）
       if (sunset && hourNumber === Number(sunset.slice(0, 2))) {
         const sunsetNote = document.createElement('span');
@@ -1184,28 +1215,42 @@
         sunsetNote.textContent = `日の入り ${sunset}`;
         timeHeader.appendChild(document.createElement('br'));
         timeHeader.appendChild(sunsetNote);
+        // 日の入り時刻も「18:29」のままでは読まれないことがあるため読みを分ける
+        timeHeader.setAttribute(
+          'aria-label',
+          `${hourNumber}時（日の入り ${Number(sunset.slice(0, 2))}時${Number(sunset.slice(3, 5))}分）`,
+        );
       }
       row.appendChild(timeHeader);
       addCell(weatherWithLabel(hour.weather.weatherCode, hour.weatherLabel));
       addCell(`${hour.weather.temperature.toFixed(1)}℃`);
       addCell(`${Math.round(hour.weather.humidity)}%`);
-      // 降水確率は上流モデルが提供しない場合がある（そのときは「-」表示）
-      addCell(
-        typeof hour.weather.precipitationProbability === 'number'
-          ? `${Math.round(hour.weather.precipitationProbability)}%`
-          : '-',
+      // 降水確率は上流モデルが提供しない場合がある（そのときは「-」表示。
+      // 単独の「-」は読み上げで意味が伝わらないため、読みは「予報なし」に分離する）
+      if (typeof hour.weather.precipitationProbability === 'number') {
+        addCell(`${Math.round(hour.weather.precipitationProbability)}%`);
+      } else {
+        const noData = document.createElement('span');
+        noData.append(hiddenSpan('-'), srOnlySpan('予報なし'));
+        addCell(noData);
+      }
+      // 風速（1時間平均）。しきい値以上は色に頼らずアイコン併記で強調する。
+      // 単位「m/s」は読み上げが環境依存のため、読みは「メートル毎秒」に分離する
+      const windValueNode = document.createElement('span');
+      windValueNode.append(
+        hour.weather.windSpeed.toFixed(1),
+        hiddenSpan('m/s'),
+        srOnlySpan('メートル毎秒'),
       );
-      // 風速（1時間平均）。しきい値以上は色に頼らずアイコン併記で強調する
-      const windText = `${hour.weather.windSpeed.toFixed(1)}m/s`;
       if (hour.weather.windSpeed >= WIND_CAUTION_SPEED) {
         const windCell = document.createElement('span');
         windCell.className = 'wind-caution';
         windCell.appendChild(faIcon('wind'));
         windCell.appendChild(srOnlySpan('強風注意: '));
-        windCell.appendChild(document.createTextNode(windText));
+        windCell.appendChild(windValueNode);
         addCell(windCell);
       } else {
-        addCell(windText);
+        addCell(windValueNode);
       }
       addCell(`${hour.outdoor.suitWbgt.toFixed(1)}℃`);
       addCell(createBadge(hour.outdoor));
@@ -1271,7 +1316,7 @@
     link.textContent = '環境省 熱中症予防情報サイト';
     item.append(
       faIcon('triangle-exclamation', 'btn-icon'),
-      document.createTextNode(text),
+      yomiText(text),
       link,
       document.createTextNode('をご確認ください。'),
     );
@@ -1309,7 +1354,7 @@
     const addNoticeItem = (className, iconName, text) => {
       const item = document.createElement('li');
       item.className = className;
-      item.append(faIcon(iconName, 'btn-icon'), document.createTextNode(text));
+      item.append(faIcon(iconName, 'btn-icon'), yomiText(text));
       noticesList.appendChild(item);
     };
 
@@ -1350,14 +1395,15 @@
       addNoticeItem(
         'caution-notice',
         'wind',
-        `${windyDays.join('、')}は風速${WIND_CAUTION_SPEED}m/s以上（「やや強い風」以上）の時間帯があります。` +
+        // 「m/s」の読み上げは環境依存のため、注意文では「メートル毎秒」と書く
+        `${windyDays.join('、')}は風速${WIND_CAUTION_SPEED}メートル毎秒以上（「やや強い風」以上）の時間帯があります。` +
           '瞬間的にはさらに強く吹くため、看板・テントの固定と視界にご注意ください。',
       );
     }
 
     for (const notice of currentForecast.notices) {
       const item = document.createElement('li');
-      item.textContent = notice;
+      item.appendChild(yomiText(notice));
       noticesList.appendChild(item);
     }
   }
@@ -1466,7 +1512,8 @@
     const changeText = changes
       .map(
         (c) =>
-          `${formatDate(c.date)} ${c.before.label}→${c.after.label}` +
+          // 「→」は読み上げが環境依存（「右矢印」等）のため「AからBへ」の言い回しにする
+          `${formatDate(c.date)} ${c.before.label}から${c.after.label}へ` +
           `（${c.after.grade > c.before.grade ? '悪化' : '改善'}）`,
       )
       .join('、');
@@ -2217,8 +2264,8 @@
   }
 
   /** イベントの開催期間の表示文を作る（単日は日付のみ）
-   * 「〜」の読み上げは環境依存だが、option要素は装飾を持てないためそのまま使う
-   * （開始・終了の日付自体は読み上げられるため意味は伝わる） */
+   * 範囲は「〜」でなく「から」でつなぐ。「〜」の読み上げは環境依存で、
+   * option要素は装飾（sr-onlyでの読み分離）を持てないため文言側で読みを確定させる */
   function formatEventPeriod(event) {
     if (event.startDate === event.endDate) {
       return formatEventDate(event.startDate);
@@ -2233,7 +2280,7 @@
           ? `${end.day}日（${WEEKDAYS[new Date(end.utc).getUTCDay()]}）`
           : formatDate(event.endDate);
     }
-    return `${formatEventDate(event.startDate)}〜${endText}`;
+    return `${formatEventDate(event.startDate)}から${endText}`;
   }
 
   /** /events.jsonを読み込んでセレクトの選択肢を作る。
@@ -2365,7 +2412,8 @@
     }
     planStart.value = String(startHour);
     planEnd.value = String(endHour);
-    return `開催時間（${startHour}時〜${endHour}時）`;
+    // ライブ領域（#status）で読み上げられる文のため、範囲は読みが確定する「から」でつなぐ
+    return `開催時間（${startHour}時から${endHour}時）`;
   }
 
   /** 選択中のイベントの開催地の予報を表示する。
@@ -2464,7 +2512,7 @@
     const dates = currentForecast.days.map((d) => d.date);
     const range =
       dates.length > 1
-        ? `${formatDate(dates[0])}〜${formatDate(dates[dates.length - 1])}`
+        ? `${formatDate(dates[0])}から${formatDate(dates[dates.length - 1])}`
         : formatDate(dates[0]);
     const message =
       `${prefix}「${event.name}」の開催日（${formatEventPeriod(event)}）は予報の範囲外です` +
@@ -2646,7 +2694,7 @@
     }
 
     const heading = document.createElement('h3');
-    heading.textContent = `${formatDate(planDateValue)} ${start}時〜${end}時の計画`;
+    heading.textContent = `${formatDate(planDateValue)} ${start}時から${end}時の計画`;
 
     const list = document.createElement('ul');
     list.className = 'plan-hours';
@@ -2691,7 +2739,8 @@
       // （共有・スクリーンショットで見た人が障害・欠測と誤認しないように）
       const firstHour = hourNumberOf(rangeHours[0].time);
       const lastHour = hourNumberOf(rangeHours[excludedCount - 1].time);
-      const rangeText = firstHour === lastHour ? `${firstHour}時台` : `${firstHour}〜${lastHour}時台`;
+      const rangeText =
+        firstHour === lastHour ? `${firstHour}時台` : `${firstHour}時台から${lastHour}時台`;
       const pastNote = document.createElement('li');
       pastNote.textContent = `当日の過ぎた時間帯（${rangeText}）は計画に含めていません。`;
       notes.appendChild(pastNote);
@@ -3221,7 +3270,8 @@
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    if (await copyText(currentSummaryText())) {
+    // コピーは共有相手が読む「書き文字」のため、読み上げ用のかな（きぐるみ）は漢字へ戻す
+    if (await copyText(currentSummaryText().replaceAll('きぐるみ', '着ぐるみ'))) {
       setStatus(
         '画像を保存し、内容の説明文をコピーしました。画像と一緒に貼り付けると文字でも伝わります。',
         false,
@@ -4079,9 +4129,10 @@
       return { text: `上限${limit}分を超過（経過${elapsed}分）・交代してください`, emphasis: 'over' };
     }
     if (remaining <= BOARD_SOON_MINUTES) {
-      return { text: `経過${elapsed}分／上限${limit}分・残り約${remaining}分`, emphasis: 'soon' };
+      // 「／」は「スラッシュ」と読まれるため、区切りは読みに乗らない括弧書きにする
+      return { text: `経過${elapsed}分（上限${limit}分）・残り約${remaining}分`, emphasis: 'soon' };
     }
-    return { text: `経過${elapsed}分／上限${limit}分`, emphasis: null };
+    return { text: `経過${elapsed}分（上限${limit}分）`, emphasis: null };
   }
 
   /** 状態変更ボタンを作る
@@ -4351,7 +4402,7 @@
       boardState.manualLimitMinutes = Math.round(value);
     } else {
       // 黙って差し戻すと「入力が効かない」ように見えるため、理由を近接表示する
-      announceNear(boardStatusElement, '上限の目安は5〜120分の範囲で指定してください。', true);
+      announceNear(boardStatusElement, '上限の目安は5分から120分の範囲で指定してください。', true);
     }
     boardManualLimitInput.value = String(boardState.manualLimitMinutes);
     writeBoardState();
@@ -4559,7 +4610,7 @@
     // 利用者が先にタブを触っていたら、その操作を尊重して切り替えない
     activateDayTabUnlessOverridden(date, tabSeqAtStart);
     setStatus(
-      `共有された日付（${formatDate(date)}）${hasRange ? `と時間帯（${from}時〜${to}時）` : ''}を反映しました。` +
+      `共有された日付（${formatDate(date)}）${hasRange ? `と時間帯（${from}時から${to}時）` : ''}を反映しました。` +
         '予報は開いた時点の最新の内容です。' +
         // 初見の利用者がプランナー機能に気づけるよう、計画表示までの残り手順を添える
         (hasRange ? PLANNER_GUIDE_TEXT : ''),

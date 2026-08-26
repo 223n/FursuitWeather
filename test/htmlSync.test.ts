@@ -71,8 +71,14 @@ const srRange = (from: number | string, to: number | string): string =>
 
 describe('静的HTMLとconstantsの同期', () => {
   it('注意事項の静的コピーはYEAR_ROUND_NOTICESの全文と一致する', () => {
+    // 「着ぐるみ」の読み分離マークアップ（docs/accessibility.mdの誤読対策）を
+    // 外してから、定数の素の文と全文一致で比較する
+    const plainHtml = html.replaceAll(
+      '<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ',
+      '着ぐるみ',
+    );
     for (const notice of YEAR_ROUND_NOTICES) {
-      expect(html).toContain(notice);
+      expect(plainHtml).toContain(notice);
     }
   });
 
@@ -187,7 +193,8 @@ describe('aboutページとconstantsの同期', () => {
       (b) => b.upperBound,
     );
     expect(bounds.length).toBeGreaterThan(0);
-    expect(aboutHtml).toContain(`5段階（${bounds.join('/')}℃）`);
+    // 区切りは「スラッシュ」と読まれない「・」を使う（読み上げ対応）
+    expect(aboutHtml).toContain(`5段階（${bounds.join('・')}℃）`);
     expect(aboutHtml).toContain(`${HEAT_BANDS[0]!.upperBound}℃未満`);
     expect(aboutHtml).toContain(`${bounds[bounds.length - 1]}℃以上`);
   });
@@ -195,10 +202,11 @@ describe('aboutページとconstantsの同期', () => {
   it('着衣補正値・低温切替気温・低温境界が記載されている', () => {
     expect(aboutHtml).toContain(`+${SUIT_WBGT_ADJUSTMENT}℃`);
     expect(aboutHtml).toContain(`気温${COLD_SWITCH_TEMPERATURE}℃未満`);
-    // 低温境界はマイナスを全角記号（−）・区切りを全角スラッシュ（／）で表記している
+    // 低温境界はマイナスを全角記号（−）・区切りを「・」で表記している
+    // （「／」は「スラッシュ」と読まれるため使わない）
     const coldBounds = COLD_BANDS.filter((b) => Number.isFinite(b.lowerBound))
       .map((b) => String(b.lowerBound).replace('-', '−'))
-      .join('／');
+      .join('・');
     expect(coldBounds.length).toBeGreaterThan(0);
     expect(aboutHtml).toContain(`（${coldBounds}℃境界）`);
   });
@@ -547,8 +555,10 @@ describe('app.jsのバッジ設定マップとレベルIDの同期', () => {
     expect(openapiYaml).toContain(`${WIND_CAUTION_SPEED}以上は気象庁の「やや強い風」に相当`);
     // app.jsの注意文の数値（フロントは定数を参照できないため文字列で検証する）
     expect(appJs).toContain(`より${SUDDEN_HEAT.temperatureRise}℃以上高い見込み`);
-    // 凡例の強風マーク説明（index.html）
-    expect(html).toContain(`風速${WIND_CAUTION_SPEED}m/s以上（気象庁の「やや強い風」以上）`);
+    // 凡例の強風マーク説明（index.html）。単位m/sは視覚と読み（メートル毎秒）を分離している
+    expect(html).toContain(
+      `風速${WIND_CAUTION_SPEED}<span aria-hidden="true">m/s</span><span class="sr-only">メートル毎秒</span>以上（気象庁の「やや強い風」以上）`,
+    );
     // READMEの機能説明の数値
     expect(readmeMd).toContain(`強風（${WIND_CAUTION_SPEED}m/s以上）`);
     expect(readmeMd).toContain(
