@@ -634,17 +634,32 @@
     return span;
   }
 
-  /** 「着ぐるみ」の読み補正付きでテキストのフラグメントを組み立てる
-   * （app.jsのyomiTextの複製部品。視覚は漢字のまま読み上げだけ「きぐるみ」に分離する） */
+  /** 読みを補正する語句（app.jsのYOMI_PATTERNの複製部品）。
+   * 「着ぐるみ」は「ちゃくぐるみ」、曜日「（水）」は「みず」と誤読されるため */
+  const YOMI_PATTERN = /着ぐるみ|（[日月火水木金土]）/gu;
+
+  /** 視覚表記に対する読み上げ用テキストを返す（app.jsのyomiOfの複製部品） */
+  function yomiOf(visible) {
+    if (visible === '着ぐるみ') {
+      return 'きぐるみ';
+    }
+    return `（${visible.slice(1, 2)}曜日）`;
+  }
+
+  /** 読み補正付きでテキストのフラグメントを組み立てる
+   * （app.jsのyomiTextの複製部品。視覚は元の表記のまま読み上げだけを分離する） */
   function yomiText(text) {
     const fragment = document.createDocumentFragment();
-    const parts = text.split('着ぐるみ');
-    parts.forEach((part, index) => {
-      if (index > 0) {
-        fragment.append(hiddenSpan('着'), srOnlySpan('き'), 'ぐるみ');
-      }
-      fragment.append(part);
-    });
+    let last = 0;
+    for (const match of text.matchAll(YOMI_PATTERN)) {
+      fragment.append(
+        text.slice(last, match.index),
+        hiddenSpan(match[0]),
+        srOnlySpan(yomiOf(match[0])),
+      );
+      last = match.index + match[0].length;
+    }
+    fragment.append(text.slice(last));
     return fragment;
   }
 
@@ -832,7 +847,9 @@
 
   /** 日付（YYYY-MM-DD）を「今日 8/19（水）」の形にする。相対ラベルは配列位置では
    * なくJST今日との日付差で決める（キャッシュや取得障害でデータが古いまま日付を
-   * 跨いだとき、昨日の行を「今日」と誤表示しないため） */
+   * 跨いだとき、昨日の行を「今日」と誤表示しないため）。
+   * 掲示は幅が限られるため視覚は短い「8/19（水）」のまま、読み上げだけ
+   * 「8月19日（水曜日）」へ分離する（「/」と単漢字曜日はどちらも誤読される） */
   function formatDayLabel(dateText) {
     const dayDiff = Math.round(
       (Date.parse(`${dateText}T00:00:00Z`) - Date.parse(`${nowInJst().date}T00:00:00Z`)) / 86400000,
@@ -843,7 +860,15 @@
     ];
     const month = Number.parseInt(dateText.slice(5, 7), 10);
     const day = Number.parseInt(dateText.slice(8, 10), 10);
-    return `${relative ? `${relative} ` : ''}${month}/${day}（${weekday}）`;
+    const fragment = document.createDocumentFragment();
+    if (relative) {
+      fragment.append(`${relative} `);
+    }
+    fragment.append(
+      hiddenSpan(`${month}/${day}（${weekday}）`),
+      srOnlySpan(`${month}月${day}日（${weekday}曜日）`),
+    );
+    return fragment;
   }
 
   /** ③3日間の天気 */
@@ -858,7 +883,7 @@
 
       const date = document.createElement('p');
       date.className = 'display-day-date';
-      date.textContent = formatDayLabel(day.date);
+      date.replaceChildren(formatDayLabel(day.date));
 
       const weather = document.createElement('span');
       weather.className = 'display-cell-weather';

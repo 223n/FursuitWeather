@@ -629,6 +629,25 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
     expect(displayHtml).toContain(`バージョン: v${pkg.version}`);
   });
 
+  it('読み補正（YOMI_PATTERN・yomiOf）の定義はapp.jsと完全一致する', () => {
+    // 誤読対策（着ぐるみ→きぐるみ・曜日の単漢字→曜日名）の規則は
+    // app.jsとdisplay.jsで複製されている。片側だけ語を足すと、
+    // 同じ文言がページによって読まれたり読まれなかったりするため機械検証する
+    const patternOf = (source: string): string | undefined =>
+      source.match(/const YOMI_PATTERN = (\/.*\/gu);/)?.[1];
+    // コメントは片側にしか無いため、行コメントを外してから空白を潰して比較する
+    const yomiOfBody = (source: string): string | undefined =>
+      source
+        .match(/function yomiOf\(visible\) \{([\s\S]*?)\n {2}\}/)?.[1]
+        ?.replace(/\/\/[^\n]*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    expect(patternOf(appJs)).toBeDefined();
+    expect(patternOf(displayJs)).toBe(patternOf(appJs));
+    expect(yomiOfBody(appJs)).toBeDefined();
+    expect(yomiOfBody(displayJs)).toBe(yomiOfBody(appJs));
+  });
+
   it('GRADE_SYMBOLSの定義はapp.jsと完全一致する', () => {
     const symbolsOf = (source: string): string | undefined =>
       source.match(/const GRADE_SYMBOLS = (\[.*\]);/)?.[1];

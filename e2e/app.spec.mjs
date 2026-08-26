@@ -1207,3 +1207,21 @@ test('着用タイマー: 判定が「着用中止」のときは開始できな
   await expect(page.locator('#timer-overlay')).toBeHidden();
   await expect(page.locator('#status-error')).toContainText('タイマーは開始できません');
 });
+
+test('読み上げ: 日付の曜日は視覚「（水）」と読み上げ「（水曜日）」に分かれる', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForForecast(page);
+  await page.click('#tab-days');
+
+  // 日別カードの見出し（「8月26日（水）」）。単漢字の曜日は「みず」と誤読されるため、
+  // 視覚表記をaria-hiddenにして読み上げには曜日名を渡す
+  const title = page.locator('#day-cards .day-card:not(.skeleton-card) .day-card-button').first();
+  await expect(title.locator('span[aria-hidden="true"]')).toHaveText(/^（[日月火水木金土]）$/);
+  await expect(title.locator('span.sr-only').first()).toHaveText(/^（[日月火水木金土]曜日）$/);
+
+  // プランナーの日付セレクトは子要素を持てないため、選択肢の文言自体を書き下す
+  await page.click('#tab-planner');
+  await expect(page.locator('#plan-date option').first()).toHaveText(/（[日月火水木金土]曜日）/);
+});

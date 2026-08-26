@@ -295,3 +295,19 @@ test('会場表示: もしものときスライドは設定ONで巡回に加わ�
   await expect(page.locator('#display-progress .display-dot')).toHaveCount(2);
   await expect(page).not.toHaveURL(/emergency/);
 });
+
+test('会場表示: 3日間スライドの日付は視覚「8/19（水）」と読み上げ「8月19日（水曜日）」に分かれる', async ({
+  page,
+}) => {
+  await page.goto('/display?demo=1&slides=days');
+  await waitForStrip(page);
+
+  const date = page.locator('#slide-days .display-day-date').first();
+  // 掲示は幅が限られるため視覚は短い表記のまま、読み上げだけ書き下す
+  await expect(date.locator('span[aria-hidden="true"]')).toHaveText(
+    /^\d{1,2}\/\d{1,2}（[日月火水木金土]）$/,
+  );
+  await expect(date.locator('span.sr-only')).toHaveText(
+    /^\d{1,2}月\d{1,2}日（[日月火水木金土]曜日）$/,
+  );
+});
