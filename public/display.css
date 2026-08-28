@@ -241,10 +241,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-.display-hour-cell .badge,
-.display-city-cell .badge {
+.display-hour-cell .badge {
   font-size: clamp(0.8rem, 2.2vmin, 1.4rem);
   white-space: normal;
+  justify-content: center;
+}
+
+/* 全国セルの判定バッジ。半幅の列では既定のwhite-space:normalが「ほ/ぼ/安/全」と
+   1文字ずつ折り返し、2行目が肥大して1行目を0pxまで潰す。折り返さず幅で頭打ちにする */
+.display-city-cell .badge {
+  /* 幅の上限は実測から。バッジの外形は「文字サイズ×5.4＋28px」で、
+     列幅はセル幅の約45.6%（実測。1920x1080と390x844で同じ比率）。
+     単純な N cqi では定数28pxを表せず、大画面で判定が不必要に小さくなる */
+  font-size: min(var(--city-badge-base), 24cqh, calc((92cqi - 28px) / 5.4));
+  grid-column: 1 / -1;
+  white-space: nowrap;
   justify-content: center;
 }
 
@@ -300,22 +311,71 @@
 }
 
 .display-city-cell {
-  display: flex;
-  flex-direction: column;
+  /* 中身の文字をセルの実寸で頭打ちにするためのコンテナ（下のmin(...cqh/cqi)が基準にする） */
+  container-type: size;
+  display: grid;
+  /* minmax(0,…)にしないと、折り返さない判定バッジのmin-contentが右列を押し広げ、
+     左列が痩せてプリセット都市名（最長3文字）まで省略記号になる */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 2行目（最高気温・判定）の高さを先に確保し、残りを1行目（都市名・天気）へ渡す。
+     追加都市の長い名前が伸びても、安全情報である判定を押し出さない */
+  grid-template-rows: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: center;
-  gap: clamp(0.15rem, 0.6vh, 0.5rem);
+  justify-items: center;
+  column-gap: clamp(0.2rem, 0.8vw, 0.8rem);
+  row-gap: clamp(0.1rem, 0.5vh, 0.4rem);
   border: 2px solid var(--color-border-subtle);
   border-radius: 8px;
   background-color: var(--color-background);
-  padding: clamp(0.2rem, 0.8vh, 0.7rem) 0.2rem;
+  padding: clamp(0.15rem, 0.6vh, 0.6rem) clamp(0.25rem, 0.7vw, 0.7rem);
   text-align: center;
+  /* 2行へ詰めるぶん、行間は本文既定（1.6）より詰める（各要素は1行のため影響は小さい） */
+  line-height: 1.25;
   overflow: hidden;
+  /* 画面の向きで変わるのは文字の拡大率の基準だけ。組み方は共通にする */
+  --city-name-base: clamp(1.2rem, 3.8vmin, 2.6rem);
+  --city-text-base: clamp(1.05rem, 3.2vmin, 2.1rem);
+  --city-temp-base: clamp(1.1rem, 3.4vmin, 2.3rem);
+  --city-badge-base: clamp(1.05rem, 3.2vmin, 2.1rem);
+}
+
+/* 13セル以上（都市の追加）は1セルが低くなるため、拡大率の基準を1段階下げる */
+.display-grid-compact .display-city-cell {
+  --city-name-base: clamp(0.95rem, 2.6vmin, 1.6rem);
+  --city-text-base: clamp(0.9rem, 2.4vmin, 1.5rem);
+  --city-temp-base: clamp(1rem, 2.8vmin, 1.8rem);
+  --city-badge-base: clamp(0.8rem, 2.2vmin, 1.4rem);
 }
 
 .display-city-name {
-  font-size: clamp(0.95rem, 2.6vmin, 1.6rem);
+  /* セルの高さ（cqh）と列幅（cqi）でも頭打ちにする。vmin/vwだけだと4:3や
+     正方形に近い画面で列幅に対して文字が過大になり、内容が切れる */
+  font-size: min(var(--city-name-base), 34cqh, 10cqi);
   font-weight: 700;
+  /* 追加都市名は40文字まで許容される（display.jsのnormalizeExtra）。
+     列幅を押し広げず、あふれる分は省略記号で示す（読み上げ用に全文はDOMへ残る） */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+/* 天気・気温のクラスは時間別・3日間のセルと共有のため、全国セルに限って上書きする */
+.display-city-cell .display-cell-weather {
+  font-size: min(var(--city-text-base), 26cqh, 7cqi);
+}
+
+/* 天気アイコンは独自のfont-sizeを持ち、下限1.2remがセルの上限を突き抜けて
+   行の高さを決めてしまう。全国セルでは天気ラベルに比例させて頭打ちを継がせる */
+.display-city-cell .display-cell-weather .fa-icon {
+  font-size: 1.25em;
+}
+
+.display-city-cell .display-cell-temp {
+  font-size: min(var(--city-temp-base), 26cqh, 7.5cqi);
 }
 
 /* もしものときスライド（熱中症の応急対応の要点） */
@@ -685,12 +745,10 @@
     font-size: clamp(1rem, 4.5vw, 1.7rem);
   }
 
-  .display-city-cell .badge,
   .display-hour-cell .badge {
     font-size: clamp(0.9rem, 3.8vw, 1.4rem);
   }
 
-  .display-city-name,
   .display-hour-time {
     font-size: clamp(1rem, 4.5vw, 1.8rem);
   }
@@ -700,146 +758,41 @@
     font-size: clamp(0.95rem, 4vw, 1.6rem);
   }
 
+  /* 縦画面はvminが幅基準になり文字が小さくなりすぎるため、拡大率の基準をvwへ替える
+     （組み方とセル実寸での頭打ちは横長と共通） */
+  .display-city-cell {
+    --city-name-base: clamp(1rem, 4.5vw, 1.8rem);
+    --city-text-base: clamp(0.95rem, 4vw, 1.6rem);
+    --city-temp-base: clamp(0.95rem, 4vw, 1.6rem);
+    --city-badge-base: clamp(0.9rem, 3.8vw, 1.4rem);
+  }
+
+  .display-grid-compact .display-city-cell {
+    --city-name-base: clamp(0.9rem, 3.6vw, 1.5rem);
+    --city-text-base: clamp(0.85rem, 3.2vw, 1.3rem);
+    --city-temp-base: clamp(0.85rem, 3.2vw, 1.3rem);
+    --city-badge-base: clamp(0.8rem, 3vw, 1.2rem);
+  }
+
   .display-day-cell {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.4rem 1rem;
   }
 
-  /* 縦画面の全国セルは1行の高さが低いため、縦積みをやめて
-     「都市名 天気 気温 判定」を横流れで並べる（4要素が2行までに収まる）。
-     警告帯（環境省発表など）が出てセルがさらに低くなっても判定が切れないよう、
-     行間は本文既定（1.6）より詰める（各要素は1行なので読みやすさへの影響は小さい） */
-  .display-city-cell {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: center;
-    gap: 0.1rem 0.6rem;
-    padding: 0.15rem 0.4rem;
-    line-height: 1.25;
-    /* セルの実寸で中身を間引くためのコンテナ。下の@containerのem条件は、
-       このfont-size（＝縦画面のバッジと同じ拡大率）を基準に解決される */
-    container-type: size;
-    font-size: clamp(0.9rem, 3.8vw, 1.4rem);
-  }
-
-  /* 追加都市の長い名前は、折り返すと判定バッジを下の行へ押し出して切ってしまう。
-     縦画面はセルが低いため、1行かつセル幅の半分強までに抑え、あふれる分は
-     省略記号で示す（読み上げ用に名前の全文はDOMへ残る） */
-  .display-city-name {
-    max-width: 55%;
-    overflow-wrap: anywhere;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    overflow: hidden;
-  }
-
-  /* 都市の追加・警告帯の本数・画面の小ささが重なると、2行でも収まらない高さになる。
-     セルの実寸を見て中身を段階的に落とし、安全情報である判定は最後まで残す */
-  @container (max-height: 3.1em) {
-    /* 2行に収まらない高さ: 天気と最高気温を落とし「都市名＋判定」の1行にする */
-    .display-cell-weather,
-    .display-cell-temp {
-      display: none;
-    }
-
-    /* 残る2要素が1行に並ぶよう、名前の幅を判定バッジのぶんだけ空けて抑える
-       （@containerはコンテナ自身＝セルには効かないため、子側で調整する） */
-    .display-city-name {
-      max-width: 40%;
-    }
-  }
-
-  @container (max-height: 2em) {
-    /* それでも収まらない高さ: 文字と判定バッジの余白を詰める。0.7remを下限にして
-       読めない大きさまでは縮めない（下回る場合は表示する都市を減らして運用する） */
-    .display-city-name {
-      font-size: max(0.7rem, min(1rem, 52cqh));
-    }
-
-    .display-city-cell .badge {
-      font-size: max(0.7rem, min(0.9rem, 44cqh));
-      padding: 0 0.25em;
-      border-width: 1px;
-    }
-
-    .display-city-cell .badge .symbol {
-      font-size: 1.1em;
-    }
-  }
 }
 
-/* 横長画面の全国セル: 「都市名・天気」「最高気温・判定」の2列2行に組む。
-   縦積み4行のままだと、9都市以上（3行のグリッド）では1行の高さが足りず、
-   overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた
-   （1024x640〜1920x1080で再現。4Kと2行以下の構成では起きないため気付きにくい）。
-   行数が半分になるぶんは文字サイズへ回し、遠距離からの視認性を上げる。
-   縦画面は上の@media (orientation: portrait)が担うためここでは触らない
-   （portraitとlandscapeはどちらか一方だけが必ず一致する） */
-@media (orientation: landscape) {
-  .display-city-cell {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    /* 2行目（最高気温・判定）の高さを先に確保し、残りを1行目（都市名・天気）へ渡す。
-       追加都市の長い名前が折り返しても、安全情報である判定バッジを押し出さない */
-    grid-template-rows: minmax(0, 1fr) auto;
-    align-items: center;
-    justify-items: center;
-    column-gap: clamp(0.3rem, 1vw, 1rem);
-    row-gap: clamp(0.1rem, 0.6vh, 0.5rem);
-    padding: clamp(0.2rem, 0.8vh, 0.7rem) clamp(0.3rem, 0.8vw, 0.8rem);
-    /* 2行へ詰めるぶん、行間は本文既定（1.6）より詰める（各要素は1行のため影響は小さい） */
-    line-height: 1.25;
+/* セルが低すぎて2行に収まらないときは、天気と最高気温を落として
+   「都市名＋判定」の1行にする。安全情報である判定を最後まで残すための順序
+   （@containerはコンテナ自身＝セルには効かないため、子側だけで調整する） */
+@container (max-height: 36px) {
+  .display-cell-weather,
+  .display-cell-temp {
+    display: none;
   }
 
-  .display-city-name {
-    font-size: clamp(1.2rem, 3.8vmin, 2.6rem);
-    /* 追加都市名は40文字まで許容される（display.jsのnormalizeExtra）。
-       列幅を押し広げないようどこでも折り返し、それでも余る分は2行で打ち切って
-       省略記号を出す（黙って消えるより、切り詰められたと分かる方が掲示として安全） */
-    min-width: 0;
-    overflow-wrap: anywhere;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-  }
-
-  /* 天気・気温のクラスは時間別セルと共有のため、全国セルに限って上書きする */
-  .display-city-cell .display-cell-weather {
-    font-size: clamp(1.05rem, 3.2vmin, 2.1rem);
-  }
-
-  .display-city-cell .display-cell-temp {
-    font-size: clamp(1.1rem, 3.4vmin, 2.3rem);
-  }
-
+  /* 残る2要素は1行に並べる（判定の行占有をやめて高さを半分にする） */
   .display-city-cell .badge {
-    font-size: clamp(1.05rem, 3.2vmin, 2.1rem);
-  }
-
-  /* 13セル以上（都市の追加）は1セルがさらに低くなるため、組み方は2列組みのまま
-     余白と文字サイズを詰める（display.jsがdisplay-grid-compactを付ける） */
-  .display-grid-compact .display-city-cell {
-    row-gap: 0.1rem;
-    padding: 0.15rem 0.4rem;
-  }
-
-  .display-grid-compact .display-city-name {
-    font-size: clamp(0.95rem, 2.6vmin, 1.6rem);
-  }
-
-  .display-grid-compact .display-cell-weather {
-    font-size: clamp(0.9rem, 2.4vmin, 1.5rem);
-  }
-
-  .display-grid-compact .display-cell-temp {
-    font-size: clamp(1rem, 2.8vmin, 1.8rem);
-  }
-
-  .display-grid-compact .badge {
-    font-size: clamp(0.8rem, 2.2vmin, 1.4rem);
+    grid-column: auto;
   }
 }
