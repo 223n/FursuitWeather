@@ -921,7 +921,7 @@
       return;
     }
     // 少ない都市数では列を減らして1セルを大きく表示する（縦画面はCSS側で上書き）。
-    // 13セル以上は1行の高さが足りないため、セルを横並びレイアウトへ圧縮する
+    // 13セル以上は1セルが低くなりすぎるため、CSS側で文字サイズを1段階下げる
     const cols = selected.length <= 4 ? 2 : selected.length <= 9 ? 3 : 4;
     const compact = selected.length > 12 ? ' display-grid-compact' : '';
     container.className = `display-national-grid display-grid-cols-${cols}${compact}`;

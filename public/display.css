@@ -721,14 +721,75 @@
   }
 }
 
-/* 13セル以上の全国グリッド: 縦積みでは1行の高さが足りないため、
-   セル内を横並びへ圧縮する（縦画面の全国セルと同じレイアウト・行間） */
-.display-grid-compact .display-city-cell {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: center;
-  gap: 0.1rem 0.6rem;
-  padding: 0.15rem 0.4rem;
-  line-height: 1.25;
+/* 横長画面の全国セル: 「都市名・天気」「最高気温・判定」の2列2行に組む。
+   縦積み4行のままだと、9都市以上（3行のグリッド）では1行の高さが足りず、
+   overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた
+   （1024x640〜1920x1080で再現。4Kと2行以下の構成では起きないため気付きにくい）。
+   行数が半分になるぶんは文字サイズへ回し、遠距離からの視認性を上げる。
+   縦画面は上の@media (orientation: portrait)が担うためここでは触らない
+   （portraitとlandscapeはどちらか一方だけが必ず一致する） */
+@media (orientation: landscape) {
+  .display-city-cell {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* 2行目（最高気温・判定）の高さを先に確保し、残りを1行目（都市名・天気）へ渡す。
+       追加都市の長い名前が折り返しても、安全情報である判定バッジを押し出さない */
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: center;
+    column-gap: clamp(0.3rem, 1vw, 1rem);
+    row-gap: clamp(0.1rem, 0.6vh, 0.5rem);
+    padding: clamp(0.2rem, 0.8vh, 0.7rem) clamp(0.3rem, 0.8vw, 0.8rem);
+    /* 2行へ詰めるぶん、行間は本文既定（1.6）より詰める（各要素は1行のため影響は小さい） */
+    line-height: 1.25;
+  }
+
+  .display-city-name {
+    font-size: clamp(1.2rem, 3.8vmin, 2.6rem);
+    /* 追加都市名は40文字まで許容される（display.jsのnormalizeExtra）。
+       列幅を押し広げないようどこでも折り返し、それでも余る分は2行で打ち切って
+       省略記号を出す（黙って消えるより、切り詰められたと分かる方が掲示として安全） */
+    min-width: 0;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* 天気・気温のクラスは時間別セルと共有のため、全国セルに限って上書きする */
+  .display-city-cell .display-cell-weather {
+    font-size: clamp(1.05rem, 3.2vmin, 2.1rem);
+  }
+
+  .display-city-cell .display-cell-temp {
+    font-size: clamp(1.1rem, 3.4vmin, 2.3rem);
+  }
+
+  .display-city-cell .badge {
+    font-size: clamp(1.05rem, 3.2vmin, 2.1rem);
+  }
+
+  /* 13セル以上（都市の追加）は1セルがさらに低くなるため、組み方は2列組みのまま
+     余白と文字サイズを詰める（display.jsがdisplay-grid-compactを付ける） */
+  .display-grid-compact .display-city-cell {
+    row-gap: 0.1rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .display-grid-compact .display-city-name {
+    font-size: clamp(0.95rem, 2.6vmin, 1.6rem);
+  }
+
+  .display-grid-compact .display-cell-weather {
+    font-size: clamp(0.9rem, 2.4vmin, 1.5rem);
+  }
+
+  .display-grid-compact .display-cell-temp {
+    font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  }
+
+  .display-grid-compact .badge {
+    font-size: clamp(0.8rem, 2.2vmin, 1.4rem);
+  }
 }

@@ -188,6 +188,61 @@ test('会場表示: 追加4都市を含む16セルでも判定バッジが収ま
   expect(fits.every(Boolean)).toBe(true);
 });
 
+// 全国スライドが3行になる構成（9都市以上）では、セル内の縦積みが行の高さを超え、
+// overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた。
+// 会場のモニターとPCでよく使う横長サイズを実寸で検証する（既定の12都市）
+test('会場表示: 横長画面の12都市でも都市名と判定がセルに収まる', async ({ page }) => {
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1440, height: 780 },
+    { width: 1366, height: 640 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/display?demo=1&slides=national');
+    await waitForStrip(page);
+    await expect(page.locator('#slide-national')).toBeVisible();
+    await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(12);
+
+    const fits = await page.locator('.display-city-cell').evaluateAll((cells) =>
+      cells.map((cell) => {
+        const box = cell.getBoundingClientRect();
+        return ['.display-city-name', '.badge'].every((selector) => {
+          const rect = cell.querySelector(selector).getBoundingClientRect();
+          return rect.height > 0 && rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1;
+        });
+      }),
+    );
+    expect(fits, `${viewport.width}x${viewport.height}`).toEqual(new Array(12).fill(true));
+  }
+});
+
+// 追加都市の名前は40文字まで許容されるため、長い会場名でセルが縦に破裂しうる。
+// 見た目は2行で打ち切って省略記号を出し、安全情報である判定バッジは必ず残す
+// （読み上げ用に名前の全文はDOMへ残す）
+test('会場表示: 長い名前の追加都市でも判定バッジが押し出されない', async ({ page }) => {
+  const longName = '幕張メッセ国際展示場9〜11ホール';
+  await page.goto(`/display?demo=1&slides=national&add=${encodeURIComponent(`35.63,140.03,${longName}`)}`);
+  await waitForStrip(page);
+  await expect(page.locator('#slide-national')).toBeVisible();
+  await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(13);
+
+  // 画面上は切り詰められても、名前の全文はDOMに残る（読み上げは省略されない）
+  const longCell = page.locator('.display-city-cell').filter({ hasText: '幕張メッセ' });
+  await expect(longCell.locator('.display-city-name')).toHaveText(longName);
+
+  const fits = await page
+    .locator('.display-city-cell .badge')
+    .evaluateAll((badges) =>
+      badges.map((badge) => {
+        const rect = badge.getBoundingClientRect();
+        const cell = badge.closest('.display-city-cell').getBoundingClientRect();
+        return rect.height > 0 && rect.top >= cell.top - 1 && rect.bottom <= cell.bottom + 1;
+      }),
+    );
+  expect(fits).toHaveLength(13);
+  expect(fits.every(Boolean)).toBe(true);
+});
+
 test('会場表示: 設定パネル表示中はフォーカスが背景へ抜けず、リセットで設定が消える', async ({ page }) => {
   await page.goto('/display?demo=1&slides=now,hours&msg=テスト');
   await waitForStrip(page);
