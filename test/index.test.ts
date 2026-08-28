@@ -220,6 +220,8 @@ describe('HTMLページへのnonce注入', () => {
       type: string | null;
       nonce: string | null;
       content: string | null;
+      href: string | null;
+      removed: boolean;
     }[] = [];
 
     on(selector: string, handler: { element: (el: unknown) => void }): this {
@@ -249,8 +251,20 @@ describe('HTMLページへのnonce注入', () => {
           selector: 'meta[name="twitter:description"]',
           attrs: { content: '静的説明' } as Record<string, string | null>,
         },
+        {
+          selector: 'link[rel="preload"]',
+          attrs: {
+            href: '/api/forecast?lat=35.68&lon=139.68&days=3',
+          } as Record<string, string | null>,
+        },
+        // 予報以外の先読み（将来フォント等を足したときに巻き込まないことの確認用）
+        {
+          selector: 'link[rel="preload"]',
+          attrs: { href: '/fonts/example.woff2' } as Record<string, string | null>,
+        },
       ];
       for (const tag of tags) {
+        let removed = false;
         for (const handler of this.handlers) {
           if (handler.selector !== tag.selector) {
             continue;
@@ -260,6 +274,9 @@ describe('HTMLページへのnonce注入', () => {
             setAttribute: (name: string, value: string) => {
               tag.attrs[name] = value;
             },
+            remove: () => {
+              removed = true;
+            },
           });
         }
         HTMLRewriterStub.applied.push({
@@ -267,6 +284,8 @@ describe('HTMLページへのnonce注入', () => {
           type: tag.attrs.type ?? null,
           nonce: tag.attrs.nonce ?? null,
           content: tag.attrs.content ?? null,
+          href: tag.attrs.href ?? null,
+          removed,
         });
       }
       return response;
@@ -327,6 +346,57 @@ describe('HTMLページへのnonce注入', () => {
     expect(
       applied.find((t) => t.selector === 'script' && t.type === 'application/ld+json')!.nonce,
     ).toBeNull();
+  });
+
+  // 先読み（link rel=preload）は初回fetchとURLがバイト単位で一致して初めて効く。
+  // HTMLに書けるのは既定都市の1件だけなので、共有URL・デモで開かれたときは
+  // Worker側で取得先へ合わせる（合わせないと東京の予報を1本捨てることになる）
+  it('共有URLのトップページは先読みをその座標へ合わせる', async () => {
+    await worker.fetch(
+      new Request('https://example.com/?lat=35.5555&lon=139.7199'),
+      createEnv(),
+      ctx,
+    );
+    const preloads = HTMLRewriterStub.applied.filter((t) => t.selector === 'link[rel="preload"]');
+
+    // 座標は小数2桁（app.jsのcoordQueryと同じ丸め）。daysはHTMLの値を引き継ぐ
+    expect(preloads[0]!.href).toBe('/api/forecast?lat=35.56&lon=139.72&days=3');
+    expect(preloads[0]!.removed).toBe(false);
+    // 予報以外の先読みは巻き込まない
+    expect(preloads[1]!.href).toBe('/fonts/example.woff2');
+  });
+
+  it('デモ表示の先読みはデモのURLへ合わせる', async () => {
+    await worker.fetch(new Request('https://example.com/?demo=1'), createEnv(), ctx);
+    const preload = HTMLRewriterStub.applied.find((t) => t.selector === 'link[rel="preload"]')!;
+
+    expect(preload.href).toBe('/api/forecast?demo=1&days=3');
+  });
+
+  it('イベント固定リンクは取得先が決まらないため先読みごと外す', async () => {
+    await worker.fetch(
+      new Request(`https://example.com/?event=${encodeURIComponent('けもケット')}`),
+      createEnv(),
+      ctx,
+    );
+    const preload = HTMLRewriterStub.applied.find((t) => t.selector === 'link[rel="preload"]')!;
+
+    expect(preload.removed).toBe(true);
+  });
+
+  it('地点の指定が無いトップページの先読みはHTMLのまま（既定都市）', async () => {
+    await worker.fetch(new Request('https://example.com/'), createEnv(), ctx);
+    const preload = HTMLRewriterStub.applied.find((t) => t.selector === 'link[rel="preload"]')!;
+
+    expect(preload.href).toBe('/api/forecast?lat=35.68&lon=139.68&days=3');
+    expect(preload.removed).toBe(false);
+  });
+
+  it('範囲外の座標はapp.jsも無視するため先読みは既定都市のまま', async () => {
+    await worker.fetch(new Request('https://example.com/?lat=99&lon=999'), createEnv(), ctx);
+    const preload = HTMLRewriterStub.applied.find((t) => t.selector === 'link[rel="preload"]')!;
+
+    expect(preload.href).toBe('/api/forecast?lat=35.68&lon=139.68&days=3');
   });
 
   it('リクエストごとに異なるnonceを使う（固定値だと注入で突破される）', async () => {

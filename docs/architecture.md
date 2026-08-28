@@ -67,7 +67,8 @@ sequenceDiagram
 ```text
 src/
 ├── index.ts            Workerエントリポイント（ルーティング・最終防衛線）
-├── csp.ts              HTMLページのCSP組み立てとnonce差し込み（OGメタの差し替えも担う）
+├── csp.ts              HTMLページのCSP組み立てとnonce差し込み（OGメタ・API先読みの差し替えも担う）
+├── preload.ts          API先読み（link rel=preload）をリクエストの取得先へ合わせる規則
 ├── ogp.ts              リンクカード（OGP）用の当日判定サマリー（クローラーUA限定。下記参照）
 ├── api/
 │   ├── forecast.ts     /api/forecast ハンドラ（検証・エラー応答）
@@ -200,6 +201,33 @@ style-src  'self' 'nonce-<同じ値>'
 - JSON-LDは実行されないデータブロックのためnonceを付けません
 - nonceは毎回変わるため、共有キャッシュに載らないよう`Cache-Control:
   no-store`を付けます
+
+### API先読み（link rel=preload）の付け替え
+
+トップページは`<link rel="preload" as="fetch" crossorigin>`で予報APIを
+先読みし、JS読み込み→API取得の直列チェーンを短縮しています。先読みは初回の
+fetchとURLがバイト単位で一致して初めて効くため、HTMLに書ける値は既定都市
+（東京）の1つだけです。共有URL（`?lat=&lon=`）やデモ表示で開かれると、
+東京の予報を1回取ってそのまま捨てることになります（実測でリクエストが2本になり、
+ブラウザのコンソールにも「preloaded but not used」が出ます）。
+
+HTMLはnonceのため元からWorkerが書き換えているので、リクエストのクエリから
+取得先が決まる場合は先読み先も合わせます（`src/preload.ts`）。
+
+| リクエスト | 先読みの扱い |
+|-----------|-------------|
+| 地点の指定なし | HTMLのまま（既定都市） |
+| `?lat=&lon=`（範囲内） | その座標へ付け替え（小数2桁。app.jsの`coordQuery`と同じ丸め） |
+| `?demo=1` | デモのURLへ付け替え |
+| `?event=` | 会場の郵便番号を解決してから取得するため、先読みリンクごと外す |
+| 範囲外・非数値の座標 | app.jsも無視して記憶・既定へ落ちるため、HTMLのまま |
+
+実測では共有URLのリクエストが2本→1本になり、予報の取得開始が247ms→27msへ
+早まりました（ローカル計測）。
+
+記憶した地点（localStorage）はサーバーから見えないため、そのぶんの取り違えは
+残ります。既定都市で開く初回訪問は先読みが効いており（PageSpeedが測るのも
+この経路）、そこを遅くしないことを優先した判断です。
 
 `script-src`の後半（`https:` `http:` `'unsafe-inline'`）は古いブラウザ向けの
 後方互換です。ブラウザは解釈できない指定を読み飛ばすため、結果として
