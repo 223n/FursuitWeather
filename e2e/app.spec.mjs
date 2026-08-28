@@ -30,6 +30,19 @@ async function installMorningClock(page) {
   await page.clock.install({ time: new Date(`${jstToday}T09:00:00+09:00`) });
 }
 
+/** Web Share APIを持たない環境（多くのPC向けブラウザ）を再現する（page.gotoの前に呼ぶ）。
+ * app.jsは navigator.share / navigator.canShare の有無で共有シートとフォールバック
+ * （URLのコピー・PNGの保存）を切り替える。share・canShareはNavigator.prototypeの
+ * プロパティのため、navigatorインスタンスからdeleteしても消えない。
+ * 実機のChromeで走らせるとフォールバック側の検証が共有シート側へ流れてしまうので、
+ * prototypeから明示的に外して分岐を固定する */
+async function disableWebShare(page) {
+  await page.addInitScript(() => {
+    delete Navigator.prototype.share;
+    delete Navigator.prototype.canShare;
+  });
+}
+
 /** 表示中の地点の「そのほかの操作」（会場表示・印刷・画像で共有）を開く。
  * 判定を画面の上へ寄せるため既定は折りたたみ */
 async function openMoreActions(page) {
@@ -638,6 +651,7 @@ test('エラー時: 固定の日本語文が表示され、生の英語メッセ
 test('共有URL: 注記は画面だけに出し、URLの地点名には積み重ねない', async ({ page }) => {
   // 注記付きのラベルをURLへ書き戻すと、共有が1往復するたびに「（共有・…）」が
   // 増えて名前が伸び、80文字で切られて壊れる（本番ログで発生を確認済み）
+  await disableWebShare(page);
   await page.goto('/?lat=35.68&lon=139.68&name=' + encodeURIComponent('テスト会場'));
   await waitForForecast(page);
 
@@ -650,7 +664,6 @@ test('共有URL: 注記は画面だけに出し、URLの地点名には積み重
 
   // 共有ボタンが作るURLも同じ（クリップボード経由の分岐を使う）
   await page.evaluate(() => {
-    delete window.navigator.share;
     window.__copied = null;
     Object.defineProperty(window.navigator, 'clipboard', {
       configurable: true,
@@ -1128,6 +1141,7 @@ test('実測WBGTの会場ログ: 記録・リロード保持・削除・CSV書�
 });
 
 test('シェア画像: Web Share非対応環境ではPNGのダウンロードになる', async ({ page }) => {
+  await disableWebShare(page);
   await page.goto('/');
   await waitForForecast(page);
 

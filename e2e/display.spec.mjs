@@ -324,6 +324,40 @@ test.describe('縦画面（スマホ）', () => {
     expect(fits).toHaveLength(12);
     expect(fits.every(Boolean)).toBe(true);
   });
+
+  // 都市を追加するとセルがさらに低くなり、縦画面では判定バッジが下から切れていた。
+  // セルの実寸が足りないときは天気・最高気温を落とし、判定は必ず残す
+  test('会場表示: 縦画面で16セルでも判定が残り、天気・気温が代わりに落ちる', async ({ page }) => {
+    const longName = '幕張メッセ国際展示場9〜11ホール';
+    const extras = [`35.63,140.03,${longName}`, '33.24,131.61,別府', '36.65,138.18,長野', '43.77,142.36,旭川'];
+    await page.goto(
+      `/display?demo=1&slides=national&${extras.map((e) => `add=${encodeURIComponent(e)}`).join('&')}`,
+    );
+    await waitForStrip(page);
+    await expect(page.locator('#slide-national')).toBeVisible();
+    await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(16);
+
+    // 判定バッジは全セルで欠けずに残る
+    const fits = await page
+      .locator('.display-city-cell .badge')
+      .evaluateAll((badges) =>
+        badges.map((badge) => {
+          const rect = badge.getBoundingClientRect();
+          const cell = badge.closest('.display-city-cell').getBoundingClientRect();
+          return rect.height > 0 && rect.top >= cell.top - 1 && rect.bottom <= cell.bottom + 1;
+        }),
+      );
+    expect(fits).toHaveLength(16);
+    expect(fits.every(Boolean)).toBe(true);
+
+    // 代わりに天気と最高気温が落ちている（セルの実寸に反応するコンテナクエリ）
+    await expect(page.locator('.display-city-cell .display-cell-weather').first()).toBeHidden();
+    await expect(page.locator('.display-city-cell .display-cell-temp').first()).toBeHidden();
+
+    // 都市名は見た目こそ省略されるが、読み上げ用に全文がDOMへ残る
+    const longCell = page.locator('.display-city-cell').filter({ hasText: '幕張' });
+    await expect(longCell.locator('.display-city-name')).toHaveText(longName);
+  });
 });
 
 test('会場表示: もしものときスライドは設定ONで巡回に加わり、OFFでURLからも消える', async ({

@@ -718,6 +718,56 @@
     gap: 0.1rem 0.6rem;
     padding: 0.15rem 0.4rem;
     line-height: 1.25;
+    /* セルの実寸で中身を間引くためのコンテナ。下の@containerのem条件は、
+       このfont-size（＝縦画面のバッジと同じ拡大率）を基準に解決される */
+    container-type: size;
+    font-size: clamp(0.9rem, 3.8vw, 1.4rem);
+  }
+
+  /* 追加都市の長い名前は、折り返すと判定バッジを下の行へ押し出して切ってしまう。
+     縦画面はセルが低いため、1行かつセル幅の半分強までに抑え、あふれる分は
+     省略記号で示す（読み上げ用に名前の全文はDOMへ残る） */
+  .display-city-name {
+    max-width: 55%;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
+  }
+
+  /* 都市の追加・警告帯の本数・画面の小ささが重なると、2行でも収まらない高さになる。
+     セルの実寸を見て中身を段階的に落とし、安全情報である判定は最後まで残す */
+  @container (max-height: 3.1em) {
+    /* 2行に収まらない高さ: 天気と最高気温を落とし「都市名＋判定」の1行にする */
+    .display-cell-weather,
+    .display-cell-temp {
+      display: none;
+    }
+
+    /* 残る2要素が1行に並ぶよう、名前の幅を判定バッジのぶんだけ空けて抑える
+       （@containerはコンテナ自身＝セルには効かないため、子側で調整する） */
+    .display-city-name {
+      max-width: 40%;
+    }
+  }
+
+  @container (max-height: 2em) {
+    /* それでも収まらない高さ: 文字と判定バッジの余白を詰める。0.7remを下限にして
+       読めない大きさまでは縮めない（下回る場合は表示する都市を減らして運用する） */
+    .display-city-name {
+      font-size: max(0.7rem, min(1rem, 52cqh));
+    }
+
+    .display-city-cell .badge {
+      font-size: max(0.7rem, min(0.9rem, 44cqh));
+      padding: 0 0.25em;
+      border-width: 1px;
+    }
+
+    .display-city-cell .badge .symbol {
+      font-size: 1.1em;
+    }
   }
 }
 
