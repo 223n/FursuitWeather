@@ -564,7 +564,9 @@ test('環境省アラート: 発表中は公式発表の赤帯を出し、発表
 });
 
 test('当日ボード: 追加・状態移動・上限超過の強調と、ニックネームの非漏洩', async ({ page }) => {
-  await page.clock.install();
+  // 時刻は午前へ固定する。当日ボードは日付が変わると当日分をリセットするため、
+  // 実行が深夜に近いと fastForward が日付をまたぎ、カードごと消えて落ちる
+  await installMorningClock(page);
   await page.goto('/');
   await waitForForecast(page);
   await page.click('.board-section summary');
