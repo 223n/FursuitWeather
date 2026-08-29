@@ -76,7 +76,7 @@ axe-core監査とCLS測定はリリース時の手動確認です（手順は
 デプロイ時に次の最適化を行います（CI・デプロイの両ワークフローで自動実行）。
 
 ```bash
-npm run build   # minify（JS4本とstyle.css・display.cssの圧縮）+ 各HTMLへのCSSインライン化（display.htmlは2ファイル分）
+npm run build   # minify（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とstyle.css・display.cssの圧縮）+ 各HTMLへのCSSインライン化（display.htmlは2ファイル分）
 ```
 
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した
