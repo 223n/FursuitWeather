@@ -386,6 +386,11 @@
   justify-content: center;
   gap: clamp(0.4rem, 1.2vh, 1rem);
   min-height: 0;
+  /* 5手順が高さに収まるかをスライドの実寸で見るためのコンテナ
+     （下の@containerが基準にする）。全国セルと同じく、収まらないときは
+     中身を段階的に落とす。安全情報の優先順位は「手順の見出し（5件そろって
+     いること）> 説明文 > 参照リンク」で、見出しは最後まで残す */
+  container-type: size;
 }
 
 .display-emergency-steps {
@@ -440,6 +445,72 @@
   text-align: center;
   font-size: clamp(0.9rem, 2.2vmin, 1.4rem);
   color: var(--color-text-muted);
+}
+
+/* 高さが足りないときは、まず余白と行間を詰める。説明文（具体的な処置）は
+   安全情報として価値が高いため、詰めるだけで収まるうちは落とさない
+   （会場のモニター1280x720にお知らせ帯が出る条件がここに当たる） */
+@container (max-height: 400px) {
+  .display-emergency-steps {
+    gap: 0.25rem;
+  }
+
+  .display-emergency-steps > li {
+    padding: 0.2rem 0.5rem;
+  }
+}
+
+/* 幅が狭いと説明文が2〜3行に折り返し、それだけで手順1件が100px近くなる。
+   縦画面の端末幅では説明文を落とし、5手順の見出しがそろうことを優先する
+   （説明の全文は末尾のリンク先＝/emergencyで読める） */
+@container (max-width: 640px) {
+  .display-emergency-detail {
+    display: none;
+  }
+}
+
+/* 詰めても入らない高さでは、説明文と参照リンクを落として手順そのものを残す */
+@container (max-height: 300px) {
+  .display-emergency-detail,
+  .display-emergency-link {
+    display: none;
+  }
+}
+
+/* 小さなスマホの縦画面。文字と余白をさらに詰めて5手順を残す
+   （0.9remを下限にして、読めない大きさまでは縮めない） */
+@container (max-height: 200px) {
+  .display-emergency-title {
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .display-emergency-number {
+    font-size: 0.95rem;
+  }
+
+  .display-emergency-steps > li {
+    padding: 0.1rem 0.4rem;
+  }
+
+  .display-emergency-steps {
+    gap: 0.15rem;
+  }
+}
+
+@container (max-height: 150px) {
+  .display-emergency-title {
+    font-size: 0.9rem;
+  }
+
+  .display-emergency-number {
+    font-size: 0.85rem;
+  }
+
+  .display-emergency-steps > li {
+    border-width: 1px;
+    padding: 0.05rem 0.3rem;
+  }
 }
 
 /* スライド内の読み込み中・データなし案内 */

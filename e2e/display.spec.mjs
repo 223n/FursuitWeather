@@ -387,6 +387,73 @@ test.describe('縦画面（スマホ）', () => {
   });
 });
 
+/** もしものときスライドを表示する（危険レベル固定のモックのため末尾に加わる） */
+async function gotoEmergency(page, msg = '') {
+  await page.goto(`/display?demo=1&slides=now,emergency${msg}`);
+  await waitForStrip(page);
+  await page.click('#display-next');
+  await expect(page.locator('#slide-emergency')).toBeVisible();
+}
+
+/** 手順の一覧がスライドの内側に収まっているか（はみ出すと下の手順が切れ、
+ * 参照リンクと重なって読めなくなる）と、見出しの最小の文字サイズを返す */
+async function emergencyFit(page) {
+  return page.evaluate(() => {
+    const list = document.querySelector('.display-emergency-steps');
+    const titles = [...document.querySelectorAll('.display-emergency-title')];
+    return {
+      overflow: list.scrollHeight - list.clientHeight,
+      minTitlePx: Math.min(...titles.map((t) => parseFloat(getComputedStyle(t).fontSize))),
+      shownSteps: [...document.querySelectorAll('.display-emergency-steps > li')].filter(
+        (li) => li.getBoundingClientRect().height > 0,
+      ).length,
+    };
+  });
+}
+
+// 応急手順が切れると、いちばん必要な場面で処置の順序が読めない。
+// 高さは「画面サイズ×警告帯×お知らせ帯」で決まるため、縦画面の代表サイズを回す
+// （修正前は390x844で168px、360x640で351pxはみ出し、参照リンクと重なっていた）
+test('会場表示: 縦画面でも応急手順5件が切れずに残る（警告帯・お知らせ込み）', async ({ page }) => {
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      await page.setViewportSize(viewport);
+      await gotoEmergency(page, msg);
+
+      const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
+      const fit = await emergencyFit(page);
+      expect(fit.shownSteps, where).toBe(5);
+      expect(fit.overflow, where).toBeLessThanOrEqual(1);
+      // 収まらないときに文字を詰めるが、読めない大きさ（0.9rem未満）にはしない
+      expect(fit.minTitlePx, where).toBeGreaterThanOrEqual(14.4);
+    }
+  }
+});
+
+// 会場のモニターは本来の用途。お知らせ帯が出ても、処置の内容（説明文）まで
+// 残るだけの高さがある。余白を詰めるのが先で、説明文を落とすのは最後にする
+test('会場表示: 会場のモニターではお知らせ帯が出ても手順の説明文が残る', async ({ page }) => {
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await gotoEmergency(page, '&msg=' + encodeURIComponent('休憩スペースは2階です'));
+
+    const where = `${viewport.width}x${viewport.height}`;
+    const fit = await emergencyFit(page);
+    expect(fit.shownSteps, where).toBe(5);
+    expect(fit.overflow, where).toBeLessThanOrEqual(1);
+    await expect(page.locator('.display-emergency-detail').first(), where).toBeVisible();
+  }
+});
+
 test('会場表示: もしものときスライドは設定ONで巡回に加わり、OFFでURLからも消える', async ({
   page,
 }) => {
