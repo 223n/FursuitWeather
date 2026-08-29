@@ -387,6 +387,62 @@ test.describe('縦画面（スマホ）', () => {
   });
 });
 
+/** 全国セルで表示されている都市名・判定の最小の文字サイズ（px）を返す */
+async function cityFontSizes(page) {
+  return page.evaluate(() => {
+    const shown = (el) => el && getComputedStyle(el).display !== 'none';
+    const sizes = (selector) =>
+      [...document.querySelectorAll(`.display-city-cell ${selector}`)]
+        .filter(shown)
+        .map((el) => parseFloat(getComputedStyle(el).fontSize));
+    return {
+      minName: Math.min(...sizes('.display-city-name')),
+      minBadge: Math.min(...sizes('.badge')),
+    };
+  });
+}
+
+// 「欠けてはいないが読めない」状態を検出する。文字の頭打ち（min()）に下限がなく、
+// 判定バッジが390x844で10px、360x640で3.1px、320x568で0pxまで縮んでいた。
+// 収まりだけを見るcellFitsでは0pxも「収まっている」と判定されるため素通ししていた
+test('会場表示: 縦画面でも全国セルの都市名と判定が読める大きさを保つ', async ({ page }) => {
+  await useLongestBadgeLabel(page);
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/display?demo=1&slides=national${msg}`);
+      await waitForStrip(page);
+      await expect(page.locator('#slide-national')).toBeVisible();
+
+      const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
+      const fonts = await cityFontSizes(page);
+      expect(fonts.minName, where).toBeGreaterThanOrEqual(11.2);
+      expect(fonts.minBadge, where).toBeGreaterThanOrEqual(11.2);
+      // 下限を入れたぶん、外形（枠線・余白）を削って収まりは保つ
+      expect(await cellFits(page), where).toEqual(new Array(12).fill(true));
+    }
+  }
+});
+
+// 会場のモニターでも縦の詰まる比率がある。1024x600に警告帯とお知らせが重なると
+// 判定バッジが下から欠けていた（4文字ラベルのときだけ出る）
+test('会場表示: 縦に詰まる会場モニター（1024x600）でも判定が欠けない', async ({ page }) => {
+  await useLongestBadgeLabel(page);
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await page.goto('/display?demo=1&slides=national&msg=' + encodeURIComponent('休憩スペースは2階です'));
+  await waitForStrip(page);
+  await expect(page.locator('#slide-national')).toBeVisible();
+
+  expect(await cellFits(page)).toEqual(new Array(12).fill(true));
+  const fonts = await cityFontSizes(page);
+  expect(fonts.minBadge).toBeGreaterThanOrEqual(11.2);
+});
+
 /** 時間別・3日間の判定を4文字ラベルへ差し替える（全国のuseLongestBadgeLabelと同じ理由。
  * 本番では「厳重警戒」などが普通に出るが、デモは全時間帯が2文字の「危険」で、
  * 文字数がそのままセルの高さに効くため最長のラベルで収まりを見る） */

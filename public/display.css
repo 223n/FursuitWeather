@@ -287,7 +287,7 @@
   /* 幅の上限は実測から。バッジの外形は「文字サイズ×5.4＋28px」で、
      列幅はセル幅の約45.6%（実測。1920x1080と390x844で同じ比率）。
      単純な N cqi では定数28pxを表せず、大画面で判定が不必要に小さくなる */
-  font-size: min(var(--city-badge-base), 24cqh, calc((92cqi - 28px) / 5.4));
+  font-size: max(0.7rem, min(var(--city-badge-base), 24cqh, calc((92cqi - 28px) / 5.4)));
   grid-column: 1 / -1;
   white-space: nowrap;
   justify-content: center;
@@ -392,7 +392,7 @@
 .display-city-name {
   /* セルの高さ（cqh）と列幅（cqi）でも頭打ちにする。vmin/vwだけだと4:3や
      正方形に近い画面で列幅に対して文字が過大になり、内容が切れる */
-  font-size: min(var(--city-name-base), 34cqh, 10cqi);
+  font-size: max(0.7rem, min(var(--city-name-base), 34cqh, 10cqi));
   font-weight: 700;
   /* 追加都市名は40文字まで許容される（display.jsのnormalizeExtra）。
      列幅を押し広げず、あふれる分は省略記号で示す（読み上げ用に全文はDOMへ残る） */
@@ -407,7 +407,7 @@
 
 /* 天気・気温のクラスは時間別・3日間のセルと共有のため、全国セルに限って上書きする */
 .display-city-cell .display-cell-weather {
-  font-size: min(var(--city-text-base), 26cqh, 7cqi);
+  font-size: max(0.7rem, min(var(--city-text-base), 26cqh, 7cqi));
 }
 
 /* 天気アイコンは独自のfont-sizeを持ち、下限1.2remがセルの上限を突き抜けて
@@ -417,7 +417,7 @@
 }
 
 .display-city-cell .display-cell-temp {
-  font-size: min(var(--city-temp-base), 26cqh, 7.5cqi);
+  font-size: max(0.7rem, min(var(--city-temp-base), 26cqh, 7.5cqi));
 }
 
 /* もしものときスライド（熱中症の応急対応の要点） */
@@ -897,6 +897,15 @@
 /* セルが低すぎて2行に収まらないときは、天気と最高気温を落として
    「都市名＋判定」の1行にする。安全情報である判定を最後まで残すための順序
    （@containerはコンテナ自身＝セルには効かないため、子側だけで調整する） */
+/* 2行が入るぎりぎりの高さでは、判定バッジの余白と枠線を先に削る
+   （1024x600に警告帯とお知らせが重なる条件で、判定が下から1px欠けていた） */
+@container (max-height: 72px) {
+  .display-city-cell .badge {
+    padding: 0 0.4rem;
+    border-width: 1px;
+  }
+}
+
 @container (max-height: 36px) {
   .display-city-cell .display-cell-weather,
   .display-city-cell .display-cell-temp {
@@ -960,6 +969,19 @@
   .display-day-cell {
     gap: 0.1rem;
     padding: 0.1rem 0.15rem;
+    border-width: 1px;
+  }
+
+  /* 全国セルは24pxまで低くなる。既定の枠線2px+上下余白でその半分が埋まり、
+     0.7remの文字が入らなくなるため、外形側を最小限にする */
+  .display-city-cell {
+    padding: 0 0.2rem;
+    border-width: 1px;
+    row-gap: 0;
+  }
+
+  .display-city-cell .badge {
+    padding: 0 0.25rem;
     border-width: 1px;
   }
 }
