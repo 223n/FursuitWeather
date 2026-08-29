@@ -262,6 +262,12 @@ h2 {
   border-top: 1px solid var(--color-border);
 }
 
+/* よく使う操作とそのほかの操作は行を分けて並べるため、行の間に余白を入れる
+   （.control-row自体は余白を持たないので隣接時だけ足す） */
+.displayed-location .control-row + .control-row {
+  margin-top: 0.5rem;
+}
+
 /* お気に入りが未登録のときの案内（チップと同じ行に収める） */
 .favorites-empty {
   color: var(--color-text-muted);
@@ -1617,6 +1623,14 @@ section h3 {
   color: var(--color-blue);
   font-weight: 700;
   text-decoration: none;
+}
+
+/* 予報の取得後にapp.jsがhidden属性を外すため、常設の操作行では
+   display: noneのままだと出現時に隣のボタンが動く。場所だけ先に確保し、
+   見た目と支援技術の双方から隠す（visibility: hiddenはフォーカスも受けない） */
+.display-mode-link[hidden] {
+  display: inline-flex;
+  visibility: hidden;
 }
 
 .display-mode-link:hover {
