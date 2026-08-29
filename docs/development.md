@@ -58,10 +58,17 @@ npm run test:coverage
 `vitest.config.ts`のcoverage設定に定義され、CIでも強制されます。
 分岐（branches）はしきい値の対象外です（既定引数などツール上の
 部分分岐が含まれるため）。
-`public/app.js`・`public/wbgt-tool.js`・`public/display.js`はブラウザ
-実行のためカバレッジ対象外ですが、定数同期は`htmlSync.test.ts`で機械検証し、
-実挙動はE2Eテスト（`e2e/`配下。会場表示モードは`e2e/display.spec.mjs`）が
-実ブラウザで検証します。
+`public/app.js`・`public/prefs.js`・`public/wbgt-tool.js`・
+`public/display.js`はブラウザ実行のためカバレッジ対象外ですが、
+定数同期は`htmlSync.test.ts`で機械検証し、実挙動はE2Eテスト
+（`e2e/`配下。会場表示モードは`e2e/display.spec.mjs`）が実ブラウザで
+検証します。
+
+`public/sw.js`だけはこの二重の網から外れます。E2Eは
+`serviceWorkers: 'block'`でService Workerを遮断するため
+（モックしたAPI応答がSWのキャッシュに素通しされるのを防ぐ設定）、
+自動検証はオフラインシェルの対象パスがHTML_PATHSと一致するかを見る
+`csp.test.ts`だけです。SWの挙動を変えたときは手動で確認してください。
 
 ```bash
 npm run test:e2e   # Playwright（APIはモック。wrangler devを自動起動）

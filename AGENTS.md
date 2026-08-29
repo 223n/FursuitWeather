@@ -26,7 +26,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ## CIが強制する契約
 
-- **カバレッジ100%**: statements・lines・functionsは100%が`vitest.config.ts`のしきい値でCI強制される。`src/`に新しいコードを書いたら必ずテストを追加する（`public/`のブラウザJSは対象外で、実挙動はE2Eが受け持つ）
+- **カバレッジ100%**: statements・lines・functionsは100%が`vitest.config.ts`のしきい値でCI強制される。`src/`に新しいコードを書いたら必ずテストを追加する（`public/`のブラウザJSは対象外で、実挙動はE2Eが受け持つ。ただし`sw.js`だけは例外で、下記のE2E節を参照）
 - **E2Eテスト**: `ci.yml`の独立ジョブ`e2e`が`e2e/`配下を実ブラウザで実行する。書き方は「E2E（Playwright）の約束事」を参照
 - **htmlSync同期テスト**（`test/htmlSync.test.ts`）: 文言・しきい値の複製箇所を`?raw`インポートで機械検証する。両側を揃えないとテストが落ちる。複製は`src/constants.ts`（単一情報源）から静的HTML・`public/app.js`・`public/display.js`・`public/wbgt-tool.js`・`public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`へ広く伸びており、検証は60件を超えて増え続けている。**触る前に`test/htmlSync.test.ts`の`describe`・`it`名を一覧して、その箇所が検証対象かを確かめる**（このファイルの見出しが実質の同期対象一覧なので、ここでは代表例だけ挙げる）
   - `src/constants.ts`のしきい値・ラベル ↔ index.htmlの注意事項・判定凡例、about.htmlのしきい値表、`public/wbgt-tool.js`の判定表（配列の形式まで完全一致で検証される）
@@ -65,7 +65,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 - **上流ネットワークへ接続しない**: `/api/*`と`events.json`は`page.route`で同一オリジンの`?demo=1`などへ差し替え、応答を決定的にする
 - **時刻に依存させない**: 判定も表示も時刻で変わるため、`page.goto`の前に`page.clock.install`でJST基準の固定時刻を入れる。ここを外すと「夕方以降だけ落ちる」「深夜だけ落ちる」テストになる（実際に作り込んで直した経緯がある）。スライドの自動送りや鮮度警告の検証も`page.clock.fastForward`で行い、実時間を待たない
-- **`serviceWorkers: 'block'`を外さない**: SWが介在すると`page.route`のモックが素通しされ、2回目以降の遷移でキャッシュが返る。変更が効いていないのに効いて見えるため、計測を誤る
+- **`serviceWorkers: 'block'`を外さない**: SWが介在すると`page.route`のモックが素通しされ、2回目以降の遷移でキャッシュが返る。変更が効いていないのに効いて見えるため、計測を誤る。その代わりSW自体（`public/sw.js`）の挙動はE2Eの検証対象外になり、自動検証は`test/csp.test.ts`のSHELL_URLS一致のみ。sw.jsを変えたときは手動で確認する
 - CSPにより`page.addStyleTag`は弾かれる。CSSを差し替えて試したいときは`page.route('**/display.css', …)`で応答を作る
 - ローカルに`ms-playwright`のブラウザが無い環境では、`PLAYWRIGHT_CHROMIUM_PATH`にシステムのChromeの実行ファイルを指定して実行できる
 
