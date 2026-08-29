@@ -6,6 +6,7 @@
 // 攻撃者からも読めるため、固定値だと同じnonceを付けたタグを注入されて突破される）。
 
 import type { OgSummary } from './ogp';
+import { FORECAST_PRELOAD_PREFIX, forecastPreloadHref, type PreloadQuery } from './preload';
 
 /** WorkerがHTMLとして処理するパス。ここに載せたパスはwrangler.jsoncの
  * run_worker_firstにも含めること（載っていないとWorkerが起動せず、
@@ -77,7 +78,12 @@ export function buildHtmlCsp(nonce: string): string {
  *   （リンクカードへの当日判定表示。src/ogp.tsのogSummaryForが組み立てる。
  *   setAttributeは属性値をエスケープするため、文言に判定ラベル等を含めても安全）
  */
-export function withNonce(asset: Response, nonce: string, og?: OgSummary): Response {
+export function withNonce(
+  asset: Response,
+  nonce: string,
+  og?: OgSummary,
+  preload?: PreloadQuery,
+): Response {
   let rewriter = new HTMLRewriter()
     .on('script', {
       element(element): void {
@@ -109,6 +115,24 @@ export function withNonce(asset: Response, nonce: string, og?: OgSummary): Respo
         },
       });
     }
+  }
+
+  // API先読みのhrefを、このリクエストで実際に取得されるURLへ合わせる
+  // （合わせられないときはリンクごと外す。詳細はsrc/preload.ts）
+  if (preload !== undefined) {
+    rewriter = rewriter.on('link[rel="preload"]', {
+      element(element): void {
+        const href = element.getAttribute('href');
+        if (href === null || !href.startsWith(FORECAST_PRELOAD_PREFIX)) {
+          return;
+        }
+        if (preload === null) {
+          element.remove();
+          return;
+        }
+        element.setAttribute('href', forecastPreloadHref(href, preload));
+      },
+    });
   }
 
   const rewritten = rewriter.transform(asset);

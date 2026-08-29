@@ -11,6 +11,7 @@ import { handleNational } from './api/national';
 import { jsonError, methodGuard, upstreamErrorResponse } from './api/http';
 import { isHtmlPath, withNonce } from './csp';
 import { ogSummaryFor } from './ogp';
+import { forecastPreloadQuery } from './preload';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -66,7 +67,7 @@ export default {
     //   ベストエフォートのためnull（通常閲覧・取得失敗）でもHTML配信は続行する）
     if (isHtmlPath(url.pathname)) {
       const [asset, og] = await Promise.all([env.ASSETS.fetch(request), ogSummaryFor(request)]);
-      return withNonce(asset, crypto.randomUUID(), og ?? undefined);
+      return withNonce(asset, crypto.randomUUID(), og ?? undefined, forecastPreloadQuery(url));
     }
 
     // run_worker_firstの対象外パスは通常ここに到達しないが、念のためアセットへ委譲する

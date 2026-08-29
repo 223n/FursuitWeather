@@ -31,6 +31,48 @@ async function mockApisWithDemo(page) {
   });
 }
 
+/** 全国の判定ラベルを4文字（「ほぼ安全」等）へ差し替える。
+ * デモデータは全都市が2文字の「危険」だが、本番では ほぼ安全・厳重警戒・低温危険 の
+ * 4文字が普通に出る。半幅の列では文字数がそのままセルの高さに効くため、
+ * 収まりの検証は最長のラベルで行う（mockApisWithDemoの後に呼ぶ） */
+async function useLongestBadgeLabel(page) {
+  await page.unroute('**/api/national*');
+  await page.route('**/api/national*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    body.cities = body.cities.map((city) => ({
+      ...city,
+      outdoorWorst: { ...city.outdoorWorst, label: 'ほぼ安全', grade: 0 },
+    }));
+    await route.fulfill({ json: body });
+  });
+}
+
+/** 各セルで、都市名・天気・最高気温・判定がセルの内側に収まっているかを返す
+ * （表示されていない要素＝間引かれたものは対象外） */
+async function cellFits(page) {
+  return page.locator('.display-city-cell').evaluateAll((cells) =>
+    cells.map((cell) => {
+      const style = getComputedStyle(cell);
+      const box = cell.getBoundingClientRect();
+      const top = box.top + parseFloat(style.borderTopWidth);
+      const bottom = box.bottom - parseFloat(style.borderBottomWidth);
+      return ['.display-city-name', '.display-cell-weather', '.display-cell-temp', '.badge'].every(
+        (selector) => {
+          const element = cell.querySelector(selector);
+          if (!element || getComputedStyle(element).display === 'none') {
+            return true;
+          }
+          const rect = element.getBoundingClientRect();
+          return rect.height > 0 && rect.top >= top - 1 && rect.bottom <= bottom + 1;
+        },
+      );
+    }),
+  );
+}
+
 /** 予報の描画完了（常時帯にバッジが出る）まで待つ */
 async function waitForStrip(page) {
   await expect(page.locator('#display-now-strip .badge')).toBeVisible();
@@ -188,6 +230,52 @@ test('会場表示: 追加4都市を含む16セルでも判定バッジが収ま
   expect(fits.every(Boolean)).toBe(true);
 });
 
+// 全国スライドが3行になる構成（9都市以上）では、セル内の縦積みが行の高さを超え、
+// overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた。
+// 会場のモニターとPCでよく使う横長サイズを実寸で検証する（既定の12都市）
+test('会場表示: 横長画面の12都市でも中身がセルに収まる（4:3・5:4を含む）', async ({ page }) => {
+  await useLongestBadgeLabel(page);
+  // 16:9だけでなく4:3・5:4も回す。これらはvminが高さ基準になるため列幅に対して
+  // 文字が過大になりやすく、16:9だけの検証では破綻を取り逃がす
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1440, height: 780 },
+    { width: 1366, height: 640 },
+    { width: 1024, height: 768 },
+    { width: 1280, height: 1024 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/display?demo=1&slides=national');
+    await waitForStrip(page);
+    await expect(page.locator('#slide-national')).toBeVisible();
+    await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(12);
+
+    const fits = await cellFits(page);
+    expect(fits, `${viewport.width}x${viewport.height}`).toEqual(new Array(12).fill(true));
+  }
+});
+
+// 追加都市の名前は40文字まで許容されるため、長い会場名でセルが縦に破裂しうる。
+// 見た目は2行で打ち切って省略記号を出し、安全情報である判定バッジは必ず残す
+// （読み上げ用に名前の全文はDOMへ残す）
+test('会場表示: 長い名前の追加都市でも判定バッジが押し出されない', async ({ page }) => {
+  const longName = '幕張メッセ国際展示場9〜11ホール';
+  await page.goto(`/display?demo=1&slides=national&add=${encodeURIComponent(`35.63,140.03,${longName}`)}`);
+  await waitForStrip(page);
+  await expect(page.locator('#slide-national')).toBeVisible();
+  await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(13);
+
+  // 画面上は切り詰められても、名前の全文はDOMに残る（読み上げは省略されない）
+  const longCell = page.locator('.display-city-cell').filter({ hasText: '幕張メッセ' });
+  await expect(longCell.locator('.display-city-name')).toHaveText(longName);
+
+  // 判定だけでなく都市名の収まりも見る（バッジだけだと、名前の打ち切りを
+  // 外しても2行目が先に確保されるぶんバッジは無事で、テストが素通しになる）
+  const fits = await cellFits(page);
+  expect(fits).toHaveLength(13);
+  expect(fits.every(Boolean)).toBe(true);
+});
+
 test('会場表示: 設定パネル表示中はフォーカスが背景へ抜けず、リセットで設定が消える', async ({ page }) => {
   await page.goto('/display?demo=1&slides=now,hours&msg=テスト');
   await waitForStrip(page);
@@ -248,26 +336,54 @@ test('会場表示: 短いお知らせでも複製が画面幅を埋め、途切
 test.describe('縦画面（スマホ）', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('会場表示: 縦画面でも全国の都市名と判定がセル内に収まる', async ({ page }) => {
-    await page.goto('/display?demo=1');
-    await waitForStrip(page);
-    await page.keyboard.press('ArrowLeft');
-    await page.keyboard.press('ArrowLeft');
-    await expect(page.locator('#slide-national')).toBeVisible();
+  // 縦画面は端末の高さの幅が広く、警告帯やお知らせが出るとセルがさらに低くなる。
+  // 1サイズだけの検証では「判定は必ず残る」を主張できないため、代表的なスマホ幅を回す
+  test('会場表示: 縦画面でも全国の中身がセルに収まる（警告帯・お知らせ込み）', async ({ page }) => {
+    await useLongestBadgeLabel(page);
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 375, height: 667 },
+      { width: 360, height: 640 },
+    ]) {
+      for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+        await page.setViewportSize(viewport);
+        await page.goto(`/display?demo=1&slides=national${msg}`);
+        await waitForStrip(page);
+        await expect(page.locator('#slide-national')).toBeVisible();
+        await expect(page.locator('.display-city-cell .display-city-name')).toHaveCount(12);
 
-    // 全セルで都市名が見え、判定バッジがセルの中に収まっている（切れて消えない）
-    await expect(page.locator('.display-city-cell .display-city-name')).toHaveCount(12);
-    const fits = await page
-      .locator('.display-city-cell .badge')
-      .evaluateAll((badges) =>
-        badges.map((badge) => {
-          const rect = badge.getBoundingClientRect();
-          const cell = badge.closest('.display-city-cell').getBoundingClientRect();
-          return rect.height > 0 && rect.bottom <= cell.bottom + 1;
-        }),
-      );
-    expect(fits).toHaveLength(12);
+        const fits = await cellFits(page);
+        const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
+        expect(fits, where).toEqual(new Array(12).fill(true));
+      }
+    }
+  });
+
+  // 都市を追加するとセルがさらに低くなり、縦画面では判定バッジが下から切れていた。
+  // セルの実寸が足りないときは天気・最高気温を落とし、判定は必ず残す
+  test('会場表示: 縦画面で16セルでも判定が残り、天気・気温が代わりに落ちる', async ({ page }) => {
+    await useLongestBadgeLabel(page);
+    const longName = '幕張メッセ国際展示場9〜11ホール';
+    const extras = [`35.63,140.03,${longName}`, '33.24,131.61,別府', '36.65,138.18,長野', '43.77,142.36,旭川'];
+    await page.goto(
+      `/display?demo=1&slides=national&${extras.map((e) => `add=${encodeURIComponent(e)}`).join('&')}`,
+    );
+    await waitForStrip(page);
+    await expect(page.locator('#slide-national')).toBeVisible();
+    await expect(page.locator('#display-national-grid .display-city-cell')).toHaveCount(16);
+
+    // 判定バッジを含め、表示されている要素は全セルで欠けずに収まる
+    const fits = await cellFits(page);
+    expect(fits).toHaveLength(16);
     expect(fits.every(Boolean)).toBe(true);
+
+    // 代わりに天気と最高気温が落ちている（セルの実寸に反応するコンテナクエリ）
+    await expect(page.locator('.display-city-cell .display-cell-weather').first()).toBeHidden();
+    await expect(page.locator('.display-city-cell .display-cell-temp').first()).toBeHidden();
+
+    // 都市名は見た目こそ省略されるが、読み上げ用に全文がDOMへ残る
+    const longCell = page.locator('.display-city-cell').filter({ hasText: '幕張' });
+    await expect(longCell.locator('.display-city-name')).toHaveText(longName);
   });
 });
 
