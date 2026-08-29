@@ -387,6 +387,125 @@ test.describe('縦画面（スマホ）', () => {
   });
 });
 
+/** 時間別・3日間の判定を4文字ラベルへ差し替える（全国のuseLongestBadgeLabelと同じ理由。
+ * 本番では「厳重警戒」などが普通に出るが、デモは全時間帯が2文字の「危険」で、
+ * 文字数がそのままセルの高さに効くため最長のラベルで収まりを見る） */
+async function useLongestForecastLabel(page) {
+  await page.unroute('**/api/forecast*');
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    const template = body.hours.find((hour) => hour.time.endsWith('T14:00'));
+    const long = { label: '厳重警戒', level: 'strict', grade: 3 };
+    body.hours = body.hours.map((hour) => ({
+      ...template,
+      time: hour.time,
+      outdoor: { ...template.outdoor, ...long },
+      indoor: { ...template.indoor, ...long },
+    }));
+    body.days = body.days.map((day) => ({
+      ...day,
+      outdoorWorst: { ...day.outdoorWorst, ...long },
+      outdoorBest: { ...day.outdoorBest, ...long },
+    }));
+    await route.fulfill({ json: body });
+  });
+}
+
+/** スライドの枠からグリッドがはみ出していないか、セル内の要素が欠けていないか、
+ * 判定バッジが読める大きさ（0.7rem以上）かを返す */
+async function slideFits(page, slideId, cellSelector) {
+  return page.evaluate(
+    ({ slideId: id, cellSelector: sel }) => {
+      const slide = document.getElementById(id);
+      const grid = slide.querySelector('.display-hours-grid, .display-days-grid');
+      const slideBox = slide.getBoundingClientRect();
+      const cells = [...slide.querySelectorAll(sel)];
+      const shown = (el) => el && getComputedStyle(el).display !== 'none';
+      let clipped = 0;
+      let minBadgePx = Infinity;
+      for (const cell of cells) {
+        const style = getComputedStyle(cell);
+        const box = cell.getBoundingClientRect();
+        const top = box.top + parseFloat(style.borderTopWidth);
+        const bottom = box.bottom - parseFloat(style.borderBottomWidth);
+        const badge = cell.querySelector('.badge, .badge-large');
+        if (shown(badge)) {
+          minBadgePx = Math.min(minBadgePx, parseFloat(getComputedStyle(badge).fontSize));
+        }
+        for (const element of cell.querySelectorAll('*')) {
+          if (!shown(element) || element.classList.contains('sr-only')) continue;
+          const rect = element.getBoundingClientRect();
+          if (rect.height === 0) continue;
+          if (rect.top < top - 1 || rect.bottom > bottom + 1) clipped++;
+        }
+      }
+      return {
+        cells: cells.length,
+        gridOverflow: Math.round(grid.getBoundingClientRect().bottom - slideBox.bottom),
+        clipped,
+        minBadgePx,
+      };
+    },
+    { slideId, cellSelector },
+  );
+}
+
+// グリッドがスライドの高さを突き抜け、下のセルが.display-slideのoverflow:hiddenで
+// 切れていた（390x844で120px、360x640で267pxはみ出し）。原因はflexの既定
+// min-height:autoで、全国グリッドにだけ入っていたmin-height:0が漏れていた
+test('会場表示: 縦画面でこの後の予報・3日間がスライドから途切れない', async ({ page }) => {
+  await useLongestForecastLabel(page);
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      for (const [key, cellSelector] of [
+        ['hours', '.display-hour-cell'],
+        ['days', '.display-day-cell'],
+      ]) {
+        await page.setViewportSize(viewport);
+        await page.goto(`/display?demo=1&slides=${key}${msg}`);
+        await waitForStrip(page);
+        await expect(page.locator(`#slide-${key}`)).toBeVisible();
+
+        const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''} ${key}`;
+        const fit = await slideFits(page, `slide-${key}`, cellSelector);
+        expect(fit.cells, where).toBeGreaterThan(0);
+        expect(fit.gridOverflow, where).toBeLessThanOrEqual(1);
+        expect(fit.clipped, where).toBe(0);
+        // 収まらないときは天気・気温を落として判定を残す。判定は0.7remが下限
+        expect(fit.minBadgePx, where).toBeGreaterThanOrEqual(11.2);
+      }
+    }
+  }
+});
+
+// タブレットの縦画面はセルが低いのに幅が広く、vw基準の文字がセルに対して過大になる。
+// セルの実寸（cqh）でも頭打ちにしていないと、ここだけ中身が欠ける
+test('会場表示: タブレットの縦画面でも時間別セルの中身が欠けない', async ({ page }) => {
+  await useLongestForecastLabel(page);
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 820, height: 1180 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/display?demo=1&slides=hours');
+    await waitForStrip(page);
+    await expect(page.locator('#slide-hours')).toBeVisible();
+
+    const where = `${viewport.width}x${viewport.height}`;
+    const fit = await slideFits(page, 'slide-hours', '.display-hour-cell');
+    expect(fit.gridOverflow, where).toBeLessThanOrEqual(1);
+    expect(fit.clipped, where).toBe(0);
+  }
+});
+
 /** もしものときスライドを表示する（危険レベル固定のモックのため末尾に加わる） */
 async function gotoEmergency(page, msg = '') {
   await page.goto(`/display?demo=1&slides=now,emergency${msg}`);
