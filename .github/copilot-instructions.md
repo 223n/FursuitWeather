@@ -9,13 +9,28 @@
 - UI文言・コメント・コミットメッセージ・ドキュメントはすべて日本語で書く
 - `src/`のコードを変えたらテストを追加する。カバレッジ（statements・
   lines・functions）100%がCIで強制される
-- 係数・しきい値・文言は`src/constants.ts`が単一情報源。HTML・
-  `public/app.js`・`public/wbgt-tool.js`・`public/display.js`・
-  `docs/api.md`・`docs/logic.md`・`public/llms.txt`・フッターの
-  バージョン表記（`display.html`はバージョンコメント）に複製があり、
-  `test/htmlSync.test.ts`が同期を機械検証する。片側だけ変えるとCIが落ちる
+- `public/`のブラウザJSはカバレッジ対象外で、実挙動は`e2e/`のPlaywright
+  テスト（CIの`e2e`ジョブ）が受け持つ。上流へは接続せず`page.route`で
+  APIをモックし、時刻は`page.clock`で固定する（固定しないと実行時刻に
+  よって落ちるテストになる）。ただし`public/sw.js`はE2Eが
+  `serviceWorkers: 'block'`で遮断するため検証対象外で、自動検証は
+  `test/csp.test.ts`のSHELL_URLS一致のみ。変更時は手動確認する
+- 係数・しきい値・文言は`src/constants.ts`が単一情報源。静的HTML・
+  `public/app.js`・`public/display.js`・`public/wbgt-tool.js`・
+  `public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`・
+  フッターのバージョン表記（`display.html`はバージョンコメント）に
+  複製があり、`test/htmlSync.test.ts`が同期を機械検証する。対象は
+  60件を超えるため、触る前に同ファイルの`describe`・`it`名を確認する
 - 長い説明は`public/about.html`へ集約する。index.htmlからの`/about#…`
   リンクは、飛び先の見出しidが実在するかも`test/htmlSync.test.ts`が検証する
+- `src/csp.ts`のHTML_PATHSは`wrangler.jsonc`の`run_worker_first`・
+  `public/sw.js`のSHELL_URLS・`public/sitemap.xml`と一致させる
+  （ずれるとnonceの無いCSPで無言配信される。`test/csp.test.ts`が検証）
+- APIの追加は`src/index.ts`の`API_ROUTES`へ1行足す。メソッド制約・
+  CORS・502/500変換はルーターが持つのでハンドラはGET前提でよい。
+  レスポンスヘッダーは`src/api/http.ts`の`apiHeaders()`が単一情報源
+- CSPは2系統（静的アセットは`public/_headers`、HTMLページは`src/csp.ts`）。
+  外部の取得先を足すときは両方を更新する
 - PRは1つにつき1つのブランチを作る。1本を使い回すと、ブランチから
   PRを逆引きする仕組みが過去のPRを引き当ててしまう
 - `npm run build`は`public/`を破壊的に上書きする。コミット後に実行し、
@@ -41,5 +56,6 @@
 
 - 開発: `npm run dev`（`?demo=1`で上流なしのデモ表示）
 - テスト: `npm test`／単一ファイルは`npx vitest run test/<file>.test.ts`
+- E2E: `npm run test:e2e`（Playwright。`wrangler dev`は自動起動）
 - lint: `npm run lint`（ESLint + tsc）
 - カバレッジ: `npm run test:coverage`
