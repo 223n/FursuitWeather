@@ -206,8 +206,14 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  /* 行はセル数に追従させ、暗黙行ごとminmax(0,1fr)で均等に圧縮する（全国グリッドと同じ） */
+  grid-auto-rows: minmax(0, 1fr);
   gap: clamp(0.4rem, 1vw, 1rem);
   align-content: stretch;
+  /* flexの既定min-height:autoは中身より小さくなることを許さない。0にしないと
+     グリッドがスライドの高さを突き抜け、.display-slideのoverflow:hiddenで
+     下のセルが途切れる（全国グリッドには入っていた指定） */
+  min-height: 0;
 }
 
 .display-hour-cell {
@@ -221,10 +227,20 @@
   background-color: var(--color-background);
   padding: clamp(0.3rem, 1vh, 1rem) 0.2rem;
   text-align: center;
+  /* 4要素を縦に積むぶん、行間は本文既定（1.6）より詰める */
+  line-height: 1.25;
+  /* セルの実寸で中身を間引く・頭打ちにするためのコンテナ（全国セルと同じ方式） */
+  container-type: size;
+  /* 画面の向きで変わるのは拡大率の基準だけ。頭打ちの割合は共通にする */
+  --hour-time-base: clamp(1rem, 2.8vmin, 1.8rem);
+  --hour-text-base: clamp(0.9rem, 2.4vmin, 1.5rem);
+  --hour-badge-base: clamp(0.8rem, 2.2vmin, 1.4rem);
 }
 
 .display-hour-time {
-  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  /* セルの高さでも頭打ちにする。4要素＋余白が入る割合を実測で決めた
+     （vmin/vwだけだと、タブレットの縦画面などでセルに対して文字が過大になる） */
+  font-size: max(0.7rem, min(var(--hour-time-base), 16cqh));
   font-weight: 700;
 }
 
@@ -242,9 +258,27 @@
 }
 
 .display-hour-cell .badge {
-  font-size: clamp(0.8rem, 2.2vmin, 1.4rem);
+  font-size: max(0.7rem, min(var(--hour-badge-base), 14cqh));
   white-space: normal;
   justify-content: center;
+}
+
+/* 天気・気温のクラスは全国セルと共有のため、時間別・3日間セルに限って上書きする */
+.display-hour-cell .display-cell-weather,
+.display-hour-cell .display-cell-temp {
+  font-size: max(0.7rem, min(var(--hour-text-base), 12cqh));
+}
+
+.display-day-cell .display-cell-weather,
+.display-day-cell .display-cell-temp {
+  font-size: max(0.7rem, min(var(--day-text-base), 13cqh));
+}
+
+/* 天気アイコンは独自のfont-sizeを持ち、下限がセルの上限を突き抜けて行の高さを
+   決めてしまう。全国セルと同じく、天気ラベルに比例させて頭打ちを継がせる */
+.display-hour-cell .display-cell-weather .fa-icon,
+.display-day-cell .display-cell-weather .fa-icon {
+  font-size: 1.25em;
 }
 
 /* 全国セルの判定バッジ。半幅の列では既定のwhite-space:normalが「ほ/ぼ/安/全」と
@@ -253,7 +287,7 @@
   /* 幅の上限は実測から。バッジの外形は「文字サイズ×5.4＋28px」で、
      列幅はセル幅の約45.6%（実測。1920x1080と390x844で同じ比率）。
      単純な N cqi では定数28pxを表せず、大画面で判定が不必要に小さくなる */
-  font-size: min(var(--city-badge-base), 24cqh, calc((92cqi - 28px) / 5.4));
+  font-size: max(0.7rem, min(var(--city-badge-base), 24cqh, calc((92cqi - 28px) / 5.4)));
   grid-column: 1 / -1;
   white-space: nowrap;
   justify-content: center;
@@ -264,7 +298,10 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
   gap: clamp(0.5rem, 1.5vw, 1.5rem);
+  /* 縦画面では1列に積むため、min-height:0がないとスライドを突き抜ける */
+  min-height: 0;
 }
 
 .display-day-cell {
@@ -278,10 +315,15 @@
   background-color: var(--color-background);
   padding: clamp(0.5rem, 1.5vh, 1.5rem);
   text-align: center;
+  line-height: 1.25;
+  container-type: size;
+  --day-date-base: clamp(1.1rem, 3vmin, 2rem);
+  --day-text-base: clamp(0.9rem, 2.4vmin, 1.5rem);
+  --day-badge-base: clamp(1rem, 2.8vmin, 1.8rem);
 }
 
 .display-day-date {
-  font-size: clamp(1.1rem, 3vmin, 2rem);
+  font-size: max(0.7rem, min(var(--day-date-base), 18cqh));
   font-weight: 700;
   margin: 0;
 }
@@ -350,7 +392,7 @@
 .display-city-name {
   /* セルの高さ（cqh）と列幅（cqi）でも頭打ちにする。vmin/vwだけだと4:3や
      正方形に近い画面で列幅に対して文字が過大になり、内容が切れる */
-  font-size: min(var(--city-name-base), 34cqh, 10cqi);
+  font-size: max(0.7rem, min(var(--city-name-base), 34cqh, 10cqi));
   font-weight: 700;
   /* 追加都市名は40文字まで許容される（display.jsのnormalizeExtra）。
      列幅を押し広げず、あふれる分は省略記号で示す（読み上げ用に全文はDOMへ残る） */
@@ -365,7 +407,7 @@
 
 /* 天気・気温のクラスは時間別・3日間のセルと共有のため、全国セルに限って上書きする */
 .display-city-cell .display-cell-weather {
-  font-size: min(var(--city-text-base), 26cqh, 7cqi);
+  font-size: max(0.7rem, min(var(--city-text-base), 26cqh, 7cqi));
 }
 
 /* 天気アイコンは独自のfont-sizeを持ち、下限1.2remがセルの上限を突き抜けて
@@ -375,7 +417,7 @@
 }
 
 .display-city-cell .display-cell-temp {
-  font-size: min(var(--city-temp-base), 26cqh, 7.5cqi);
+  font-size: max(0.7rem, min(var(--city-temp-base), 26cqh, 7.5cqi));
 }
 
 /* もしものときスライド（熱中症の応急対応の要点） */
@@ -386,6 +428,11 @@
   justify-content: center;
   gap: clamp(0.4rem, 1.2vh, 1rem);
   min-height: 0;
+  /* 5手順が高さに収まるかをスライドの実寸で見るためのコンテナ
+     （下の@containerが基準にする）。全国セルと同じく、収まらないときは
+     中身を段階的に落とす。安全情報の優先順位は「手順の見出し（5件そろって
+     いること）> 説明文 > 参照リンク」で、見出しは最後まで残す */
+  container-type: size;
 }
 
 .display-emergency-steps {
@@ -440,6 +487,72 @@
   text-align: center;
   font-size: clamp(0.9rem, 2.2vmin, 1.4rem);
   color: var(--color-text-muted);
+}
+
+/* 高さが足りないときは、まず余白と行間を詰める。説明文（具体的な処置）は
+   安全情報として価値が高いため、詰めるだけで収まるうちは落とさない
+   （会場のモニター1280x720にお知らせ帯が出る条件がここに当たる） */
+@container (max-height: 400px) {
+  .display-emergency-steps {
+    gap: 0.25rem;
+  }
+
+  .display-emergency-steps > li {
+    padding: 0.2rem 0.5rem;
+  }
+}
+
+/* 幅が狭いと説明文が2〜3行に折り返し、それだけで手順1件が100px近くなる。
+   縦画面の端末幅では説明文を落とし、5手順の見出しがそろうことを優先する
+   （説明の全文は末尾のリンク先＝/emergencyで読める） */
+@container (max-width: 640px) {
+  .display-emergency-detail {
+    display: none;
+  }
+}
+
+/* 詰めても入らない高さでは、説明文と参照リンクを落として手順そのものを残す */
+@container (max-height: 300px) {
+  .display-emergency-detail,
+  .display-emergency-link {
+    display: none;
+  }
+}
+
+/* 小さなスマホの縦画面。文字と余白をさらに詰めて5手順を残す
+   （0.9remを下限にして、読めない大きさまでは縮めない） */
+@container (max-height: 200px) {
+  .display-emergency-title {
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .display-emergency-number {
+    font-size: 0.95rem;
+  }
+
+  .display-emergency-steps > li {
+    padding: 0.1rem 0.4rem;
+  }
+
+  .display-emergency-steps {
+    gap: 0.15rem;
+  }
+}
+
+@container (max-height: 150px) {
+  .display-emergency-title {
+    font-size: 0.9rem;
+  }
+
+  .display-emergency-number {
+    font-size: 0.85rem;
+  }
+
+  .display-emergency-steps > li {
+    border-width: 1px;
+    padding: 0.05rem 0.3rem;
+  }
 }
 
 /* スライド内の読み込み中・データなし案内 */
@@ -719,12 +832,10 @@
 @media (orientation: portrait) {
   .display-hours-grid {
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 
   .display-days-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 
   .display-national-grid,
@@ -745,17 +856,18 @@
     font-size: clamp(1rem, 4.5vw, 1.7rem);
   }
 
-  .display-hour-cell .badge {
-    font-size: clamp(0.9rem, 3.8vw, 1.4rem);
+  /* 縦画面はvminが幅基準になり文字が小さくなりすぎるため、基準をvwへ替える
+     （組み方とセル実寸での頭打ちは横長と共通） */
+  .display-hour-cell {
+    --hour-time-base: clamp(1rem, 4.5vw, 1.8rem);
+    --hour-text-base: clamp(0.95rem, 4vw, 1.6rem);
+    --hour-badge-base: clamp(0.9rem, 3.8vw, 1.4rem);
   }
 
-  .display-hour-time {
-    font-size: clamp(1rem, 4.5vw, 1.8rem);
-  }
-
-  .display-cell-weather,
-  .display-cell-temp {
-    font-size: clamp(0.95rem, 4vw, 1.6rem);
+  .display-day-cell {
+    --day-date-base: clamp(1rem, 4.5vw, 1.8rem);
+    --day-text-base: clamp(0.95rem, 4vw, 1.6rem);
+    --day-badge-base: clamp(1rem, 4.5vw, 1.8rem);
   }
 
   /* 縦画面はvminが幅基準になり文字が小さくなりすぎるため、拡大率の基準をvwへ替える
@@ -785,14 +897,91 @@
 /* セルが低すぎて2行に収まらないときは、天気と最高気温を落として
    「都市名＋判定」の1行にする。安全情報である判定を最後まで残すための順序
    （@containerはコンテナ自身＝セルには効かないため、子側だけで調整する） */
+/* 2行が入るぎりぎりの高さでは、判定バッジの余白と枠線を先に削る
+   （1024x600に警告帯とお知らせが重なる条件で、判定が下から1px欠けていた） */
+@container (max-height: 72px) {
+  .display-city-cell .badge {
+    padding: 0 0.4rem;
+    border-width: 1px;
+  }
+}
+
 @container (max-height: 36px) {
-  .display-cell-weather,
-  .display-cell-temp {
+  .display-city-cell .display-cell-weather,
+  .display-city-cell .display-cell-temp {
     display: none;
   }
 
   /* 残る2要素は1行に並べる（判定の行占有をやめて高さを半分にする） */
   .display-city-cell .badge {
     grid-column: auto;
+  }
+}
+
+/* 時間別・3日間のセルも、低いときは天気と最高気温を落として
+   「時刻（日付）＋判定」を残す。全国セルと同じ優先順位で、安全情報である
+   判定を最後まで残す。縦画面のメディアクエリより後ろに置くこと
+   （同じ詳細度では後勝ちのため、前に置くと拡大率の指定に上書きされる） */
+@container (max-height: 96px) {
+  .display-hour-cell .display-cell-weather,
+  .display-hour-cell .display-cell-temp,
+  .display-day-cell .display-cell-weather,
+  .display-day-cell .display-cell-temp {
+    display: none;
+  }
+}
+
+@container (max-height: 80px) {
+  .display-hour-cell .display-hour-time,
+  .display-day-cell .display-day-date {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .display-hour-cell .badge,
+  .display-day-cell .badge-large {
+    font-size: 0.85rem;
+  }
+}
+
+/* 0.7remを下限にして、読めない大きさまでは縮めない。
+   セル自身の余白は@containerでは変えられない（コンテナ自身には効かない）ため、
+   バッジ側の余白と枠線を詰める */
+@container (max-height: 56px) {
+  .display-hour-cell .display-hour-time,
+  .display-day-cell .display-day-date {
+    font-size: 0.8rem;
+  }
+
+  .display-hour-cell .badge,
+  .display-day-cell .badge-large {
+    font-size: 0.7rem;
+    gap: 0.15rem;
+    padding: 0 0.25rem;
+    border-width: 1px;
+  }
+}
+
+/* セル自身の余白・枠線は画面側の条件で詰める（コンテナクエリはセル自身へ効かない）。
+   縦画面で高さが小さい端末だけが対象 */
+@media (orientation: portrait) and (max-height: 700px) {
+  .display-hour-cell,
+  .display-day-cell {
+    gap: 0.1rem;
+    padding: 0.1rem 0.15rem;
+    border-width: 1px;
+  }
+
+  /* 全国セルは24pxまで低くなる。既定の枠線2px+上下余白でその半分が埋まり、
+     0.7remの文字が入らなくなるため、外形側を最小限にする */
+  .display-city-cell {
+    padding: 0 0.2rem;
+    border-width: 1px;
+    row-gap: 0;
+  }
+
+  .display-city-cell .badge {
+    padding: 0 0.25rem;
+    border-width: 1px;
   }
 }

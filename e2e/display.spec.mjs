@@ -387,6 +387,248 @@ test.describe('縦画面（スマホ）', () => {
   });
 });
 
+/** 全国セルで表示されている都市名・判定の最小の文字サイズ（px）を返す */
+async function cityFontSizes(page) {
+  return page.evaluate(() => {
+    const shown = (el) => el && getComputedStyle(el).display !== 'none';
+    const sizes = (selector) =>
+      [...document.querySelectorAll(`.display-city-cell ${selector}`)]
+        .filter(shown)
+        .map((el) => parseFloat(getComputedStyle(el).fontSize));
+    return {
+      minName: Math.min(...sizes('.display-city-name')),
+      minBadge: Math.min(...sizes('.badge')),
+    };
+  });
+}
+
+// 「欠けてはいないが読めない」状態を検出する。文字の頭打ち（min()）に下限がなく、
+// 判定バッジが390x844で10px、360x640で3.1px、320x568で0pxまで縮んでいた。
+// 収まりだけを見るcellFitsでは0pxも「収まっている」と判定されるため素通ししていた
+test('会場表示: 縦画面でも全国セルの都市名と判定が読める大きさを保つ', async ({ page }) => {
+  await useLongestBadgeLabel(page);
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/display?demo=1&slides=national${msg}`);
+      await waitForStrip(page);
+      await expect(page.locator('#slide-national')).toBeVisible();
+
+      const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
+      const fonts = await cityFontSizes(page);
+      expect(fonts.minName, where).toBeGreaterThanOrEqual(11.2);
+      expect(fonts.minBadge, where).toBeGreaterThanOrEqual(11.2);
+      // 下限を入れたぶん、外形（枠線・余白）を削って収まりは保つ
+      expect(await cellFits(page), where).toEqual(new Array(12).fill(true));
+    }
+  }
+});
+
+// 会場のモニターでも縦の詰まる比率がある。1024x600に警告帯とお知らせが重なると
+// 判定バッジが下から欠けていた（4文字ラベルのときだけ出る）
+test('会場表示: 縦に詰まる会場モニター（1024x600）でも判定が欠けない', async ({ page }) => {
+  await useLongestBadgeLabel(page);
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await page.goto('/display?demo=1&slides=national&msg=' + encodeURIComponent('休憩スペースは2階です'));
+  await waitForStrip(page);
+  await expect(page.locator('#slide-national')).toBeVisible();
+
+  expect(await cellFits(page)).toEqual(new Array(12).fill(true));
+  const fonts = await cityFontSizes(page);
+  expect(fonts.minBadge).toBeGreaterThanOrEqual(11.2);
+});
+
+/** 時間別・3日間の判定を4文字ラベルへ差し替える（全国のuseLongestBadgeLabelと同じ理由。
+ * 本番では「厳重警戒」などが普通に出るが、デモは全時間帯が2文字の「危険」で、
+ * 文字数がそのままセルの高さに効くため最長のラベルで収まりを見る） */
+async function useLongestForecastLabel(page) {
+  await page.unroute('**/api/forecast*');
+  await page.route('**/api/forecast*', async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set('demo', '1');
+    const response = await route.fetch({ url: url.toString() });
+    const body = await response.json();
+    const template = body.hours.find((hour) => hour.time.endsWith('T14:00'));
+    const long = { label: '厳重警戒', level: 'strict', grade: 3 };
+    body.hours = body.hours.map((hour) => ({
+      ...template,
+      time: hour.time,
+      outdoor: { ...template.outdoor, ...long },
+      indoor: { ...template.indoor, ...long },
+    }));
+    body.days = body.days.map((day) => ({
+      ...day,
+      outdoorWorst: { ...day.outdoorWorst, ...long },
+      outdoorBest: { ...day.outdoorBest, ...long },
+    }));
+    await route.fulfill({ json: body });
+  });
+}
+
+/** スライドの枠からグリッドがはみ出していないか、セル内の要素が欠けていないか、
+ * 判定バッジが読める大きさ（0.7rem以上）かを返す */
+async function slideFits(page, slideId, cellSelector) {
+  return page.evaluate(
+    ({ slideId: id, cellSelector: sel }) => {
+      const slide = document.getElementById(id);
+      const grid = slide.querySelector('.display-hours-grid, .display-days-grid');
+      const slideBox = slide.getBoundingClientRect();
+      const cells = [...slide.querySelectorAll(sel)];
+      const shown = (el) => el && getComputedStyle(el).display !== 'none';
+      let clipped = 0;
+      let minBadgePx = Infinity;
+      for (const cell of cells) {
+        const style = getComputedStyle(cell);
+        const box = cell.getBoundingClientRect();
+        const top = box.top + parseFloat(style.borderTopWidth);
+        const bottom = box.bottom - parseFloat(style.borderBottomWidth);
+        const badge = cell.querySelector('.badge, .badge-large');
+        if (shown(badge)) {
+          minBadgePx = Math.min(minBadgePx, parseFloat(getComputedStyle(badge).fontSize));
+        }
+        for (const element of cell.querySelectorAll('*')) {
+          if (!shown(element) || element.classList.contains('sr-only')) continue;
+          const rect = element.getBoundingClientRect();
+          if (rect.height === 0) continue;
+          if (rect.top < top - 1 || rect.bottom > bottom + 1) clipped++;
+        }
+      }
+      return {
+        cells: cells.length,
+        gridOverflow: Math.round(grid.getBoundingClientRect().bottom - slideBox.bottom),
+        clipped,
+        minBadgePx,
+      };
+    },
+    { slideId, cellSelector },
+  );
+}
+
+// グリッドがスライドの高さを突き抜け、下のセルが.display-slideのoverflow:hiddenで
+// 切れていた（390x844で120px、360x640で267pxはみ出し）。原因はflexの既定
+// min-height:autoで、全国グリッドにだけ入っていたmin-height:0が漏れていた
+test('会場表示: 縦画面でこの後の予報・3日間がスライドから途切れない', async ({ page }) => {
+  await useLongestForecastLabel(page);
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      for (const [key, cellSelector] of [
+        ['hours', '.display-hour-cell'],
+        ['days', '.display-day-cell'],
+      ]) {
+        await page.setViewportSize(viewport);
+        await page.goto(`/display?demo=1&slides=${key}${msg}`);
+        await waitForStrip(page);
+        await expect(page.locator(`#slide-${key}`)).toBeVisible();
+
+        const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''} ${key}`;
+        const fit = await slideFits(page, `slide-${key}`, cellSelector);
+        expect(fit.cells, where).toBeGreaterThan(0);
+        expect(fit.gridOverflow, where).toBeLessThanOrEqual(1);
+        expect(fit.clipped, where).toBe(0);
+        // 収まらないときは天気・気温を落として判定を残す。判定は0.7remが下限
+        expect(fit.minBadgePx, where).toBeGreaterThanOrEqual(11.2);
+      }
+    }
+  }
+});
+
+// タブレットの縦画面はセルが低いのに幅が広く、vw基準の文字がセルに対して過大になる。
+// セルの実寸（cqh）でも頭打ちにしていないと、ここだけ中身が欠ける
+test('会場表示: タブレットの縦画面でも時間別セルの中身が欠けない', async ({ page }) => {
+  await useLongestForecastLabel(page);
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 820, height: 1180 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/display?demo=1&slides=hours');
+    await waitForStrip(page);
+    await expect(page.locator('#slide-hours')).toBeVisible();
+
+    const where = `${viewport.width}x${viewport.height}`;
+    const fit = await slideFits(page, 'slide-hours', '.display-hour-cell');
+    expect(fit.gridOverflow, where).toBeLessThanOrEqual(1);
+    expect(fit.clipped, where).toBe(0);
+  }
+});
+
+/** もしものときスライドを表示する（危険レベル固定のモックのため末尾に加わる） */
+async function gotoEmergency(page, msg = '') {
+  await page.goto(`/display?demo=1&slides=now,emergency${msg}`);
+  await waitForStrip(page);
+  await page.click('#display-next');
+  await expect(page.locator('#slide-emergency')).toBeVisible();
+}
+
+/** 手順の一覧がスライドの内側に収まっているか（はみ出すと下の手順が切れ、
+ * 参照リンクと重なって読めなくなる）と、見出しの最小の文字サイズを返す */
+async function emergencyFit(page) {
+  return page.evaluate(() => {
+    const list = document.querySelector('.display-emergency-steps');
+    const titles = [...document.querySelectorAll('.display-emergency-title')];
+    return {
+      overflow: list.scrollHeight - list.clientHeight,
+      minTitlePx: Math.min(...titles.map((t) => parseFloat(getComputedStyle(t).fontSize))),
+      shownSteps: [...document.querySelectorAll('.display-emergency-steps > li')].filter(
+        (li) => li.getBoundingClientRect().height > 0,
+      ).length,
+    };
+  });
+}
+
+// 応急手順が切れると、いちばん必要な場面で処置の順序が読めない。
+// 高さは「画面サイズ×警告帯×お知らせ帯」で決まるため、縦画面の代表サイズを回す
+// （修正前は390x844で168px、360x640で351pxはみ出し、参照リンクと重なっていた）
+test('会場表示: 縦画面でも応急手順5件が切れずに残る（警告帯・お知らせ込み）', async ({ page }) => {
+  for (const viewport of [
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+  ]) {
+    for (const msg of ['', '&msg=' + encodeURIComponent('休憩スペースは2階です')]) {
+      await page.setViewportSize(viewport);
+      await gotoEmergency(page, msg);
+
+      const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
+      const fit = await emergencyFit(page);
+      expect(fit.shownSteps, where).toBe(5);
+      expect(fit.overflow, where).toBeLessThanOrEqual(1);
+      // 収まらないときに文字を詰めるが、読めない大きさ（0.9rem未満）にはしない
+      expect(fit.minTitlePx, where).toBeGreaterThanOrEqual(14.4);
+    }
+  }
+});
+
+// 会場のモニターは本来の用途。お知らせ帯が出ても、処置の内容（説明文）まで
+// 残るだけの高さがある。余白を詰めるのが先で、説明文を落とすのは最後にする
+test('会場表示: 会場のモニターではお知らせ帯が出ても手順の説明文が残る', async ({ page }) => {
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await gotoEmergency(page, '&msg=' + encodeURIComponent('休憩スペースは2階です'));
+
+    const where = `${viewport.width}x${viewport.height}`;
+    const fit = await emergencyFit(page);
+    expect(fit.shownSteps, where).toBe(5);
+    expect(fit.overflow, where).toBeLessThanOrEqual(1);
+    await expect(page.locator('.display-emergency-detail').first(), where).toBeVisible();
+  }
+});
+
 test('会場表示: もしものときスライドは設定ONで巡回に加わり、OFFでURLからも消える', async ({
   page,
 }) => {
