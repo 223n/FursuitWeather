@@ -43,15 +43,6 @@ async function disableWebShare(page) {
   });
 }
 
-/** 表示中の地点の「そのほかの操作」（会場表示・印刷・画像で共有）を開く。
- * 判定を画面の上へ寄せるため既定は折りたたみ */
-async function openMoreActions(page) {
-  const isOpen = await page.locator('.location-more').evaluate((el) => el.open);
-  if (!isOpen) {
-    await page.click('.location-more > summary');
-  }
-}
-
 test.beforeEach(async ({ page }) => {
   await mockForecastWithDemo(page);
 });
@@ -1044,16 +1035,20 @@ test('印刷用シート: 発行情報が用意され、印刷専用ブロック
   const meta = await page.locator('#print-meta').textContent();
   expect(meta).toContain('発行:');
   expect(meta).toContain('東京');
-  await openMoreActions(page);
   await expect(page.locator('#print-button')).toBeVisible();
 
   // 操作UIは紙に出さない。地点の選び方は折りたたみの外にあるため、
   // 祖先ごと消える前提が効かない（選択中のパネルだけが残る回帰が起きやすい）
   await page.click('#picker-tab-event');
   await page.emulateMedia({ media: 'print' });
-  for (const selector of ['#picker-tabs', '#picker-event', '#picker-city', '.displayed-location .control-row']) {
+  for (const selector of ['#picker-tabs', '#picker-event', '#picker-city']) {
     await expect(page.locator(selector)).toBeHidden();
   }
+  // 表示中の地点の操作は2行（よく使う操作／そのほかの操作）とも紙に出さない
+  const controlRows = page.locator('.displayed-location .control-row');
+  await expect(controlRows).toHaveCount(2);
+  await expect(controlRows.first()).toBeHidden();
+  await expect(controlRows.last()).toBeHidden();
   // textContentは非表示要素の文字も拾うため、実際に紙へ出る文字（innerText）で見る
   await expect(page.locator('body')).not.toContainText('カレンダーに登録', {
     useInnerText: true,
@@ -1147,7 +1142,6 @@ test('シェア画像: Web Share非対応環境ではPNGのダウンロードに
   await page.goto('/');
   await waitForForecast(page);
 
-  await openMoreActions(page);
   const downloadPromise = page.waitForEvent('download');
   await page.click('#share-image-button');
   const download = await downloadPromise;

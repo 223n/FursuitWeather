@@ -221,23 +221,8 @@
           <button type="button" id="share-button"><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-share-nodes"/></svg>予報を共有</button>
           <button type="button" id="favorite-toggle-button" disabled><svg class="fa-icon btn-icon" aria-hidden="true"><use href="#fa-star"/></svg>お気に入りに追加</button>
         </div>
-      </div>
-
-      <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
-           summary自体に約束を書き、詳細だけを開閉対象にする -->
-      <details class="legend-details control-note-details">
-        <summary>現在地は保存しません（押すと扱いの詳細を表示）</summary>
-        <p class="control-note">
-          現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
-          最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
-        </p>
-      </details>
-
-      <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）と共有URLの設定は折りたたむ。
-           毎回見る判定を画面の上へ寄せるため。よく使う更新・共有・お気に入りは上に出したまま。
-           現在地の扱いの注記より後ろに置き、操作エリアの末尾にまとめる -->
-      <details class="legend-details location-more">
-        <summary>そのほかの操作（会場表示・印刷・画像で共有・共有URLの設定）</summary>
+        <!-- 使う場面が限られる操作（会場掲示・印刷・画像化）も折りたたまずに並べる。
+             よく使う3つと役割が違うので、行とグループ（role=group）は分けたまま下に置く -->
         <div class="control-row" role="group" aria-label="表示中の地点のそのほかの操作">
           <!-- イベント会場のモニターへ掲示する自動表示ページ（表示中の地点を引き継ぐ）。
                開いた先のURLをコピーすれば会場のパソコンにも渡せる -->
@@ -251,6 +236,16 @@
         <!-- 実挙動と一致させる: プランナーで日付を選んでいればそれを、
              未使用なら見ている日付を使う（app.jsのshare-buttonハンドラーと同期） -->
         <label class="hint share-plan-option"><input type="checkbox" id="share-include-plan">共有URLに、プランナーで選んだ日付と時間帯を含める（プランナー未使用なら見ている日付）</label>
+      </div>
+
+      <!-- 折りたたんでも「位置情報は保存しません」という約束が画面から消えないよう、
+           summary自体に約束を書き、詳細だけを開閉対象にする -->
+      <details class="legend-details control-note-details">
+        <summary>現在地は保存しません（押すと扱いの詳細を表示）</summary>
+        <p class="control-note">
+          現在地は約1kmの精度に丸めたうえで予報の取得のみに使い、保存しません（利用にはブラウザの位置情報の許可が必要です）。
+          最後に表示した地点とお気に入り（いずれも現在地を除く）はこのブラウザ内にのみ保存され、記憶した地点は次回のアクセス時に自動で表示されます。
+        </p>
       </details>
     </section>
 
