@@ -9,9 +9,11 @@ import {
   buildForecastUrl,
   buildProbabilityUrl,
   fetchWeather,
+  mergeAuxiliaryData,
   parseWeatherResponse,
 } from '../src/weather/openMeteo';
 import { UpstreamError } from '../src/weather/upstream';
+import type { HourlyWeather } from '../src/types';
 import { todayInJst } from '../src/logic/time';
 
 // spyモード: 実装はそのままに、個別テストでfetchWeatherの失敗を注入できるようにする
@@ -453,6 +455,29 @@ describe('handleForecast', () => {
   });
 });
 
+describe('mergeAuxiliaryData', () => {
+  it('降水確率を時刻で突き合わせ、合わない時間はnullのままにする', () => {
+    const base = parseWeatherResponse(openMeteoBody());
+    const first = base.hours[0]!;
+    const merged = mergeAuxiliaryData(base, new Map([[first.time, 70]]), new Map());
+
+    expect(merged.hours[0]!.precipitationProbability).toBe(70);
+    // 合流先の無い時間は「-」表示のためnullを保つ
+    expect(merged.hours[1]!.precipitationProbability).toBeNull();
+  });
+
+  it('大気質をそのまま載せ、元の取得結果は書き換えない（純粋関数）', () => {
+    const base = parseWeatherResponse(openMeteoBody());
+    const air = new Map([['2026-08-15', { pm25: [12], dust: [3] }]]);
+    const merged = mergeAuxiliaryData(base, new Map([[base.hours[0]!.time, 40]]), air);
+
+    expect(merged.airQuality).toBe(air);
+    // 取得結果（base）は合流の影響を受けない
+    expect(base.airQuality.size).toBe(0);
+    expect(base.hours[0]!.precipitationProbability).toBeNull();
+  });
+});
+
 describe('parseWeatherResponse', () => {
   it('時刻配列が空の場合は「気象データが空でした」を投げる', () => {
     const body = openMeteoBody() as { hourly: Record<string, unknown[]> };
@@ -494,6 +519,49 @@ describe('parseWeatherResponse', () => {
     body.hourly.time[4] = 4;
     const result = parseWeatherResponse(body);
     expect(result.hours).toHaveLength(23);
+  });
+
+  it('取得フィールドはすべてpickHourが読む（一覧と読み取りの二重管理を機械検証する）', () => {
+    /**
+     * 取得フィールドごとのpickHourでの扱い
+     * requiredはWBGT計算に必要な項目で、欠測ならその時間を破棄する。
+     * それ以外は表示用のため既定値で補って時間を残す。
+     * 取得フィールドを増やしたらここへも追記が必要（追記しないと下の突合で落ちる）
+     */
+    const behaviors: Record<
+      string,
+      { required: true } | { required: false; key: keyof HourlyWeather; fallback: number }
+    > = {
+      temperature_2m: { required: true },
+      relative_humidity_2m: { required: true },
+      apparent_temperature: { required: true },
+      precipitation: { required: false, key: 'precipitation', fallback: 0 },
+      weather_code: { required: false, key: 'weatherCode', fallback: -1 },
+      shortwave_radiation: { required: true },
+      wind_speed_10m: { required: true },
+    };
+
+    // 取得URLのhourly（＝HOURLY_FIELDS）と扱いの一覧が過不足なく対応することを確認する。
+    // 一覧にだけ足してpickHourを直し忘れると、上流へ要求し検証もするのに
+    // 誰も読まないフィールドが生まれるため、その入口をここで塞ぐ
+    const requested = new URL(buildForecastUrl(35.68, 139.68, 4)).searchParams
+      .get('hourly')!
+      .split(',');
+    expect(Object.keys(behaviors).sort()).toEqual([...requested].sort());
+
+    for (const [field, behavior] of Object.entries(behaviors)) {
+      const body = openMeteoBody() as { hourly: Record<string, unknown[]> };
+      body.hourly[field] = body.hourly[field]!.map(() => null);
+      if (behavior.required) {
+        // 全時間で欠測させると、その時間が破棄されて0件になる
+        expect(() => parseWeatherResponse(body), `${field}: 欠測時に時間を破棄していない`).toThrow(
+          '気象データが空でした',
+        );
+      } else {
+        const hour = parseWeatherResponse(body).hours[0]!;
+        expect(hour[behavior.key], `${field}: 欠測時に既定値で補っていない`).toBe(behavior.fallback);
+      }
+    }
   });
 
   it('降水確率はJMAレスポンスの解析段階では常にnull（後段で標準予報APIから合流する）', () => {
