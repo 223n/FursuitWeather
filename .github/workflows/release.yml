@@ -8,6 +8,9 @@ name: Release
 # 本番デプロイはmainへのマージ時（deploy.yml）に行われ、タグ・リリースは
 # デプロイとは独立した「記録」の役割（手順はdocs/release.mdを参照）
 
+# 外部アクションはタグではなくコミットSHAで固定する（タグは付け替えられるため、
+# 乗っ取られたタグでジョブが動く事故を防ぐ）。併記の`# vN`はDependabotが追従する
+
 on:
   workflow_dispatch:
   push:
@@ -23,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリをチェックアウト
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # タグpush時: タグの付け間違い（package.jsonとの不一致）を検出する
       # 手動実行時: package.jsonのバージョンでタグを作成してpushする

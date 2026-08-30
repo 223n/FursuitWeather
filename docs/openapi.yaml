@@ -28,12 +28,12 @@ paths:
         - name: lat
           in: query
           required: true
-          description: 緯度
+          description: 緯度（小数2桁へ丸めて処理します。約1km四方）
           schema: { type: number, minimum: -90, maximum: 90 }
         - name: lon
           in: query
           required: true
-          description: 経度
+          description: 経度（小数2桁へ丸めて処理します。約1km四方）
           schema: { type: number, minimum: -180, maximum: 180 }
         - name: days
           in: query
@@ -176,12 +176,12 @@ paths:
         - name: lat
           in: query
           required: true
-          description: 緯度（-90〜90）
+          description: 緯度（-90〜90。小数2桁へ丸めて処理します）
           schema: { type: number }
         - name: lon
           in: query
           required: true
-          description: 経度（-180〜180）
+          description: 経度（-180〜180。小数2桁へ丸めて処理します）
           schema: { type: number }
         - name: demo
           in: query

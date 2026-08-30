@@ -44,6 +44,9 @@ const LEVEL_SEVERITY: Record<StaticElectricityLevelId, number> = {
  * 「中」は湿度と気温の複合条件のため、最低湿度の1時間だけを見ると
  * 別の時間帯の「中」を見落とす（最低湿度の時間が「低」でも、より湿度が
  * 高く低温の時間が「中」になり得る）
+ *
+ * @param hours その日の時間別気象データ。1件以上であること
+ *   （空配列は呼び出し側の契約違反。最も厳しいレベルを選ぶreduceが例外を投げる）
  */
 export function assessStaticElectricity(
   hours: readonly HourlyWeather[],

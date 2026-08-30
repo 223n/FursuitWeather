@@ -54,6 +54,9 @@ export function buildDayForecastFor(
 }
 
 /** 日別サマリーを組み立てる
+ * @param hours その日の時間別予報。1件以上であること（空配列は呼び出し側の
+ *   契約違反で、最悪・最良・代表時刻を選ぶreduceが例外を投げる。外部から
+ *   受けた配列を渡す経路にはnullを返すbuildDayForecastForを使う）
  * @param sun 日の出・日の入り（補助情報。取得できなかった日はnullのまま）
  * @param air 大気質の生値（補助情報。取得できなかった日はairQualityがnullになる） */
 export function buildDayForecast(

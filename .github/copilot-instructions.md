@@ -39,7 +39,10 @@
   上流障害は`UpstreamError`→502、検証エラー→400。補助取得
   （降水確率・zipcloud）は失敗しても本体応答を巻き込まない
 - プライバシー: GPS座標は取得直後に小数2桁（約1km）へ丸め、保存も
-  URL反映もしない。URLに現れる座標は常に小数2桁
+  URL反映もしない。URLに現れる座標は常に小数2桁。サーバー側も
+  `parseLatLonParams`（`src/api/http.ts`）で同じ桁へ丸める
+- ワークフローの外部アクションはコミットSHAで固定する
+  （`uses: actions/checkout@<sha> # v7`。`# vN`はDependabotが追従）
 - `public/app.js`の世代ガード（`requestSeq`・`searchSeq`・
   `cityChangeTimer`・`manualTabSeq`）による「最後の明示操作が勝つ」
   制御を壊さない

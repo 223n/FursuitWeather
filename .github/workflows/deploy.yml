@@ -4,6 +4,9 @@ name: Deploy
 # リポジトリのSecretsにCLOUDFLARE_API_TOKENとCLOUDFLARE_ACCOUNT_IDの設定が必要
 # mainへのpushで自動デプロイし、Actionsタブからの手動実行にも対応する
 
+# 外部アクションはタグではなくコミットSHAで固定する（タグは付け替えられるため、
+# 乗っ取られたタグでジョブが動く事故を防ぐ）。併記の`# vN`はDependabotが追従する
+
 on:
   workflow_dispatch:
   push:
@@ -27,10 +30,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリをチェックアウト
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Node.jsをセットアップ
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -49,7 +52,7 @@ jobs:
         run: npm run build
 
       - name: デプロイ
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
