@@ -6,3 +6,8 @@
 export function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
+
+/** 小数2桁に丸める（座標の精度そろえ用。約1km四方） */
+export function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}

@@ -131,6 +131,40 @@ describe('handleForecast', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('細かすぎる座標は小数2桁へ丸めてから上流へ渡す（上流キャッシュキーの分散を防ぐ）', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    // 建物を特定できる精度で叩かれても、上流URLは約1km四方へそろえる
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=35.681236&lon=139.767125'),
+    );
+    expect(response.status).toBe(200);
+
+    const upstreamUrl = String(fetchMock.mock.calls[0]![0]);
+    expect(upstreamUrl).toContain('latitude=35.6800');
+    expect(upstreamUrl).toContain('longitude=139.7700');
+  });
+
+  it('丸めで範囲の端へ寄っても400にしない（89.999→90.00）', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify(openMeteoBody()), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleForecast(
+      new Request('https://example.com/api/forecast?lat=89.999&lon=-179.999'),
+    );
+    expect(response.status).toBe(200);
+    const upstreamUrl = String(fetchMock.mock.calls[0]![0]);
+    expect(upstreamUrl).toContain('latitude=90.0000');
+    expect(upstreamUrl).toContain('longitude=-180.0000');
+  });
+
   it('daysを明示指定すると上流URLへそのまま伝わる', async () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>

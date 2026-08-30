@@ -3,6 +3,7 @@
 // 応答するための単一情報源。エンドポイント固有の検証・処理は各ハンドラに置く
 
 import { RESPONSE_CACHE_MAX_AGE_SECONDS } from '../constants';
+import { round2 } from '../logic/round';
 import { UpstreamError } from '../weather/upstream';
 
 /**
@@ -64,6 +65,15 @@ function parseNumberParam(params: URLSearchParams, name: string): number | null 
  * lat・lonクエリパラメータを解析・検証する（座標を受けるエンドポイント共通の契約）
  * 問題があれば400のエラーレスポンスを返す。しきい値・文言をここへ集約し、
  * エンドポイントごとに基準がずれる事故を防ぐ
+ *
+ * 受け取った座標は小数2桁（約1km四方）へ丸める。理由は2つある。
+ * 1. 上流の無料枠を守る: 上流URLはエッジキャッシュのキーになるため、任意精度の
+ *    座標を素通しすると、ほぼ同じ地点の問い合わせがユニークなキーへ際限なく
+ *    分かれて上流を直接叩ける（/api/badge.svgが地点を12都市＋登録イベントへ
+ *    限定しているのと同じ理由。座標を受ける経路にも同じ歯止めを置く）
+ * 2. 画面の契約と揃える: public/app.jsのcoordQueryとpublic/display.jsは、
+ *    プライバシー保護のため常に小数2桁しか送っていない。サーバー側で丸めても
+ *    自前クライアントの表示は変わらず、公開APIの応答だけが約1kmへ量子化される
  */
 export function parseLatLonParams(
   params: URLSearchParams,
@@ -76,7 +86,9 @@ export function parseLatLonParams(
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
     return jsonError(400, '緯度は-90〜90、経度は-180〜180の範囲で指定してください');
   }
-  return { latitude, longitude };
+  // 丸めは範囲検証の後に行う。丸めで動くのは最大0.005度で、範囲の端
+  // （±90・±180）へ寄る向きにしか動かないため、丸めた値が範囲を出ることはない
+  return { latitude: round2(latitude), longitude: round2(longitude) };
 }
 
 /**
