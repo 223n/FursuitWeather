@@ -173,6 +173,39 @@ CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構
 `style-src`ではそのCSSをアセット側はハッシュで、HTMLページ側はnonceで
 許可しています。
 
+## リポジトリ側で有効にしておく設定
+
+コードでは持てず、GitHubのリポジトリ設定でしか変えられない項目です。
+
+### 秘密スキャンとプッシュ保護
+
+**未設定です。有効化を推奨します。**
+
+`deploy.yml`は`CLOUDFLARE_API_TOKEN`と`CLOUDFLARE_ACCOUNT_ID`をSecretsから
+使うため、これらを誤ってコミットする事故が最も痛いところです。
+プッシュ保護は、その事故をpushの時点で止めます。
+**公開リポジトリなら無料**で使えます。
+
+GitHubのAPIで確認したところ、現状は次の応答でした。
+
+```text
+Repository does not have GitHub Advanced Security enabled.
+```
+
+gitleaks等をCIへ足す案は採りません。プッシュ保護と違い混入した後にしか気づけず、
+外部アクションを1つ増やす代償（サプライチェーン）に見合わないためです。
+
+### Code scanning AI findings（`github-advanced-security`チェック）
+
+このチェックはGitHub側の不具合で失敗し続けています
+（`CAPIError: 400 The requested model is not supported.`）。
+GitHub自身のエージェントが選んだモデルをCopilot APIが拒否しており、
+リポジトリ内の設定ファイルでは直せません（実体のない動的ワークフローのため）。
+
+必須チェックではないので機能自体に実害はありませんが、恒久的な赤は
+CIを見ない習慣を作ります。設定で無効化して構いません。
+**CodeQLは別機能なので、無効化しても静的解析は残ります。**
+
 ## 上流APIが取れないとき
 
 まず**workers.devとカスタムドメインを比べます**。同じWorker・同じ上流URLで
