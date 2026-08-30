@@ -54,7 +54,7 @@ npm run build                        # minify + CSSインライン化（下記�
 ### フロントエンド（public/app.js、素のJS・IIFE・フレームワークなし）
 
 - **「最後の明示操作が勝つ」並行制御**: `requestSeq`（fetch応答の世代ガード）・`searchSeq`（検索応答）・`cityChangeTimer`（セレクトのデバウンス）・`manualTabSeq`（利用者のタブ操作。イベント表示の完了後の自動切り替えが後の明示操作を上書きしないため）で、遅れて届いた古い応答が新しい操作を上書きしないようにしている。地点読み込み系を触るときはこの不変条件を壊さないこと
-- **プライバシー契約**: GPS座標は取得直後に小数2桁（約1km）へ丸め、localStorageにもURLにも保存しない（`persist: false`）。URLに現れる座標はすべて小数2桁に統一。「位置情報は保存しません」という利用者への約束が画面に明記されている
+- **プライバシー契約**: GPS座標は取得直後に小数2桁（約1km）へ丸め、localStorageにもURLにも保存しない（`persist: false`）。URLに現れる座標はすべて小数2桁に統一。「位置情報は保存しません」という利用者への約束が画面に明記されている。サーバー側も`parseLatLonParams`（`src/api/http.ts`）で受け取った座標を小数2桁へ丸める（画面の契約と揃えるとともに、任意精度の座標で上流キャッシュキーが際限なく分かれるのを防ぐ）
 - **表示名とURL名の分離**: 画面ラベルに付ける注記（共有URLで開いたときの「（共有・…）」など）はURL・共有リンクへ書き戻さない。注記なしの名前を`loadForecast`の`urlName`で渡す（注記付きのまま書き戻すと、共有が1往復するたびに名前が伸びて80文字で切られ、壊れる）
 - 初期表示の優先順位: demo指定 → 共有URLの座標 → 記憶した地点（localStorage） → 既定都市
 - イベント予報: `public/events.json`（運営者が編集するデータファイル）のイベントを選ぶと、開催地の郵便番号を`/api/geocode`で座標へ解決して予報を表示する。形式は`test/events.test.ts`がCIで検証し、フロントも不正項目を黙って除外する（書き方は`docs/events.md`）
@@ -86,6 +86,7 @@ npm run build                        # minify + CSSインライン化（下記�
   同じブランチの過去のPRを引き当て、無関係な古いPRが表示される。
   マージ済みブランチはリポジトリ設定の「Automatically delete head branches」で自動削除する
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
+- ワークフローの外部アクションはタグではなく**コミットSHAで固定**する（`uses: actions/checkout@<sha> # v7`）。タグは付け替えられるため、乗っ取られたタグでシークレット付きのジョブが動く事故を防ぐ。併記の`# vN`はDependabotが追従する
 - リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター4ページ（index・about・404・emergency）とdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
 ## アクセシビリティ
