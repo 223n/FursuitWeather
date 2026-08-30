@@ -1,7 +1,7 @@
 // 急な暑さ（暑熱順化前）の判定
 // 対象日の最高気温を直近数日の平均最高気温と比べる純粋ロジック。
 // WBGTの絶対値がそれほど高くなくても、体が暑さに慣れていない時期の
-// 急な気温上昇は熱中症リスクが高い（しきい値の出典はconstants.tsのSUDDEN_HEAT）
+// 急な気温上昇は熱中症リスクが高い（しきい値の出典はconstants/のSUDDEN_HEAT）
 
 import { SUDDEN_HEAT } from '../constants';
 import type { HourlyWeather, SuddenHeatWarning } from '../types';

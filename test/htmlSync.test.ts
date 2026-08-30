@@ -1,9 +1,9 @@
-// 静的HTML・フロントJSとconstants.tsの同期テスト
+// 静的HTML・フロントJSとconstants/の同期テスト
 //
 // 注意事項と判定凡例は、初期描画のレイアウトシフト（CLS）防止のため
 // index.htmlに静的に記載している（意図的な設計）。about.htmlも判定根拠の
 // 説明としてしきい値・活動時間を静的に複製している。手動同期のため、
-// 安全に関わる文言がconstants.tsの定義とずれていないかを機械検証する。
+// 安全に関わる文言がconstants/の定義とずれていないかを機械検証する。
 // 地点セレクト（index.html）とapp.jsのCITIES配列のインデックス結合も同様。
 //
 // このテストはHTML・JSの文言表現に依存する。凡例や説明の言い回しを変える
@@ -676,29 +676,29 @@ describe('会場表示モード（display.html・display.js）の同期', () => 
   it('埋め込みバッジ（/api/badge.svg）の記号はapp.jsのGRADE_SYMBOLSと一致する', () => {
     // grade 0〜3の文字記号を比較する。grade 4はサイトでは禁止マークのアイコン
     // （Font Awesome）のため対象外（SVG側はフォント依存を避けて✕で代替。
-    // 経緯はsrc/constants.tsのBADGEのコメントを参照）
+    // 経緯はsrc/constants/のBADGEのコメントを参照）
     const match = appJs.match(
       /const GRADE_SYMBOLS = \[\['(.)'\], \['(.)'\], \['(.)'\], \['(.)'\], \[\{ icon: 'ban' \}\]\];/,
     );
     expect(match, 'app.jsのGRADE_SYMBOLSの形式が想定と異なる').not.toBeNull();
-    expect(BADGE.gradeSymbols.slice(0, 4)).toEqual(match!.slice(1, 5));
+    expect(BADGE.grades.slice(0, 4).map((g) => g.symbol)).toEqual(match!.slice(1, 5));
   });
 
   it('埋め込みバッジ（/api/badge.svg）の配色はstyle.cssのレベル別トークンと一致する', () => {
-    // SVGはCSS変数を参照できないためconstants.tsが色を複製している。
+    // SVGはCSS変数を参照できないためconstants/が色を複製している。
     // シェア画像（SHARE_GRADE_COLORS）と同様、ライト側の:rootと突き合わせる
     const token = (name: string): string => {
       const match = styleCss.match(new RegExp(`--${name}: (#[0-9A-F]{6});`));
       expect(match, `--${name}がstyle.cssに見つからない`).not.toBeNull();
       return match![1] ?? '';
     };
-    BADGE.gradeSurfaces.forEach((color, grade) => {
+    BADGE.grades.forEach(({ surface: color }, grade) => {
       expect(color).toBe(token(`level-${grade}-surface`));
     });
-    BADGE.gradeTexts.forEach((color, grade) => {
+    BADGE.grades.forEach(({ text: color }, grade) => {
       expect(color).toBe(token(`level-${grade}-text`));
     });
-    BADGE.gradeAccents.forEach((color, grade) => {
+    BADGE.grades.forEach(({ accent: color }, grade) => {
       expect(color).toBe(token(`level-${grade}-accent`));
     });
     // 低温側の配色（サイト本体の--level-cold-*と同期。青系の区別を埋め込み先でも維持）

@@ -35,16 +35,16 @@ npm run lint    # ESLint + tsc（typecheck）
 これらを編集するときはテストも合わせて更新してください。
 
 - 静的HTML（注意事項・判定凡例・about.htmlのしきい値表・テーブルの
-  caption）と`src/constants.ts`
+  caption）と`src/constants/`
 - 地点セレクト（index.html）と`app.js`のCITIES配列
 - 実測WBGTツール（`public/wbgt-tool.js`）の判定表・しきい値
 - ドキュメント（`docs/api.md`・`docs/logic.md`）と`llms.txt`の数値記述
 - フッターのバージョン表記・`display.html`のバージョンコメントと
   `package.json`の`version`
-- `src/constants.ts`のNATIONAL_CITIESと`app.js`のCITIES配列（名前・座標・順序）
+- `src/constants/`のNATIONAL_CITIESと`app.js`のCITIES配列（名前・座標・順序）
 - 会場表示モード（`public/display.js`）の複製部品（GRADE_SYMBOLS・
   天気コード→アイコンの対応・警戒しきい値・既定地点）と`app.js`・
-  `src/constants.ts`、および`docs/display.md`の数値記述（表示秒数・
+  `src/constants/`、および`docs/display.md`の数値記述（表示秒数・
   更新間隔・鮮度しきい値・深夜リロード時刻）
 - API先読み（preload）のURLと初回リクエスト
 
@@ -196,7 +196,7 @@ workers.devだけ成功するなら、原因は223n.techゾーンのCloudflare�
 
 ## 開発時の注意
 
-- 表示文言のラベルや係数を変える場合は、`src/constants.ts`を起点にする
+- 表示文言のラベルや係数を変える場合は、`src/constants/`を起点にする
   （ラベル・しきい値の単一情報源）
 - 静的HTML・フロントJSに文言やしきい値を複製している箇所
   （注意事項・判定凡例・地点セレクト・aboutのしきい値表・

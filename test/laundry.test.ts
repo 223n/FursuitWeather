@@ -49,7 +49,7 @@ describe('assessLaundry', () => {
   it('真夏の晴天は「大変よく乾く」', () => {
     const result = assessLaundry(dryingWindow({ temperature: 33, humidity: 50 }));
     expect(result.level).toBe('excellent');
-    // ラベル文言はconstants.tsのLAUNDRY_LEVEL_LABELSに一元管理しているため、文言も検証する
+    // ラベル文言はconstants/のLAUNDRY_LEVEL_LABELSに一元管理しているため、文言も検証する
     expect(result.label).toBe('大変よく乾く');
     expect(result.score).toBe(100);
     expect(result.moldWarning).toBe(false);

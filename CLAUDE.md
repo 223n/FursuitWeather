@@ -29,9 +29,9 @@ npm run build                        # minify + CSSインライン化（下記�
 
 - **カバレッジ100%**: statements・lines・functionsは100%が`vitest.config.ts`のしきい値でCI強制される。`src/`に新しいコードを書いたら必ずテストを追加する（`public/`のブラウザJSは対象外で、実挙動はE2Eが受け持つ。ただし`sw.js`だけは例外で、下記のE2E節を参照）
 - **E2Eテスト**: `ci.yml`の独立ジョブ`e2e`が`e2e/`配下を実ブラウザで実行する。書き方は「E2E（Playwright）の約束事」を参照
-- **htmlSync同期テスト**（`test/htmlSync.test.ts`）: 文言・しきい値の複製箇所を`?raw`インポートで機械検証する。両側を揃えないとテストが落ちる。複製は`src/constants.ts`（単一情報源）から静的HTML・`public/app.js`・`public/display.js`・`public/wbgt-tool.js`・`public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`へ広く伸びており、検証は60件を超えて増え続けている。**触る前に`test/htmlSync.test.ts`の`describe`・`it`名を一覧して、その箇所が検証対象かを確かめる**（このファイルの見出しが実質の同期対象一覧なので、ここでは代表例だけ挙げる）
-  - `src/constants.ts`のしきい値・ラベル ↔ index.htmlの注意事項・判定凡例、about.htmlのしきい値表、`public/wbgt-tool.js`の判定表（配列の形式まで完全一致で検証される）
-  - `src/constants.ts`のNATIONAL_CITIES ↔ `public/app.js`のCITIES ↔ index.htmlの地点セレクト（名前・座標・順序まで一致）
+- **htmlSync同期テスト**（`test/htmlSync.test.ts`）: 文言・しきい値の複製箇所を`?raw`インポートで機械検証する。両側を揃えないとテストが落ちる。複製は`src/constants/`（単一情報源）から静的HTML・`public/app.js`・`public/display.js`・`public/wbgt-tool.js`・`public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`へ広く伸びており、検証は60件を超えて増え続けている。**触る前に`test/htmlSync.test.ts`の`describe`・`it`名を一覧して、その箇所が検証対象かを確かめる**（このファイルの見出しが実質の同期対象一覧なので、ここでは代表例だけ挙げる）
+  - `src/constants/`のしきい値・ラベル ↔ index.htmlの注意事項・判定凡例、about.htmlのしきい値表、`public/wbgt-tool.js`の判定表（配列の形式まで完全一致で検証される）
+  - `src/constants/`のNATIONAL_CITIES ↔ `public/app.js`のCITIES ↔ index.htmlの地点セレクト（名前・座標・順序まで一致）
   - `package.json`のversion ↔ フッターのバージョン表記（index・about・404・emergencyの4ページ）・display.htmlのバージョンコメント
   - index.htmlの`/about#…`リンク ↔ about.htmlの見出しid（説明をabout.htmlへ集約したため、飛び先が消えると無言でリンクが壊れる）
 - **設定の同期テスト**（`test/csp.test.ts`・`test/sitemap.test.ts`）: `src/csp.ts`のHTML_PATHSは`wrangler.jsonc`の`run_worker_first`・`public/sw.js`のSHELL_URLS・`public/sitemap.xml`と一致させる。ずれるとWorkerが起動せず、**nonceの無い`_headers`側のCSPで無言配信される**（ページ自体は開くため気付きにくい）
@@ -46,7 +46,7 @@ npm run build                        # minify + CSSインライン化（下記�
 - 2層構成: 静的アセット（`public/`）+ Worker（`/api/*`とHTMLページで起動、`wrangler.jsonc`の`run_worker_first`。HTMLはCSP nonceのため）
 - **APIルーター**: エンドポイントの追加は`src/index.ts`の`API_ROUTES`表へ1行足す（現在6本: `/api/forecast`・`/api/geocode`・`/api/national`・`/api/events.ics`・`/api/badge.svg`・`/api/alert`）。メソッド制約・CORSプリフライト・`UpstreamError`→502・予期しない例外→500はルーターが一括で持つため、ハンドラはGET前提で書き、`UpstreamError`はそのまま投げてよい
 - レスポンスヘッダー（CORS・nosniff・キャッシュ）の単一情報源は`src/api/http.ts`の`apiHeaders()`。JSON以外（SVG・iCal）の応答もここを通す
-- `src/logic/`は純粋関数のみでIO（fetch）から分離。係数・しきい値は`src/constants.ts`に出典コメント付きで集約（単一情報源。文言やしきい値を変えるときはここを起点にする)
+- `src/logic/`は純粋関数のみでIO（fetch）から分離。係数・しきい値は`src/constants/`に出典コメント付きで集約（単一情報源。文言やしきい値を変えるときはここを起点にする)。関心事ごとに`activity`・`laundry`・`staticElectricity`・`airQuality`・`weather`・`upstream`・`geo`・`badge`へ分けてあるが、`index.ts`が全てを再exportするため利用側は`../constants`から取ればよい（どこに足すか迷ったら`index.ts`の一覧表を見る）
 - 上流は6系統: Open-Meteo JMAモデル（予報本体）、標準予報API（降水確率の補完）、Air Quality API（黄砂・PM2.5）、ジオコーディング（地名検索）、zipcloud（郵便番号→市区町村名）、環境省アラート発表状況CSV（公式発表の突合。全経路ベストエフォート）
 - **エラー処理方針**: 利用者へは固定の日本語文、原因詳細（英語ランタイム文言・上流ボディ）は`console.error`のみ。上流障害は`UpstreamError`→502、検証エラー→400、予期しない例外は`src/index.ts`の最終防衛線が500+CORSで返す。補助取得（降水確率・zipcloud）はベストエフォートで、失敗しても本体の応答を巻き込まない
 - キャッシュ設計は予報と地点検索で正反対（予報: エッジ30分+ブラウザ10分／地点検索: 上流エッジ7日+レスポンスno-store）。エラーレスポンスは常に`no-store`

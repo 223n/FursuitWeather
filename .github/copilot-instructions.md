@@ -15,7 +15,7 @@
   よって落ちるテストになる）。ただし`public/sw.js`はE2Eが
   `serviceWorkers: 'block'`で遮断するため検証対象外で、自動検証は
   `test/csp.test.ts`のSHELL_URLS一致のみ。変更時は手動確認する
-- 係数・しきい値・文言は`src/constants.ts`が単一情報源。静的HTML・
+- 係数・しきい値・文言は`src/constants/`が単一情報源。静的HTML・
   `public/app.js`・`public/display.js`・`public/wbgt-tool.js`・
   `public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`・
   フッターのバージョン表記（`display.html`はバージョンコメント）に
