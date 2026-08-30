@@ -10,6 +10,7 @@ import {
   weatherCodeLabel,
 } from '../constants';
 import type {
+  AirQualityValues,
   DayForecast,
   ForecastLocation,
   ForecastResponse,
@@ -18,7 +19,7 @@ import type {
   LevelSummary,
   SunTimes,
 } from '../types';
-import { assessAirQuality, type AirQualityValues } from './airQuality';
+import { assessAirQuality } from './airQuality';
 import { assessIndoor, assessOutdoor } from './fursuit';
 import { assessLaundry } from './laundry';
 import { assessStaticElectricity } from './staticElectricity';

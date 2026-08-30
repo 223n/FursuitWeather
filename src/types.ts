@@ -33,6 +33,17 @@ export interface SunTimes {
 }
 
 /**
+ * 1日分の大気質の生値（時間別の並び。欠測時間は含めない）
+ * SunTimesと同じく、上流の取得（src/weather/openMeteo.ts）と日別サマリーの
+ * 組み立て（src/logic/forecast.ts）が共有するため、純粋層ではなくここが持つ
+ * （weather/がlogic/の型へ依存する向きを作らない）
+ */
+export interface AirQualityValues {
+  pm25: readonly number[];
+  dust: readonly number[];
+}
+
+/**
  * 深刻度（0=快適〜4=危険、UIの色分け用）
  * フロントの`grade-0`〜`grade-4` CSSクラスとGRADE_SYMBOLSの添字に直結する
  * 閉じた値域のため、帯の追加時に範囲外の値を書くとコンパイルエラーになる

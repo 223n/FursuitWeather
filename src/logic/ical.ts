@@ -9,22 +9,8 @@
 // - 時刻はJST→UTC（末尾Z）で書く。TZID方式はVTIMEZONE定義の同梱が必須になるため
 //   使わない（JSTは夏時間がなく-9時間の固定変換で正確）
 
+import type { EventDefinition } from './events';
 import { nextDateOf } from './time';
-
-/** カレンダーへ載せる1イベント（検証済み。endDateは単日開催でもstartDateと同値で埋まっている） */
-export interface CalendarEvent {
-  readonly name: string;
-  readonly place: string;
-  readonly zip: string;
-  /** 開催初日（YYYY-MM-DD） */
-  readonly startDate: string;
-  /** 開催最終日（YYYY-MM-DD） */
-  readonly endDate: string;
-  /** 開催初日の開始時刻（HH:MM）。未定義は終日扱い */
-  readonly startTime?: string;
-  /** 開催最終日の終了時刻（HH:MM）。未定義は終日扱い */
-  readonly endTime?: string;
-}
 
 /** 1行の上限オクテット数（RFC 5545 §3.1。CRLFは含まない） */
 const LINE_OCTET_LIMIT = 75;
@@ -81,7 +67,7 @@ function icalUtcDateTime(date: string, time: string): string {
 }
 
 /** 1イベント分のVEVENT行を組み立てる */
-function eventLines(event: CalendarEvent, origin: string, dtstamp: string): string[] {
+function eventLines(event: EventDefinition, origin: string, dtstamp: string): string[] {
   const host = new URL(origin).host;
   const forecastUrl = `${origin}/?event=${encodeURIComponent(event.name)}`;
   const lines = [
@@ -135,7 +121,7 @@ function eventLines(event: CalendarEvent, origin: string, dtstamp: string): stri
  * @param now DTSTAMP（この文書を作った時刻）に使う現在時刻
  */
 export function buildEventsCalendar(
-  events: readonly CalendarEvent[],
+  events: readonly EventDefinition[],
   origin: string,
   now: Date,
 ): string {

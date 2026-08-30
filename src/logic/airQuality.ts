@@ -1,16 +1,10 @@
 // 空気のよごれ（黄砂・PM2.5）指数の判定
 // 春の黄砂・PM2.5による白系ファーの汚れ・屋外撮影のかすみへの事前判断に使う。
-// しきい値・出典はsrc/constants.tsのAIR_QUALITYを参照（CAMS推定値に対する「目安」）
+// しきい値・出典はsrc/constants/のAIR_QUALITYを参照（CAMS推定値に対する「目安」）
 
 import { AIR_QUALITY, AIR_QUALITY_ADVICE, AIR_QUALITY_LABELS } from '../constants';
-import type { AirQualityAssessment, AirQualityLevelId } from '../types';
+import type { AirQualityAssessment, AirQualityLevelId, AirQualityValues } from '../types';
 import { round1 } from './round';
-
-/** 1日分の大気質の生値（時間別の並び。欠測時間は含めない） */
-export interface AirQualityValues {
-  pm25: readonly number[];
-  dust: readonly number[];
-}
 
 /** PM2.5の日平均と黄砂の最大濃度からレベルを判定する（欠測側は判定に使わない） */
 function levelOf(pm25Mean: number | null, dustMax: number | null): AirQualityLevelId {

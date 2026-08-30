@@ -3,7 +3,27 @@
 // 検証基準はフロント（public/app.jsのフィルタ）・CIのtest/events.test.tsと
 // 同じにする（正規表現の一致はtest/htmlSync.test.tsが機械検証する）
 
-import type { CalendarEvent } from './ical';
+/**
+ * events.json の1イベント（検証済み）
+ *
+ * events.jsonの形を決めているのは本モジュール（検証・整列の所有者）のため、
+ * 型もここが持つ。利用側はiCalendar出力（logic/ical.ts）と開催地の解決
+ * （api/badge.ts）で、どちらもカレンダー専用ではない。
+ * endDateは単日開催でもstartDateと同値で埋まっている（listValidEventsが補う）
+ */
+export interface EventDefinition {
+  readonly name: string;
+  readonly place: string;
+  readonly zip: string;
+  /** 開催初日（YYYY-MM-DD） */
+  readonly startDate: string;
+  /** 開催最終日（YYYY-MM-DD） */
+  readonly endDate: string;
+  /** 開催初日の開始時刻（HH:MM）。未定義は終日扱い */
+  readonly startTime?: string;
+  /** 開催最終日の終了時刻（HH:MM）。未定義は終日扱い */
+  readonly endTime?: string;
+}
 
 /** 郵便番号の形式（public/app.jsのisValidZipTextと同じ基準） */
 const ZIP_PATTERN = /^\d{3}-?\d{4}$/;
@@ -27,7 +47,7 @@ function isValidDateText(text: unknown): text is string {
 }
 
 /** events.jsonの1項目として有効か（フロント（public/app.js）のフィルタと同じ基準） */
-function isValidEvent(entry: unknown): entry is Omit<CalendarEvent, 'endDate'> & {
+function isValidEvent(entry: unknown): entry is Omit<EventDefinition, 'endDate'> & {
   endDate?: string;
 } {
   if (typeof entry !== 'object' || entry === null) {
@@ -57,7 +77,7 @@ function isValidEvent(entry: unknown): entry is Omit<CalendarEvent, 'endDate'> &
  * 開催終了によるフィルタは行わない（バッジ（/api/badge.svg）は告知ページに
  * 貼られたまま残るため、終了後も開催地の解決に使う）
  */
-export function listValidEvents(body: unknown): CalendarEvent[] {
+export function listValidEvents(body: unknown): EventDefinition[] {
   const rawEvents =
     typeof body === 'object' && body !== null && Array.isArray((body as { events?: unknown }).events)
       ? ((body as { events: unknown[] }).events)
@@ -72,7 +92,7 @@ export function listValidEvents(body: unknown): CalendarEvent[] {
  * events.jsonの内容からカレンダー掲載対象イベントを取り出す
  * 有効なイベントのうち終了済みを除き、開催が近い順に並べる（フロントの一覧と同じ基準）
  */
-export function parseCalendarEvents(body: unknown, today: string): CalendarEvent[] {
+export function parseCalendarEvents(body: unknown, today: string): EventDefinition[] {
   return listValidEvents(body)
     .filter((event) => event.endDate >= today)
     .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
