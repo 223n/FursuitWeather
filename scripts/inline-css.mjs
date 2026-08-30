@@ -27,6 +27,9 @@ const CSS_SOURCES = {
  */
 const KEEP_COMMENT = /^<!--\s*バージョン:/;
 
+/** HTMLコメント（条件付きコメントを除く）。lastIndexを持たせないためgフラグは付けない */
+const HTML_COMMENT = /<!--(?!\[if)[\s\S]*?-->/;
+
 /**
  * HTMLコメントを除去する（配信物だけ。ソースのコメントは残す）
  *
@@ -34,12 +37,30 @@ const KEEP_COMMENT = /^<!--\s*バージョン:/;
  * 詰めるとレイアウトが動くため（E2Eはwrangler devがソースを配信するので
  * ビルド後のHTMLを検証できず、崩れても気づけない）。
  * コメントは表示に影響しないため、この範囲だけを安全に削れる。
- * 条件付きコメント（<!--[if …]>）も対象外にする
+ * 条件付きコメント（<!--[if …]>）は対象外にする。
+ *
+ * 除去は残りが無くなるまで繰り返す。1回の走査では、コメントを取り除いた跡で
+ * 前後が繋がって新しいコメントが生まれることがあるため
+ * （`<!-` + `<!--X-->` + `- y -->` → `<!-- y -->` が配信物に残る）。
+ * いまのpublic/にそのような書き方は無いが、1回だけの除去は
+ * 「コメントを消す」という関数の契約を満たさない（CodeQL:
+ * Incomplete multi-character sanitization）。
+ * 変化しなくなった時点で停止する（除去が起きる回は必ず短くなるため必ず止まる）
  */
 function stripHtmlComments(html) {
-  return html.replace(/<!--(?!\[if)[\s\S]*?-->/g, (comment) =>
-    KEEP_COMMENT.test(comment) ? comment : '',
-  );
+  let current = html;
+  for (;;) {
+    const match = HTML_COMMENT.exec(current);
+    if (match === null) {
+      return current;
+    }
+    if (KEEP_COMMENT.test(match[0])) {
+      // 残すコメントより後ろにも除去対象があり得るため、そこから先を続けて処理する
+      const head = current.slice(0, match.index + match[0].length);
+      return head + stripHtmlComments(current.slice(match.index + match[0].length));
+    }
+    current = current.slice(0, match.index) + current.slice(match.index + match[0].length);
+  }
 }
 
 const PAGES = readdirSync('public')
