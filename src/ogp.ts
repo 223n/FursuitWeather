@@ -114,10 +114,10 @@ export async function ogSummaryFor(
     // /api/nationalと同じ日付固定の取得にする（当日1日分・エッジキャッシュも共有される）。
     // demo=1は上流なしのデモデータで応答する（/api/forecastと同じ死活確認手段）
     const date = todayInJst(new Date());
-    const weather = isDemoRequest(url.searchParams)
-      ? demoWeather(date)
+    const hours = isDemoRequest(url.searchParams)
+      ? demoWeather(date).hours
       : await fetchWeatherForDate(latitude, longitude, date, fetchImpl);
-    const day = buildDayForecastFor(weather.hours, date);
+    const day = buildDayForecastFor(hours, date);
     if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する
       console.error('OGPサマリー: 対象日の気象データがありません:', date, url.search);

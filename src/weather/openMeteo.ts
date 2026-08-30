@@ -15,8 +15,7 @@ import {
   UPSTREAM_RETRY_DELAY_MS,
   WEATHER_FETCH_FAILURE_MESSAGE,
 } from '../constants';
-import type { AirQualityValues } from '../logic/airQuality';
-import type { HourlyWeather, SunTimes } from '../types';
+import type { AirQualityValues, HourlyWeather, SunTimes } from '../types';
 import {
   fetchUpstream,
   isFiniteNumber,
@@ -179,15 +178,20 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
   };
 }
 
+/**
+ * 予報本体の取得結果
+ * 取得後に書き換えないよう読み取り専用にする（補助上流の合流は
+ * mergeAuxiliaryDataが新しい値を組み立てて返す）
+ */
 export interface WeatherResult {
-  hours: HourlyWeather[];
-  latitude: number;
-  longitude: number;
-  timezone: string;
+  readonly hours: readonly HourlyWeather[];
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly timezone: string;
   /** 日付（YYYY-MM-DD）→日の出・日の入り。daily未取得・形式異常時は空のMap */
-  sunTimes: Map<string, SunTimes>;
+  readonly sunTimes: ReadonlyMap<string, SunTimes>;
   /** 日付（YYYY-MM-DD）→大気質の生値（PM2.5・黄砂）。取得失敗・未取得時は空のMap */
-  airQuality: Map<string, AirQualityValues>;
+  readonly airQuality: ReadonlyMap<string, AirQualityValues>;
 }
 
 /** 日の出・日の入りのローカル時刻文字列（YYYY-MM-DDTHH:mm）からHH:mmを取り出す */
@@ -479,20 +483,45 @@ function fetchWeatherBase(
 }
 
 /**
- * 対象日1日分の気象データを取得する（降水確率の補完なし）
+ * 対象日1日分の時間別データを取得する（降水確率の補完なし）
  * /api/national・/api/badge.svg・OGPの「日本時間の当日」契約用。日付入りURLは
- * JST 0時に自然とエッジキャッシュが切り替わる（buildForecastUrlのdate分岐を参照）
+ * JST 0時に自然とエッジキャッシュが切り替わる（buildForecastUrlのdate分岐を参照）。
+ * 呼び出し側3件はいずれもhoursしか使わないため、座標・日の出・大気質は返さない
  *
  * @param fetchImpl テスト時にモックを注入するためのfetch実装
  */
-export function fetchWeatherForDate(
+export async function fetchWeatherForDate(
   latitude: number,
   longitude: number,
   date: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<WeatherResult> {
+): Promise<readonly HourlyWeather[]> {
   // daysはdate指定時にbuildForecastUrlが使わないため、値に意味はない
-  return fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, 1, date), fetchImpl);
+  const result = await fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, 1, date), fetchImpl);
+  return result.hours;
+}
+
+/**
+ * 予報本体へ補助上流（降水確率・大気質）の結果を合流させる（純粋関数）
+ *
+ * parseWeatherResponseは降水確率をnullで置くだけで、値はこの合流で入る
+ * （気象庁モデルAPIが降水確率を持たないため別APIから補う）。
+ * 取得（IO）と合流（変換）を分けることで、合流規則を単体で検証できる
+ */
+export function mergeAuxiliaryData(
+  base: WeatherResult,
+  probabilities: ReadonlyMap<string, number>,
+  airQuality: ReadonlyMap<string, AirQualityValues>,
+): WeatherResult {
+  return {
+    ...base,
+    // 合流できなかった時間はnullのまま（フロントは「-」表示）
+    hours: base.hours.map((hour) => ({
+      ...hour,
+      precipitationProbability: probabilities.get(hour.time) ?? null,
+    })),
+    airQuality,
+  };
 }
 
 /**
@@ -507,17 +536,11 @@ export async function fetchWeather(
   days: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<WeatherResult> {
-  const [result, probabilities, airQuality] = await Promise.all([
+  const [base, probabilities, airQuality] = await Promise.all([
     fetchWeatherBase(latitude, longitude, days, fetchImpl),
     fetchPrecipitationProbability(latitude, longitude, days, fetchImpl),
     // 大気質（空気のよごれ指数用）も並行取得する（同じベストエフォート）
     fetchAirQuality(latitude, longitude, days, fetchImpl),
   ]);
-
-  // 降水確率（標準予報API由来）を時刻で突き合わせて合流させる
-  for (const hour of result.hours) {
-    hour.precipitationProbability = probabilities.get(hour.time) ?? null;
-  }
-  result.airQuality = airQuality;
-  return result;
+  return mergeAuxiliaryData(base, probabilities, airQuality);
 }

@@ -4,9 +4,9 @@
 
 import { ATTRIBUTION, NATIONAL_CITIES, WEATHER_MODEL_LABEL, type NationalCity } from '../constants';
 import { todayInJst } from '../logic/time';
-import type { NationalCitySummary, NationalResponse } from '../types';
+import type { HourlyWeather, NationalCitySummary, NationalResponse } from '../types';
 import { demoWeather } from '../weather/demoData';
-import { fetchWeatherForDate, type WeatherResult } from '../weather/openMeteo';
+import { fetchWeatherForDate } from '../weather/openMeteo';
 import { UpstreamError } from '../weather/upstream';
 import { requireDayForecast } from './daySummary';
 import { isDemoRequest, json } from './http';
@@ -14,12 +14,12 @@ import { isDemoRequest, json } from './http';
 /** 気象データから1都市分の当日サマリーを組み立てる */
 function buildCitySummary(
   city: NationalCity,
-  weather: WeatherResult,
+  hours: readonly HourlyWeather[],
   date: string,
 ): NationalCitySummary {
   // レスポンス契約の「日本時間の当日」で絞る（対象日が空のときの上流エラー化を含めて
   // requireDayForecastが担う）
-  const day = requireDayForecast(weather.hours, date);
+  const day = requireDayForecast(hours, date);
   return {
     name: city.name,
     latitude: city.lat,
@@ -61,8 +61,8 @@ export async function handleNational(request: Request): Promise<Response> {
   let model: string;
   if (isDemoRequest(new URL(request.url).searchParams)) {
     // デモは上流を呼ばず、全都市同一の気象データで応答する（表示確認用）
-    const weather = demoWeather(date);
-    cities = NATIONAL_CITIES.map((city) => buildCitySummary(city, weather, date));
+    const { hours } = demoWeather(date);
+    cities = NATIONAL_CITIES.map((city) => buildCitySummary(city, hours, date));
     model = 'demo';
   } else {
     const summaries = await Promise.all(
