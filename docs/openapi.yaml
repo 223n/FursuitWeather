@@ -1,7 +1,7 @@
 openapi: 3.1.0
 # FursuitWeather 公開APIのOpenAPI仕様
 # 人向けの解説は docs/api.md を参照。数値・列挙の一部は
-# test/htmlSync.test.ts が src/constants.ts と同期検証する
+# test/htmlSync.test.ts が src/constants/ と同期検証する
 info:
   title: FursuitWeather API
   description: |

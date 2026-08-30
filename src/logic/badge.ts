@@ -3,7 +3,7 @@
 // shields.io風の2セグメント構成（「着ぐるみ判定 | ✕ 危険・着用中止」）。
 // 日本語テキストの可変幅計算は環境依存のため、幅は最長ラベル基準の固定値にし、
 // 文字はセグメント中央へ揃える。判定は色だけに依存させず記号+文字を併記する
-// （配色・記号の出どころはsrc/constants.tsのBADGEを参照）
+// （配色・記号の出どころはsrc/constants/のBADGEを参照）
 
 import { BADGE } from '../constants';
 import type { LevelSummary } from '../types';
@@ -41,7 +41,7 @@ function escapeXml(text: string): string {
  * 範囲外参照はコンパイル時に排除される */
 export function badgeStatusText(worst: LevelSummary): string {
   const suffix = worst.level === 'danger' ? BADGE.dangerSuffix : '';
-  return `${BADGE.gradeSymbols[worst.grade]} ${worst.label}${suffix}`;
+  return `${BADGE.grades[worst.grade].symbol} ${worst.label}${suffix}`;
 }
 
 /** 当日の最も厳しい屋外判定からバッジSVGを組み立てる */
@@ -49,9 +49,7 @@ export function buildBadgeSvg(worst: LevelSummary): string {
   // 低温側（levelのcold接頭辞。app.js・style.cssと同じ判定基準）は青系配色+
   // 雪結晶マークで暑熱側と区別する（「色+形」の二重符号を埋め込み先でも維持する）
   const cold = worst.level.startsWith('cold');
-  const surface = cold ? BADGE.cold.surface : BADGE.gradeSurfaces[worst.grade];
-  const textColor = cold ? BADGE.cold.text : BADGE.gradeTexts[worst.grade];
-  const accent = cold ? BADGE.cold.accent : BADGE.gradeAccents[worst.grade];
+  const { surface, text: textColor, accent } = cold ? BADGE.cold : BADGE.grades[worst.grade];
   const status = escapeXml(badgeStatusText(worst));
   const leftLabel = escapeXml(BADGE.leftLabel);
   // 読み上げ側（aria-label・title）は誤読対策のかな表記、描画側（text）は漢字表記を使う

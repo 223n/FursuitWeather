@@ -1,6 +1,6 @@
 // 静電気指数の判定
 // 乾燥期の化繊ファーの帯電（グリーティングでの放電・ほこり吸着）への備えの目安。
-// しきい値・出典はsrc/constants.tsのSTATIC_ELECTRICITYを参照
+// しきい値・出典はsrc/constants/のSTATIC_ELECTRICITYを参照
 
 import {
   DAYTIME_END_HOUR,

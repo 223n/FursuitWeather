@@ -1,16 +1,16 @@
 // iCalendar（RFC 5545）組み立ての純粋ロジックのテスト
 
 import { describe, expect, it } from 'vitest';
+import type { EventDefinition } from '../src/logic/events';
 import {
   buildEventsCalendar,
   escapeIcalText,
   foldIcalLine,
   icalTimestamp,
-  type CalendarEvent,
 } from '../src/logic/ical';
 
 /** テスト用イベント */
-function calendarEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
+function calendarEvent(overrides: Partial<EventDefinition> = {}): EventDefinition {
   return {
     name: 'けもケット17',
     place: 'TRC東京流通センター',

@@ -16,6 +16,23 @@ import { UpstreamError } from '../weather/upstream';
 import { isDemoRequest, json, jsonError, parseLatLonParams } from './http';
 
 /**
+ * daysクエリパラメータを解析・検証する（lat・lonのparseLatLonParamsと同じ形の契約）
+ *
+ * 省略時のみ既定値とし、指定されていて解析できない場合は明示的にエラーを返す。
+ * Number()による解析はlat・lonのparseNumberParamと同じで、NaN・Infinityは
+ * Number.isIntegerが弾くため受け入れる値は従来と同一。
+ * daysは/api/forecast専用のため、共通のhttp.tsではなくこのハンドラが持つ
+ */
+function parseForecastDays(params: URLSearchParams): number | Response {
+  const raw = params.get('days');
+  const days = raw !== null && raw.trim() !== '' ? Number(raw) : DEFAULT_FORECAST_DAYS;
+  if (!Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
+    return jsonError(400, `daysは1〜${MAX_FORECAST_DAYS}の整数で指定してください`);
+  }
+  return days;
+}
+
+/**
  * GET /api/forecast?lat=35.68&lon=139.68&days=4
  * GET /api/forecast?demo=1 （デモデータで応答）
  */
@@ -36,14 +53,9 @@ export async function handleForecast(request: Request): Promise<Response> {
       return coords;
     }
 
-    // daysは省略時のみ既定値とし、指定されていて解析できない場合は明示的にエラーを返す
-    // （Number()による解析はlat・lonのparseNumberParamと同じで、NaN・Infinityは
-    //   Number.isIntegerが弾くため受け入れる値は従来と同一）
-    const daysRaw = params.get('days');
-    const daysSpecified = daysRaw !== null && daysRaw.trim() !== '';
-    const days = daysSpecified ? Number(daysRaw) : DEFAULT_FORECAST_DAYS;
-    if (!Number.isInteger(days) || days < 1 || days > MAX_FORECAST_DAYS) {
-      return jsonError(400, `daysは1〜${MAX_FORECAST_DAYS}の整数で指定してください`);
+    const days = parseForecastDays(params);
+    if (days instanceof Response) {
+      return days;
     }
 
     // 上流障害（UpstreamError）の502変換はルーター（src/index.ts）が担う

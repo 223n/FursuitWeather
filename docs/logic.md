@@ -2,7 +2,7 @@
 
 着ぐるみ活動の適否を判定する仕組みと、その根拠を説明します。
 実装は `src/logic/` 配下にあり、係数・しきい値は出典コメント付きで
-`src/constants.ts` に集約しています。
+`src/constants/` に集約しています。
 
 処理の流れは次のとおりです。
 
@@ -77,7 +77,7 @@ WBGTと補正後WBGTはいずれも小数1桁へ丸めた値で判定します
 
 15℃という切り替え境界は、WBGT推定式（小野ら2014）が夏季日中の観測
 データへの回帰式であり、低温域では推定精度が落ちるためです
-（しきい値は`src/constants.ts`の`COLD_SWITCH_TEMPERATURE`）。
+（しきい値は`src/constants/`の`COLD_SWITCH_TEMPERATURE`）。
 
 ### 暑熱と低温の合成
 

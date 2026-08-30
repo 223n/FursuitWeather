@@ -94,7 +94,7 @@ src/
 │   ├── alert.ts        環境省アラート発表状況CSVの解析と最寄り都道府県の突合
 │   ├── time.ts         時刻文字列の切り出しと時間帯フィルタ
 │   └── forecast.ts     予報レスポンスの組み立て（純粋ロジック）
-├── constants.ts        係数・しきい値の集約（出典コメント付き）
+├── constants/        係数・しきい値の集約（出典コメント付き）
 └── types.ts            共有型定義
 public/                 静的アセット（HTML・CSS・JS・アイコン類）
 ├── events.json         イベント予報の定義（運営者が編集。開催地は郵便番号で指定。書き方はevents.md）
@@ -109,7 +109,7 @@ e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検
 
 - 判定ロジック（`src/logic/`）は純粋関数で構成し、IO（fetch）から
   分離しています
-- 係数・しきい値は`src/constants.ts`に集約し、出典をコメントで明記します
+- 係数・しきい値は`src/constants/`に集約し、出典をコメントで明記します
 
 ## エラー処理方針
 
@@ -420,7 +420,7 @@ flowchart LR
 
 キャッシュされるのはURLをキーとした公開データ（気象データ・地名検索の
 結果）のみです。現在地の座標などがほかの利用者と共有されることは
-ありません。キャッシュ時間は`src/constants.ts`の
+ありません。キャッシュ時間は`src/constants/`の
 `UPSTREAM_CACHE_TTL_SECONDS`・`RESPONSE_CACHE_MAX_AGE_SECONDS`・
 `GEOCODING_CACHE_TTL_SECONDS`で調整できます。
 

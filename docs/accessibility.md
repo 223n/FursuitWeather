@@ -252,7 +252,7 @@
 
 - 地点セレクトの選択肢・注意事項・判定凡例は、初期描画から高さを
   確保するため`index.html`に静的に記載します（注意事項・凡例は
-  `src/constants.ts`と、地点セレクトは`app.js`のCITIES配列と、
+  `src/constants/`と、地点セレクトは`app.js`のCITIES配列と、
   それぞれ`test/htmlSync.test.ts`が同期を検証）
 - 初期表示の位置に影響する折りたたみ（`.controls`内の`details`）の開閉を、
   `defer`の`app.js`から後付けで変えないこと。描画済みのタブ・判定カードが
