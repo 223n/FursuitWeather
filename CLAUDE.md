@@ -23,7 +23,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ### npm run build の重要な注意
 
-`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とCSS2本（style.css・display.css）のminify、HTMLへのCSSインライン化（display.htmlは2ファイル分））。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
+`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とCSS2本（style.css・display.css）のminify、HTMLへのCSSインライン化（display.htmlは2ファイル分）、HTMLコメントの除去（配信物のみ。`display.html`のバージョンコメントだけは運用で使うため残す））。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
 
 ## CIが強制する契約
 
