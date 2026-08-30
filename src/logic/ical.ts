@@ -15,13 +15,21 @@ import { nextDateOf } from './time';
 /** 1行の上限オクテット数（RFC 5545 §3.1。CRLFは含まない） */
 const LINE_OCTET_LIMIT = 75;
 
-/** TEXT値のエスケープ（RFC 5545 §3.3.11） */
+/**
+ * TEXT値のエスケープ（RFC 5545 §3.3.11）
+ *
+ * 改行はCRLF・単独LFに加えて単独CRも畳む。単独CRはWindowsからのコピー＆ペーストで
+ * 最も混ざりやすく、素通しすると生のCRが値の中へ出て行の折り返し（foldIcalLine）と
+ * 衝突し、取り込み側で壊れる。HTAB以外の制御文字はTEXT値に置けない規定
+ * （§3.1のCONTROL）のため、改行として畳むもの以外は先に落とす
+ */
 export function escapeIcalText(text: string): string {
   return text
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
 
 /** 75オクテットを超える行をCRLF+スペースで折り返す（RFC 5545 §3.1） */
