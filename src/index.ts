@@ -8,7 +8,7 @@ import { handleEventsCalendar } from './api/events';
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
 import { handleNational } from './api/national';
-import { jsonError, methodGuard, upstreamErrorResponse } from './api/http';
+import { jsonError, logSafeSearch, methodGuard, upstreamErrorResponse } from './api/http';
 import { isHtmlPath, withNonce } from './csp';
 import { ogSummaryFor } from './ogp';
 import { forecastPreloadQuery } from './preload';
@@ -53,7 +53,7 @@ export default {
           return upstream;
         }
         // ログ行単体で再現条件（座標・日数）が分かるよう、リクエストの文脈を添える
-        console.error('予期しないエラー:', url.pathname + url.search, error);
+        console.error('予期しないエラー:', url.pathname + logSafeSearch(url), error);
         return jsonError(500, 'サーバー内部でエラーが発生しました');
       }
     }

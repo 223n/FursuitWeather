@@ -6,7 +6,7 @@
 // 全リクエストで上流を呼ぶとエッジ配信の速さを損なうだけで益がない）。
 // 取得はベストエフォート: 失敗時はnullを返し、静的タグのまま配信する
 
-import { isDemoRequest, parseLatLonParams } from './api/http';
+import { isDemoRequest, logSafeSearch, parseLatLonParams } from './api/http';
 import { NATIONAL_CITIES } from './constants';
 import { buildDayForecastFor } from './logic/forecast';
 import { nearestPoint } from './logic/geo';
@@ -120,13 +120,13 @@ export async function ogSummaryFor(
     const day = buildDayForecastFor(hours, date);
     if (day === null) {
       // 上流キャッシュの日付またぎで当日分が空になり得る。カードは静的タグへ退避する
-      console.error('OGPサマリー: 対象日の気象データがありません:', date, url.search);
+      console.error('OGPサマリー: 対象日の気象データがありません:', date, logSafeSearch(url));
       return null;
     }
     return buildOgSummary(day, ogLocationLabel(latitude, longitude));
   } catch (error) {
     // カードが静的表示になるだけで実害は小さいが、上流異常の検知のためログには残す
-    console.error('OGPサマリーの取得に失敗:', url.search, error);
+    console.error('OGPサマリーの取得に失敗:', logSafeSearch(url), error);
     return null;
   }
 }

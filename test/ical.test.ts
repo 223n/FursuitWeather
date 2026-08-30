@@ -32,7 +32,7 @@ function unfoldLines(calendar: string): string[] {
 }
 
 describe('escapeIcalText の制御文字', () => {
-  it('単独CRも改行として畳む（Windowsのコピー＆ペーストで混ざる）', () => {
+  it('単独CRも改行として畳む（旧Mac系の改行や手編集で混ざる）', () => {
     expect(escapeIcalText('テスト\u000Dイベント')).toBe('テスト\\nイベント');
     expect(escapeIcalText('a\u000D\nb')).toBe('a\\nb');
   });
