@@ -179,18 +179,27 @@ CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構
 
 ### 秘密スキャンとプッシュ保護
 
-**未設定です。有効化を推奨します。**
-
 `deploy.yml`は`CLOUDFLARE_API_TOKEN`と`CLOUDFLARE_ACCOUNT_ID`をSecretsから
 使うため、これらを誤ってコミットする事故が最も痛いところです。
-プッシュ保護は、その事故をpushの時点で止めます。
-**公開リポジトリなら無料**で使えます。
+**確認すべきはプッシュ保護（Push protection）**で、混入する前にpushを拒否します。
+公開リポジトリなら無償で使えます。
 
-GitHubのAPIで確認したところ、現状は次の応答でした。
+紛らわしい3つを区別します。
 
-```text
-Repository does not have GitHub Advanced Security enabled.
-```
+| 機能 | 誰が気づくか | タイミング | 切り替え |
+|------|------------|-----------|---------|
+| パートナーアラート | 秘密の発行元（Cloudflare等） | 混入**後** | 公開リポジトリでは常時有効。変更不可 |
+| 秘密スキャンのアラート | 自分（Securityタブ） | 混入**後** | 設定で切り替え |
+| **プッシュ保護** | 自分（pushが拒否される） | **混入する前** | 設定で切り替え |
+
+設定画面にある「GitHub will always send alerts to partners for detected secrets
+in public repositories」は1つ目の説明文で、有効化した結果ではありません
+（公開リポジトリでは常に有効なため、"always"と書かれています）。
+
+なお、GitHubのAPIは`Repository does not have GitHub Advanced Security enabled.`
+を返しますが、これは**有償のGitHub Advanced Security製品**が無いという意味です。
+公開リポジトリの秘密スキャンとプッシュ保護はGHASとは別枠の無償機能のため、
+この応答から有効・無効は判断できません。設定画面で直接確認してください。
 
 gitleaks等をCIへ足す案は採りません。プッシュ保護と違い混入した後にしか気づけず、
 外部アクションを1つ増やす代償（サプライチェーン）に見合わないためです。
