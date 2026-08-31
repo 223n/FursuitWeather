@@ -86,6 +86,39 @@ axe-core監査とCLS測定はリリース時の手動確認です（手順は
 npm run build   # minify（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とstyle.css・display.cssの圧縮）+ 各HTMLへのCSSインライン化（display.htmlは2ファイル分）
 ```
 
+インライン化するCSSは、**そのページで使わない規則を落として**から埋め込みます
+（`scripts/purge-css.mjs`）。全ページが共通の`style.css`を丸ごと埋め込んでいた
+ため、判定UIを持たないページにも日別カード・タブ・タイマーといった無関係な
+規則が入っていました（404ページでは配信サイズの79%）。
+
+残すかどうかは「残す側へ倒す」判断で決めます。
+
+| 条件 | 扱い |
+|---|---|
+| セレクタにクラス名・IDが無い（`body`・`table th`・`:root`） | 常に残す |
+| クラス名・IDのいずれかがページのHTML・JSに現れる | 残す（照合は部分一致） |
+| `DYNAMIC_CLASS_PREFIXES`の接頭辞で始まる | 残す |
+| `@media`・`@container`・`@supports` | 中身を再帰処理し、空になれば落とす |
+| `@font-face`・`@keyframes` | セレクタを持たないため常に残す |
+
+JSが実行時に組み立てるクラス名（`` `badge grade-${summary.grade}` `` など）は
+HTML・JSに文字列として現れないため、`scripts/purge-css.mjs`の
+`DYNAMIC_CLASS_PREFIXES`へ接頭辞を登録します。**ここが唯一の「配信物だけ
+静かに崩れる」経路**（E2Eは`wrangler dev`がソースを配信するためビルド後の
+HTMLを検証できません）なので、`test/cssPurge.test.ts`がブラウザJSを走査して
+未登録の接頭辞を検出します。
+
+配信物の実測（Brotli。Cloudflareがテキストへ既定で適用する方式）:
+
+| ページ | 導入前 | 導入後 | 削減 |
+|---|---|---|---|
+| index.html | 17,794 | 17,486 | -1.7% |
+| about.html | 18,987 | 16,805 | -11.5% |
+| display.html | 11,778 | 9,534 | -19.1% |
+| emergency.html | 9,369 | 6,992 | -25.4% |
+| 404.html | 6,331 | 3,704 | -41.5% |
+| 配信物10ファイル合計 | 96,834 | 87,096 | **-10.1%** |
+
 `public/`のファイルを直接圧縮・書き換えするため、ローカルで実行した
 場合は`git checkout`で戻してください。
 

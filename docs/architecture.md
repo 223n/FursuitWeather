@@ -102,7 +102,8 @@ public/                 静的アセット（HTML・CSS・JS・アイコン類�
 ├── display.js          会場表示モードのフロント（スライドショー・自動更新・長時間稼働対策）
 ├── display.css         会場表示モード専用スタイル（通常ページの配信サイズを増やさないよう分離）
 ├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
-scripts/inline-css.mjs  ビルド時のCSSインライン化
+scripts/inline-css.mjs  ビルド時のCSSインライン化（ページごとに不要な規則を落としてから埋め込む）
+scripts/purge-css.mjs   ページで使わないCSS規則を落とす（development.md「デプロイ時の最適化」参照）
 test/                   vitestテスト
 e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検証）
 ```
@@ -216,6 +217,8 @@ CSPの要点は次のとおりです。
 - **スタイル**: レンダリングブロック回避のためCSSをHTMLへインライン化して
   いるので、ビルド（`scripts/inline-css.mjs`）が埋め込むCSSのsha256を
   計算し、`_headers`のプレースホルダー`__INLINE_STYLE_HASH__`へ差し込みます。
+  埋め込む中身はページごとに絞られる（不要な規則を落とす）ため、
+  ハッシュは**実際に埋め込んだ`<style>`すべて**を並べます。
   併記している`'unsafe-inline'`はハッシュを解釈できない古いブラウザ向けで、
   新しいブラウザでは無視されます。インラインの`style`属性はハッシュで
   許可できないため使いません（CSSクラスへ寄せています）

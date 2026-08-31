@@ -2,10 +2,14 @@
 // 外部CSSはレンダリングをブロックするため（PageSpeed指摘: 推定300ms）、
 // minify後のCSSを各ページの<style>として埋め込み、リクエストを削減する。
 // CSS自体も配信は残す（開発時の参照とキャッシュ用）。
+// 埋め込む前に、そのページで使われない規則をscripts/purge-css.mjsで落とす
+// （インライン化はページ本体のバイト数に直結するため）。
 // HTMLコメントは開発者向けの説明で利用者には不要なため、JS・CSSのminifyと
 // 同じく配信物からだけ落とす（ソースには残す）
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+
+import { purgeCss, purgeHaystack } from './purge-css.mjs';
 
 // public/直下の全HTMLを自動対象にする（ページ追加時の列挙漏れを防ぐ）。
 // 全ページが共通のstyle.cssを読み、会場表示モードだけ専用のdisplay.cssを
@@ -68,11 +72,20 @@ const PAGES = readdirSync('public')
   .map((file) => `public/${file}`)
   .sort();
 
+/** _headersのCSPハッシュ用に、実際に埋め込んだ<style>の中身を集める */
+const inlinedStyles = new Set();
+
 for (const page of PAGES) {
   const tags = page === 'public/display.html' ? [COMMON_TAG, DISPLAY_TAG] : [COMMON_TAG];
   let html = readFileSync(page, 'utf8');
+  const haystack = purgeHaystack(html);
+  let fullBytes = 0;
+  let keptBytes = 0;
   for (const tag of tags) {
-    const css = CSS_SOURCES[tag];
+    const css = purgeCss(CSS_SOURCES[tag], haystack);
+    fullBytes += CSS_SOURCES[tag].length;
+    keptBytes += css.length;
+    inlinedStyles.add(css);
     // 置換値は関数で渡す: 文字列で渡すとCSS中の $' や $& などが
     // String.replaceの置換パターンとして解釈され、HTMLを静かに破壊するため
     const replaced = html.replace(tag, () => `<style>${css}</style>`);
@@ -85,7 +98,8 @@ for (const page of PAGES) {
   html = stripHtmlComments(html);
   writeFileSync(page, html);
   console.log(
-    `${page}: CSSをインライン化しました（${tags.length}ファイル）／` +
+    `${page}: CSSをインライン化しました（${tags.length}ファイル、` +
+      `${fullBytes}→${keptBytes}バイト。未使用の規則を${fullBytes - keptBytes}バイト削減）／` +
       `HTMLコメントを除去しました（${inlined - html.length}バイト）`,
   );
 }
@@ -97,7 +111,8 @@ for (const page of PAGES) {
 //   古いブラウザ向けの後方互換用）
 const HEADERS_FILE = 'public/_headers';
 const PLACEHOLDER = '__INLINE_STYLE_HASH__';
-const hashes = Object.values(CSS_SOURCES)
+// ページごとに埋め込む内容が変わるため、実際に埋め込んだ<style>すべてを許可する
+const hashes = [...inlinedStyles]
   .map((css) => `'sha256-${createHash('sha256').update(css, 'utf8').digest('base64')}'`)
   .join(' ');
 const headers = readFileSync(HEADERS_FILE, 'utf8');
