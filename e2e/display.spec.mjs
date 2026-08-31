@@ -230,6 +230,36 @@ test('会場表示: 追加4都市を含む16セルでも判定バッジが収ま
   expect(fits.every(Boolean)).toBe(true);
 });
 
+test('会場表示: 全国セルの中身がセル内で上下中央に収まる', async ({ page }) => {
+  // セル内は「都市名・天気・最高気温」の行と「判定」の行の2段。1段目を1frにすると
+  // 余白を1段目が全部吸い、判定バッジがセル下端へ張り付いて間延びする（実機で報告あり）。
+  // 上下の余白が対称であること＝ひとかたまりとして中央に置かれていることを見る
+  for (const size of [
+    { width: 1920, height: 1080 },
+    { width: 1024, height: 600 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/display?demo=1&slides=national');
+    await page.waitForSelector('#display-national-grid .display-city-cell');
+    const worst = await page.evaluate(() => {
+      let worstAsymmetry = 0;
+      for (const cell of document.querySelectorAll('.display-city-cell')) {
+        const box = cell.getBoundingClientRect();
+        const children = [...cell.children]
+          .map((child) => child.getBoundingClientRect())
+          .filter((rect) => rect.height > 0);
+        if (children.length === 0) continue;
+        const gapTop = Math.min(...children.map((rect) => rect.top)) - box.top;
+        const gapBottom = box.bottom - Math.max(...children.map((rect) => rect.bottom));
+        worstAsymmetry = Math.max(worstAsymmetry, Math.abs(gapTop - gapBottom));
+      }
+      return worstAsymmetry;
+    });
+    expect(worst, `${size.width}x${size.height}で上下の余白が非対称`).toBeLessThanOrEqual(2);
+  }
+});
+
 // 全国スライドが3行になる構成（9都市以上）では、セル内の縦積みが行の高さを超え、
 // overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた。
 // 会場のモニターとPCでよく使う横長サイズを実寸で検証する（既定の12都市）

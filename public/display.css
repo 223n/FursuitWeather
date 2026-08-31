@@ -359,9 +359,13 @@
   /* minmax(0,…)にしないと、折り返さない判定バッジのmin-contentが右列を押し広げ、
      左列が痩せてプリセット都市名（最長3文字）まで省略記号になる */
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* 2行目（最高気温・判定）の高さを先に確保し、残りを1行目（都市名・天気）へ渡す。
-     追加都市の長い名前が伸びても、安全情報である判定を押し出さない */
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* 2行とも内容の高さに収め、余白は上下へ均等に配る（align-content）。
+     1行目を1frにすると余りを1行目が全部吸い、判定バッジがセル下端へ張り付いて
+     1行目との間が空く。セルの高さは親のgrid-auto-rows（minmax(0,1fr)）で決まり、
+     中の文字はcqh基準で頭打ちになるため、autoにしても内容が高さを押し広げない。
+     minmax(0,…)は、極端に低いセルで内容がはみ出さないための下限解除 */
+  grid-template-rows: minmax(0, auto) auto;
+  align-content: center;
   align-items: center;
   justify-items: center;
   column-gap: clamp(0.2rem, 0.8vw, 0.8rem);
