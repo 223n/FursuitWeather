@@ -418,6 +418,11 @@ test('会場表示: 縦画面でも全国セルの都市名と判定が読める
       await page.goto(`/display?demo=1&slides=national${msg}`);
       await waitForStrip(page);
       await expect(page.locator('#slide-national')).toBeVisible();
+      // 全国セルの描画完了まで待つ。常時帯のバッジ（waitForStrip）とスライドの
+      // 可視化は先に済むため、待たないと空のグリッドを測ってしまう。
+      // cityFontSizesはMath.min(...[])がInfinityになり空でも素通りするので、
+      // 取りこぼしはcellFitsが空配列を返すまで表面化しない
+      await expect(page.locator('.display-city-cell .display-city-name')).toHaveCount(12);
 
       const where = `${viewport.width}x${viewport.height}${msg ? '+お知らせ' : ''}`;
       const fonts = await cityFontSizes(page);
