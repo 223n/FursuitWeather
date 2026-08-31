@@ -38,7 +38,7 @@ npm run build                        # minify + CSSインライン化（下記�
 - **ページ別CSSの安全網**（`test/cssPurge.test.ts`）: インライン化するCSSは、そのページのHTMLと（HTMLのscriptタグから引いた）ローカルJSに名前が現れない規則を落として埋め込む。**JSが組み立てるクラス名**（`` `grade-${n}` ``のような接頭辞+変数）は文字列として現れないため、`scripts/purge-css.mjs`の`DYNAMIC_CLASS_PREFIXES`へ登録する。登録漏れは配信物だけで静かに崩れる（E2Eはソースを配信するためビルド後のHTMLを見られない）ので、ブラウザJSを走査して未登録の接頭辞を検出するテストで塞いである
 - **ブラウザJSの同期テスト**（`test/browserJsSync.test.ts`）: `public/app.js`・`display.js`・`wbgt-tool.js`はページごとに単独で動く素のJSのため小さな部品を意図的に複製している。共通の関数・定数（`isColdLevel`・`faIcon`・`weatherIconName`・`GRADE_SYMBOLS`・`JST_OFFSET_MS`ほか）は同じ実装・同じ値でなければCIが落ちる。片方だけ直すのではなく両側を揃える
 - **配信サイズの計測はBrotliで行う**（Cloudflareがテキストへ既定で適用する方式のため、利用者が実際に受け取るのはこれ）。gzipは参考値に留め、PRやドキュメントの主指標にしない。PNGなど既に圧縮済みのバイナリはCloudflareの圧縮対象外なので、生バイト数がそのまま転送量になる
-- **SVGスプライトはビルドで最適化する**（`scripts/optimize-sprite.mjs`。svgoを`floatPrecision: 1`で掛ける。桁を1つ下げたときだけ曲線→円弧の併合が起きてBrotliで-2,742バイト効く）。座標を丸めるため描画は厳密には同一にならないので、アイコンを増やしたら実寸での見え方を確かめる。シンボルのid・viewBoxの数・pathの数・`class="icon-sprite"`が変わるとビルドが止まる
+- **SVGスプライトはビルドで最適化する**（`scripts/optimize-sprite.mjs`。svgoを`floatPrecision: 1`で掛ける。桁を1つ下げたときだけ曲線→円弧の併合が起きてBrotliで-2,681バイト効く）。座標を丸めるため描画は厳密には同一にならないので、アイコンを増やしたら実寸での見え方を確かめる。シンボルのid・viewBoxの数・pathの数・`class="icon-sprite"`が変わるとビルドが止まる
 
 ## アーキテクチャの要点
 
