@@ -38,6 +38,11 @@
   `javascript`から該当するもの全部）を付け、`223n`をアサインする
 - `npm run build`は`public/`を破壊的に上書きする。コミット後に実行し、
   `git checkout -- public/`で復元する
+- インラインCSSはページごとに絞られる。JSが組み立てるクラス名
+  （`grade-`のような接頭辞+変数）は`scripts/purge-css.mjs`の
+  `DYNAMIC_CLASS_PREFIXES`へ登録する（漏れると配信物だけ静かに崩れる）
+- `public/`のJS同士で複製している関数・定数は
+  `test/browserJsSync.test.ts`が一致を強制する。片方だけ直さない
 - エラー処理: 利用者向けは固定の日本語文、詳細は`console.error`のみ。
   上流障害は`UpstreamError`→502、検証エラー→400。補助取得
   （降水確率・zipcloud）は失敗しても本体応答を巻き込まない

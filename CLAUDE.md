@@ -23,7 +23,7 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ### npm run build の重要な注意
 
-`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とCSS2本（style.css・display.css）のminify、HTMLへのCSSインライン化（display.htmlは2ファイル分）、HTMLコメントの除去（配信物のみ。`display.html`のバージョンコメントだけは運用で使うため残す））。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
+`npm run build`は`public/`のファイルを**破壊的に上書き**する（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とCSS2本（style.css・display.css）のminify、HTMLへのCSSインライン化（display.htmlは2ファイル分。**そのページで使わない規則は`scripts/purge-css.mjs`が落とす**）、HTMLコメントの除去（配信物のみ。`display.html`のバージョンコメントだけは運用で使うため残す））。必ず**コミット後**に実行し、検証が済んだら`git checkout -- public/`で復元する。未コミットの`public/`編集がある状態で実行すると編集が失われる。
 
 ## CIが強制する契約
 
@@ -36,6 +36,8 @@ npm run build                        # minify + CSSインライン化（下記�
   - index.htmlの`/about#…`リンク ↔ about.htmlの見出しid（説明をabout.htmlへ集約したため、飛び先が消えると無言でリンクが壊れる）
 - **設定の同期テスト**（`test/csp.test.ts`・`test/sitemap.test.ts`）: `src/csp.ts`のHTML_PATHSは`wrangler.jsonc`の`run_worker_first`・`public/sw.js`のSHELL_URLS・`public/sitemap.xml`と一致させる。ずれるとWorkerが起動せず、**nonceの無い`_headers`側のCSPで無言配信される**（ページ自体は開くため気付きにくい）
 - HTMLページを追加する場合、`<link rel="stylesheet" href="/style.css">`の完全一致タグがないとビルドが失敗する（`scripts/inline-css.mjs`の安全確認）
+- **ページ別CSSの安全網**（`test/cssPurge.test.ts`）: インライン化するCSSは、そのページのHTMLと（HTMLのscriptタグから引いた）ローカルJSに名前が現れない規則を落として埋め込む。**JSが組み立てるクラス名**（`` `grade-${n}` ``のような接頭辞+変数）は文字列として現れないため、`scripts/purge-css.mjs`の`DYNAMIC_CLASS_PREFIXES`へ登録する。登録漏れは配信物だけで静かに崩れる（E2Eはソースを配信するためビルド後のHTMLを見られない）ので、ブラウザJSを走査して未登録の接頭辞を検出するテストで塞いである
+- **ブラウザJSの同期テスト**（`test/browserJsSync.test.ts`）: `public/app.js`・`display.js`・`wbgt-tool.js`はページごとに単独で動く素のJSのため小さな部品を意図的に複製している。共通の関数・定数（`isColdLevel`・`faIcon`・`weatherIconName`・`GRADE_SYMBOLS`・`JST_OFFSET_MS`ほか）は同じ実装・同じ値でなければCIが落ちる。片方だけ直すのではなく両側を揃える
 
 ## アーキテクチャの要点
 
