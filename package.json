@@ -1,6 +1,6 @@
 {
   "name": "fursuit-weather",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "private": true,
   "description": "着ぐるみ天気予報 - 気象データから着ぐるみ活動の適否を予報するサービス",
   "type": "module",
