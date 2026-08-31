@@ -41,6 +41,10 @@
 - インラインCSSはページごとに絞られる。JSが組み立てるクラス名
   （`grade-`のような接頭辞+変数）は`scripts/purge-css.mjs`の
   `DYNAMIC_CLASS_PREFIXES`へ登録する（漏れると配信物だけ静かに崩れる）
+- 配信サイズの計測はBrotliで行う（Cloudflareがテキストへ既定で適用する方式）。
+  gzipは参考値に留める。PNGなど圧縮済みバイナリは生バイト数がそのまま転送量
+- SVGスプライトはビルドが`scripts/optimize-sprite.mjs`で最適化する。
+  アイコンを増やしたら実寸での見え方を確かめる
 - `public/`のJS同士で複製している関数・定数は
   `test/browserJsSync.test.ts`が一致を強制する。片方だけ直さない
 - エラー処理: 利用者向けは固定の日本語文、詳細は`console.error`のみ。
