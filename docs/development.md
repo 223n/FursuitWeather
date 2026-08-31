@@ -173,6 +173,52 @@ CSPは`default-src 'none'`を基点に必要な取得先だけを明示する構
 `style-src`ではそのCSSをアセット側はハッシュで、HTMLページ側はnonceで
 許可しています。
 
+## リポジトリ側で有効にしておく設定
+
+コードでは持てず、GitHubのリポジトリ設定でしか変えられない項目です。
+
+### 秘密スキャンとプッシュ保護
+
+**現状: 有効。** 2026-08-30にアカウント全体の既定としても適用済みです。
+
+`deploy.yml`は`CLOUDFLARE_API_TOKEN`と`CLOUDFLARE_ACCOUNT_ID`をSecretsから
+使うため、これらを誤ってコミットする事故が最も痛いところです。
+効くのはプッシュ保護（Push protection）で、混入する前にpushを拒否します。
+公開リポジトリなら無償で使えます。
+
+紛らわしい3つを区別します。
+
+| 機能 | 誰が気づくか | タイミング | 切り替え |
+|------|------------|-----------|---------|
+| パートナーアラート | 秘密の発行元（Cloudflare等） | 混入**後** | 公開リポジトリでは常時有効。変更不可 |
+| 秘密スキャンのアラート | 自分（Securityタブ） | 混入**後** | 設定で切り替え |
+| **プッシュ保護** | 自分（pushが拒否される） | **混入する前** | 設定で切り替え |
+
+設定画面にある「GitHub will always send alerts to partners for detected secrets
+in public repositories」は1つ目の説明文で、有効化した結果ではありません
+（公開リポジトリでは常に有効なため、"always"と書かれています）。
+
+なお、GitHubのAPIは`Repository does not have GitHub Advanced Security enabled.`
+を返しますが、これは**有償のGitHub Advanced Security製品**が無いという意味です。
+公開リポジトリの秘密スキャンとプッシュ保護はGHASとは別枠の無償機能のため、
+**この応答から有効・無効は判断できません**（実際、この応答が返る状態でも
+プッシュ保護は有効でした）。状態はリポジトリまたはアカウントの
+Code security設定で直接確認してください。
+
+gitleaks等をCIへ足す案は採りません。プッシュ保護と違い混入した後にしか気づけず、
+外部アクションを1つ増やす代償（サプライチェーン）に見合わないためです。
+
+### Code scanning AI findings（`github-advanced-security`チェック）
+
+このチェックはGitHub側の不具合で失敗し続けています
+（`CAPIError: 400 The requested model is not supported.`）。
+GitHub自身のエージェントが選んだモデルをCopilot APIが拒否しており、
+リポジトリ内の設定ファイルでは直せません（実体のない動的ワークフローのため）。
+
+必須チェックではないので機能自体に実害はありませんが、恒久的な赤は
+CIを見ない習慣を作ります。設定で無効化して構いません。
+**CodeQLは別機能なので、無効化しても静的解析は残ります。**
+
 ## 上流APIが取れないとき
 
 まず**workers.devとカスタムドメインを比べます**。同じWorker・同じ上流URLで

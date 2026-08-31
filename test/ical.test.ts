@@ -31,6 +31,29 @@ function unfoldLines(calendar: string): string[] {
   return calendar.replace(/\r\n[ ]/g, '').split('\r\n');
 }
 
+describe('escapeIcalText の制御文字', () => {
+  it('単独CRも改行として畳む（旧Mac系の改行や手編集で混ざる）', () => {
+    expect(escapeIcalText('テスト\u000Dイベント')).toBe('テスト\\nイベント');
+    expect(escapeIcalText('a\u000D\nb')).toBe('a\\nb');
+  });
+
+  it('HTAB以外の制御文字は落とす（RFC 5545 §3.1のCONTROL）', () => {
+    expect(escapeIcalText('a\u0007b')).toBe('ab');
+    expect(escapeIcalText('a\u0009b')).toBe('a\tb');
+  });
+
+  it('生のCRがicsへ出ず、行区切りはCRLFだけになる', () => {
+    const ics = buildEventsCalendar(
+      [calendarEvent({ name: 'テスト\u000Dイベント' })],
+      'https://example.com',
+      new Date('2026-08-30T00:00:00Z'),
+    );
+    // CRの総数とCRLFの数が一致すれば、単独CRは残っていない
+    expect(ics.split('\u000D').length).toBe(ics.split('\u000D\n').length);
+    expect(ics).toContain('SUMMARY:テスト\\nイベント');
+  });
+});
+
 describe('escapeIcalText', () => {
   it('バックスラッシュ・セミコロン・カンマ・改行をエスケープする（RFC 5545 §3.3.11）', () => {
     expect(escapeIcalText('a\\b;c,d')).toBe('a\\\\b\\;c\\,d');

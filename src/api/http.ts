@@ -92,13 +92,35 @@ export function parseLatLonParams(
 }
 
 /**
+ * ログへ出すためのクエリ文字列を組み立てる（座標は小数2桁へ丸める）
+ *
+ * `url.search`をそのまま出すと、丸める前の座標が運用ログへ残る。
+ * `/api/*`はCORSが`*`で誰でも呼べるため任意精度の座標を送れてしまい、
+ * 「位置情報は約1kmへ丸めます」という画面の約束と食い違う
+ * （parseLatLonParamsの丸めは戻り値にしか効かず、url.searchは素通しになる）。
+ * 郵便番号・検索語は切り分けに要るためそのまま残す
+ * （運用ログに何が載るかはdocs/architecture.mdの「運用ログに載る値」を参照）
+ */
+export function logSafeSearch(url: URL): string {
+  const params = new URLSearchParams(url.search);
+  for (const name of ['lat', 'lon']) {
+    const value = parseNumberParam(params, name);
+    if (value !== null) {
+      params.set(name, String(round2(value)));
+    }
+  }
+  const search = params.toString();
+  return search === '' ? '' : `?${search}`;
+}
+
+/**
  * 上流障害（UpstreamError）を502レスポンスへ変換する。それ以外のエラーはnullを
  * 返す（ルーターの最終防衛線が500へフォールスルーする）。
  * 上流障害（レート制限・仕様変更など）を運用で検知できるよう、502もログに残す
  */
 export function upstreamErrorResponse(error: unknown, url: URL): Response | null {
   if (error instanceof UpstreamError) {
-    console.error('上流エラー:', url.pathname + url.search, error.message);
+    console.error('上流エラー:', url.pathname + logSafeSearch(url), error.message);
     return jsonError(502, error.message);
   }
   return null;
