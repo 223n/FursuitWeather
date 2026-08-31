@@ -230,6 +230,75 @@ test('会場表示: 追加4都市を含む16セルでも判定バッジが収ま
   expect(fits.every(Boolean)).toBe(true);
 });
 
+test('会場表示: いまの判定の中身がカード内で上下中央に収まる', async ({ page }) => {
+  // 5行の縦積み（時刻・判定・連続活動時間・助言・暑さ指数）は、低い画面だと
+  // 合計がカード高さを超える。あふれると justify-content: center が効かず、
+  // 下端の行が overflow: hidden で切れる（実機で報告あり）。
+  // 800x480は5行が入らないため、優先度の低い行（暑さ指数→助言）を落として収める
+  for (const size of [
+    { width: 1920, height: 1080 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 600 },
+    // 5行がぎりぎり入らない中間の高さ。ここを外すと、暑さ指数を落とす縮退が
+    // 効いているかを誰も見ておらず、不要な規則と誤解して消してしまう
+    { width: 900, height: 520 },
+    { width: 800, height: 480 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/display?demo=1&slides=now');
+    await page.waitForSelector('#slide-now .now-minutes');
+    const gaps = await page.evaluate(() => {
+      const card = document.querySelector('#slide-now .display-now-card');
+      const box = card.getBoundingClientRect();
+      const children = [...card.children]
+        .map((child) => child.getBoundingClientRect())
+        .filter((rect) => rect.height > 0);
+      return {
+        top: Math.min(...children.map((rect) => rect.top)) - box.top,
+        bottom: box.bottom - Math.max(...children.map((rect) => rect.bottom)),
+      };
+    });
+    const label = `${size.width}x${size.height}`;
+    // あふれない（＝負にならない）こと。判定バッジと連続活動時間は常に残す
+    expect(gaps.top, `${label}で上へあふれている`).toBeGreaterThanOrEqual(-1);
+    expect(gaps.bottom, `${label}で下へあふれている`).toBeGreaterThanOrEqual(-1);
+    expect(Math.abs(gaps.top - gaps.bottom), `${label}で上下の余白が非対称`).toBeLessThanOrEqual(2);
+    await expect(page.locator('#slide-now .badge-large')).toBeVisible();
+    await expect(page.locator('#slide-now .now-minutes')).toBeVisible();
+  }
+});
+
+test('会場表示: 全国セルの中身がセル内で上下中央に収まる', async ({ page }) => {
+  // セル内は「都市名・天気・最高気温」の行と「判定」の行の2段。1段目を1frにすると
+  // 余白を1段目が全部吸い、判定バッジがセル下端へ張り付いて間延びする（実機で報告あり）。
+  // 上下の余白が対称であること＝ひとかたまりとして中央に置かれていることを見る
+  for (const size of [
+    { width: 1920, height: 1080 },
+    { width: 1024, height: 600 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/display?demo=1&slides=national');
+    await page.waitForSelector('#display-national-grid .display-city-cell');
+    const worst = await page.evaluate(() => {
+      let worstAsymmetry = 0;
+      for (const cell of document.querySelectorAll('.display-city-cell')) {
+        const box = cell.getBoundingClientRect();
+        const children = [...cell.children]
+          .map((child) => child.getBoundingClientRect())
+          .filter((rect) => rect.height > 0);
+        if (children.length === 0) continue;
+        const gapTop = Math.min(...children.map((rect) => rect.top)) - box.top;
+        const gapBottom = box.bottom - Math.max(...children.map((rect) => rect.bottom));
+        worstAsymmetry = Math.max(worstAsymmetry, Math.abs(gapTop - gapBottom));
+      }
+      return worstAsymmetry;
+    });
+    expect(worst, `${size.width}x${size.height}で上下の余白が非対称`).toBeLessThanOrEqual(2);
+  }
+});
+
 // 全国スライドが3行になる構成（9都市以上）では、セル内の縦積みが行の高さを超え、
 // overflow:hiddenで都市名の上と判定バッジの下が黙って切れていた。
 // 会場のモニターとPCでよく使う横長サイズを実寸で検証する（既定の12都市）

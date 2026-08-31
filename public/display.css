@@ -171,26 +171,38 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.5rem, 1.5vh, 1.2rem);
+  gap: min(clamp(0.5rem, 1.5vh, 1.2rem), 3.5cqh);
   text-align: center;
+  /* 5行の縦積みをカードの実寸で頭打ちにするためのコンテナ（下のcqhが基準にする）。
+     vminだけだと1024x600のような低い画面で合計が高さを超え、あふれた結果
+     justify-content: center が効かず、下端の暑さ指数の行がoverflow:hiddenで切れていた */
+  container-type: size;
+  min-height: 0;
 }
 
+/* 各行はvmin基準の大きさを保ちつつ、カード高さ（cqh）でも頭打ちにする。
+   合計が100cqhに収まることで、常に上下中央へ置ける（0.7remは可読性の下限） */
 .display-now-card .now-time {
-  font-size: clamp(1.1rem, 3vmin, 2rem);
+  font-size: max(0.7rem, min(clamp(1.1rem, 3vmin, 2rem), 7cqh));
   margin: 0;
 }
 
 .display-now-card .badge-large {
-  font-size: clamp(1.6rem, 5.5vmin, 3.4rem);
+  font-size: max(0.7rem, min(clamp(1.6rem, 5.5vmin, 3.4rem), 12cqh));
 }
 
 .display-now-card .now-minutes {
-  font-size: clamp(1.3rem, 4vmin, 2.6rem);
+  font-size: max(0.7rem, min(clamp(1.3rem, 4vmin, 2.6rem), 8.5cqh));
   font-weight: 700;
+  /* 他の行と同じくpの既定マージンを消す。ここだけ残っていたため、
+     文字サイズと同じだけの余白が上下に付き（実測で計47px）、中身が
+     カードからあふれて中央寄せが効かなくなっていた */
+  margin: 0;
 }
 
 .display-now-card .now-advice {
-  font-size: clamp(1rem, 2.6vmin, 1.7rem);
+  /* 説明文は幅によっては2行になるため、1行あたりの上限を他より低く取る */
+  font-size: max(0.7rem, min(clamp(1rem, 2.6vmin, 1.7rem), 6cqh));
   max-width: 60ch;
   margin: 0;
 }
@@ -199,6 +211,27 @@
   font-size: clamp(0.85rem, 2vmin, 1.3rem);
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.display-now-card .display-wbgt-note {
+  font-size: max(0.7rem, min(clamp(0.85rem, 2vmin, 1.3rem), 4.5cqh));
+}
+
+/* 文字の頭打ちだけでは5行が入らない高さ（800x480のような低い画面や、警告帯・
+   お知らせ帯が重なった条件）では、優先度の低い行から落として中央寄せを保つ。
+   安全情報の優先順位は「判定バッジ > 連続活動時間 > 時刻・天気・気温 > 助言 >
+   暑さ指数の注記」で、判定と活動時間は最後まで残す
+   （@containerはコンテナ自身＝カードには効かないため、子側だけで調整する） */
+@container (max-height: 200px) {
+  .display-now-card .display-wbgt-note {
+    display: none;
+  }
+}
+
+@container (max-height: 150px) {
+  .display-now-card .now-advice {
+    display: none;
+  }
 }
 
 /* ②この後の予報: 6時間分の縦カードを横に並べる */
@@ -359,9 +392,13 @@
   /* minmax(0,…)にしないと、折り返さない判定バッジのmin-contentが右列を押し広げ、
      左列が痩せてプリセット都市名（最長3文字）まで省略記号になる */
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* 2行目（最高気温・判定）の高さを先に確保し、残りを1行目（都市名・天気）へ渡す。
-     追加都市の長い名前が伸びても、安全情報である判定を押し出さない */
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* 2行とも内容の高さに収め、余白は上下へ均等に配る（align-content）。
+     1行目を1frにすると余りを1行目が全部吸い、判定バッジがセル下端へ張り付いて
+     1行目との間が空く。セルの高さは親のgrid-auto-rows（minmax(0,1fr)）で決まり、
+     中の文字はcqh基準で頭打ちになるため、autoにしても内容が高さを押し広げない。
+     minmax(0,…)は、極端に低いセルで内容がはみ出さないための下限解除 */
+  grid-template-rows: minmax(0, auto) auto;
+  align-content: center;
   align-items: center;
   justify-items: center;
   column-gap: clamp(0.2rem, 0.8vw, 0.8rem);
