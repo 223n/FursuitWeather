@@ -4,6 +4,10 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    # ラベル（dependencies・javascript / github_actions）はDependabotが自動で付けるが、
+    # アサインは付かないため明示する。すべてのPRをラベル+アサイン付きで揃える運用（CLAUDE.md）
+    assignees:
+      - "223n"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -22,6 +26,8 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    assignees:
+      - "223n"
     schedule:
       interval: "weekly"
       day: "monday"

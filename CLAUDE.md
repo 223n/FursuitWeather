@@ -86,6 +86,12 @@ npm run build                        # minify + CSSインライン化（下記�
   1本のブランチを使い回すと、ブランチからPRを逆引きする仕組み（GitHubや周辺ツール）が
   同じブランチの過去のPRを引き当て、無関係な古いPRが表示される。
   マージ済みブランチはリポジトリ設定の「Automatically delete head branches」で自動削除する
+- **PRには必ずラベルを付け、`223n`をアサインする**。ラベルは
+  `bug`・`enhancement`・`documentation`・`refactor`・`accessibility`・`security`・
+  `release`・`dependencies`・`github_actions`・`javascript`から該当するものを全部（複数可）。
+  変更の種類でPRを絞り込む手段はラベルしかなく、後から遡って付けるとPRの本数だけ
+  手作業になる（実際に103本へ後追いで付け直した）。DependabotのPRはラベルだけ
+  自動で付くため、アサインは`.github/dependabot.yml`の`assignees`が受け持つ
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
 - PRごとに`preview.yml`がプレビュー版を上げ、URLをPRへコメントする（`wrangler versions upload`。本番のアクティブなデプロイは差し替えない。フォークとDependabotのPRはSecretsが渡らないため動かない。詳細は`docs/development.md`）
 - ワークフローの外部アクションはタグではなく**コミットSHAで固定**する（`uses: actions/checkout@<sha> # v7`）。タグは付け替えられるため、乗っ取られたタグでシークレット付きのジョブが動く事故を防ぐ。併記の`# vN`はDependabotが追従する

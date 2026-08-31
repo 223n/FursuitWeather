@@ -33,6 +33,9 @@
   外部の取得先を足すときは両方を更新する
 - PRは1つにつき1つのブランチを作る。1本を使い回すと、ブランチから
   PRを逆引きする仕組みが過去のPRを引き当ててしまう
+- PRには必ずラベル（`bug`・`enhancement`・`documentation`・`refactor`・
+  `accessibility`・`security`・`release`・`dependencies`・`github_actions`・
+  `javascript`から該当するもの全部）を付け、`223n`をアサインする
 - `npm run build`は`public/`を破壊的に上書きする。コミット後に実行し、
   `git checkout -- public/`で復元する
 - エラー処理: 利用者向けは固定の日本語文、詳細は`console.error`のみ。
