@@ -1,0 +1,172 @@
+name: PRプレビュー
+
+# PRごとにCloudflare Workersのプレビュー版を上げ、URLをPRへコメントする
+#
+# `wrangler versions upload`は新しいバージョンを作るだけで、アクティブな
+# デプロイ（本番のfursuit-weather.223n.tech）は差し替えない。本番へ出るのは
+# mainへのマージで走るdeploy.ymlだけ、という関係は変わらない。
+#
+# プレビューURLは2種類できる。
+#   コミット単位: <バージョン接頭辞>-fursuit-weather.<サブドメイン>.workers.dev
+#   ブランチ単位: <別名>-fursuit-weather.<サブドメイン>.workers.dev（--preview-alias）
+# ブランチ単位のURLはPRへpushしても変わらないため、コメントに載せて使い回せる。
+#
+# プレビューURLの有効・無効はwrangler.jsoncのpreview_urlsで明示している。
+#
+# 外部アクションはタグではなくコミットSHAで固定する（タグは付け替えられるため、
+# 乗っ取られたタグでジョブが動く事故を防ぐ）。併記の`# vN`はDependabotが追従する
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# 最小権限: コードの読み取りと、PRへコメントする権限のみ
+permissions:
+  contents: read
+  pull-requests: write
+
+# 同じPRへ連続pushしたとき、古いコミットのプレビューが後から完走して
+# ブランチ別名のURLを巻き戻さないよう「最後のpushが勝つ」に揃える
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: プレビュー版を上げてURLをコメント
+    runs-on: ubuntu-latest
+    # フォークからのPRとDependabotのPRにはSecretsが渡らないため実行しない。
+    # ここを`pull_request_target`にすればフォークでも動かせるが、PRのheadのコードを
+    # Secrets付きで実行することになり、公開リポジトリでは乗っ取りの経路になるため採らない
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      # 壊れた版をプレビューURLで配らないよう、deploy.ymlと同じ関門を通す
+      - name: lintを実行
+        run: npm run lint
+
+      - name: テストを実行（カバレッジしきい値つき）
+        run: npm run test:coverage
+
+      - name: ビルド（minify+CSSインライン化）
+        run: npm run build
+
+      # ブランチ名をサブドメインのラベルへ落とす。`claude/link-icons-20260831`のような
+      # スラッシュ入りの名前はそのままでは使えない。
+      # ラベル全体（<別名>-fursuit-weather）は63文字までのため、別名は40文字で切る
+      - name: プレビュー別名を組み立てる
+        id: alias
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          slug=$(printf '%s' "${HEAD_REF}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+            | cut -c1-40 \
+            | sed -E 's/-+$//')
+          # 記号だけのブランチ名などで空になった場合はPR番号で代替する
+          if [ -z "${slug}" ]; then
+            slug="pr-${PR_NUMBER}"
+          fi
+          echo "slug=${slug}" >> "${GITHUB_OUTPUT}"
+          echo "プレビュー別名: ${slug}"
+
+      # wrangler-actionではなくwranglerを直接呼ぶ。出力からプレビューURLを取り出す必要があり、
+      # アクションの出力仕様に依存させたくないため。wrangler自体はpackage-lock.jsonで固定されている
+      - name: プレビュー版をアップロード
+        id: upload
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALIAS: ${{ steps.alias.outputs.slug }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          npx wrangler versions upload \
+            --preview-alias "${ALIAS}" \
+            --tag "pr-${PR_NUMBER}" \
+            --message "PR #${PR_NUMBER} ${SHA}" \
+            2>&1 | tee upload.log
+
+          # ホスト名は<ラベル>-fursuit-weather.<サブドメイン>.workers.devで、
+          # .workers.devの前にラベルが2つ入るためドットも拾う文字集合で抜き出す
+          all_urls=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' upload.log | sort -u || true)
+          branch_url=$(printf '%s\n' "${all_urls}" | grep -E "^https://${ALIAS}-" | head -1 || true)
+          commit_url=$(printf '%s\n' "${all_urls}" | grep -vE "^https://${ALIAS}-" | head -1 || true)
+
+          {
+            echo "branch_url=${branch_url}"
+            echo "commit_url=${commit_url}"
+          } >> "${GITHUB_OUTPUT}"
+
+          if [ -z "${branch_url}" ] && [ -z "${commit_url}" ]; then
+            echo "::error::プレビューURLを出力から取得できませんでした。wranglerの出力書式が変わった可能性があります"
+            exit 1
+          fi
+
+      # 同じPRに何度もコメントを足さず、既存のコメントを見つけて書き換える。
+      # 目印にHTMLコメントだけを使うと、GitHubが保存時に落とした場合へ気づけず
+      # 黙ってコメントが増え続ける。投稿者と見出しの組み合わせでも探し、
+      # どちらの経路でも1件に保つ
+      - name: プレビューURLをPRへコメント
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BRANCH_URL: ${{ steps.upload.outputs.branch_url }}
+          COMMIT_URL: ${{ steps.upload.outputs.commit_url }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- pr-preview -->'
+          heading='## プレビュー版'
+          body=$(cat <<EOF
+          ${marker}
+          ${heading}
+
+          | 種類 | URL |
+          |---|---|
+          | ブランチ（このPRで固定） | ${BRANCH_URL:-取得できませんでした} |
+          | このコミット | ${COMMIT_URL:-取得できませんでした} |
+
+          対象コミット: \`${SHA}\`
+
+          本番（https://fursuit-weather.223n.tech/ ）は差し替わっていません。
+          プレビューはアクティブなデプロイとは別のバージョンとして配信されます。
+
+          ---
+          _Generated by [Claude Code](https://claude.ai/code)_
+          EOF
+          )
+
+          comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq ".[]
+                  | select(.user.login == \"github-actions[bot]\")
+                  | select((.body | startswith(\"${marker}\")) or (.body | contains(\"${heading}\")))
+                  | .id" | head -1)
+
+          if [ -n "${comment_id}" ]; then
+            gh api --method PATCH "repos/${REPO}/issues/comments/${comment_id}" \
+              -f body="${body}" > /dev/null
+            echo "既存のコメント（id=${comment_id}）を更新しました"
+          else
+            gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              -f body="${body}" > /dev/null
+            echo "コメントを新規作成しました"
+          fi
