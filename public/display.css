@@ -362,7 +362,11 @@
 }
 
 .display-day-cell .badge-large {
-  font-size: clamp(1rem, 2.8vmin, 1.8rem);
+  /* 兄弟トークン（--day-date-base・--day-text-base）と同じくvar()経由で読む。
+     直書きしていたため、縦画面の上書き（--day-badge-base: clamp(1rem, 4.5vw, 1.8rem)）
+     が永久に効かず、3日間スライドの判定バッジだけ縦画面で小さいままだった。
+     横長での値は上の宣言と同値のため、横長の見え方は変わらない */
+  font-size: var(--day-badge-base);
   white-space: normal;
   justify-content: center;
 }

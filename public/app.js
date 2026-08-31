@@ -1040,7 +1040,9 @@
         continue;
       }
       const tab = document.getElementById(target.tabId);
-      const day = currentForecast ? currentForecast.days[target.dayIndex] : undefined;
+      // renderForecastはadoptForecastBodyの後にしか呼ばれず、同関数が先に呼ぶ
+      // renderDayCardsがcurrentForecast.daysを無防備に触るため、ここではnullを取らない
+      const day = currentForecast.days[target.dayIndex];
       tab.hidden = day === undefined;
       if (day) {
         // タブ名は配列位置ではなく実際の日付との差で決める（日付またぎの
@@ -2017,10 +2019,11 @@
       setStatus('先に予報を読み込んでください。', true);
       return;
     }
-    let shareUrl = `${window.location.origin}/`;
+    // 上のガードでdisplayedQueryが空の場合は返しているため、以降は必ずどちらかが代入される
+    let shareUrl;
     if (displayedQuery === DEMO_QUERY) {
       shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
-    } else if (displayedQuery) {
+    } else {
       const params = new URLSearchParams(shareQueryString(displayedQuery, displayedName));
       // 任意設定: 日付とプランナーの時間帯（date/from/to）を含める。
       // 開いた側は最新の予報で再計算されるため、古い画面写真を信じる事故を防げる。

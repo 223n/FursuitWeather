@@ -217,10 +217,11 @@ h2 {
   font-size: 0.85rem;
 }
 
-/* 位置情報の扱い（折りたたみ）。summaryは補足情報なので凡例より控えめにする */
+/* 位置情報の扱い（折りたたみ）。summaryは補足情報なので文字サイズだけ控えめにする
+   （太字は.legend-details summaryを継ぐ。「現在地は保存しません」という
+   利用者への約束の文言なので、視認性は弱めない） */
 .control-note-details > summary {
   font-size: 0.85rem;
-  font-weight: 400;
 }
 
 .control-note-details > .control-note {
@@ -451,7 +452,6 @@ input[type='number'] {
   font-weight: 400;
   font-size: 0.95rem;
   padding: 0.45rem 0.8rem;
-  cursor: pointer;
 }
 
 .tabs [role='tab']:hover {
@@ -1290,9 +1290,6 @@ section h3 {
   background-color: var(--level-cold-surface);
 }
 
-.diff-banner.diff-better > .fa-icon {
-  color: var(--color-blue);
-}
 
 .diff-close {
   margin-left: auto;
@@ -1335,8 +1332,6 @@ section h3 {
 
 .emergency-call .heading-icon {
   color: var(--level-3-accent);
-  margin-right: 0.4rem;
-  vertical-align: -0.1em;
 }
 
 .emergency-call-button-line {
