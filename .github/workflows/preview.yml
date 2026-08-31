@@ -120,7 +120,10 @@ jobs:
             exit 1
           fi
 
-      # 同じPRに何度もコメントを足さず、印（HTMLコメント）で見つけて書き換える
+      # 同じPRに何度もコメントを足さず、既存のコメントを見つけて書き換える。
+      # 目印にHTMLコメントだけを使うと、GitHubが保存時に落とした場合へ気づけず
+      # 黙ってコメントが増え続ける。投稿者と見出しの組み合わせでも探し、
+      # どちらの経路でも1件に保つ
       - name: プレビューURLをPRへコメント
         shell: bash
         env:
@@ -132,9 +135,10 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           marker='<!-- pr-preview -->'
+          heading='## プレビュー版'
           body=$(cat <<EOF
           ${marker}
-          ## プレビュー版
+          ${heading}
 
           | 種類 | URL |
           |---|---|
@@ -152,7 +156,10 @@ jobs:
           )
 
           comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -1)
+            --jq ".[]
+                  | select(.user.login == \"github-actions[bot]\")
+                  | select((.body | startswith(\"${marker}\")) or (.body | contains(\"${heading}\")))
+                  | .id" | head -1)
 
           if [ -n "${comment_id}" ]; then
             gh api --method PATCH "repos/${REPO}/issues/comments/${comment_id}" \
