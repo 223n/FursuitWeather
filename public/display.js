@@ -106,17 +106,23 @@
     return String(levelSummary.level || '').startsWith('cold');
   }
 
-  /** バッジ要素を作る（色+記号+文字の3要素。低温側は温度計アイコン+青系） */
+  /** バッジ要素を作る
+   * 色弱の方にも判別できるよう、色+記号（形）+文字の3要素で段階を表す。
+   * app.jsの同名関数と同じ実装。ずれはtest/browserJsSync.test.tsが検出する。
+   * summary.cold・summary.symbolの2枝はapp.js内製のバッジ設定
+   * （LAUNDRY_BADGES・COOLING_BADGES）用で、display.jsの入力（API由来の
+   * ActivityAssessment・LevelSummary）では成立しない。同期のため実装ごと揃えてある */
   function createBadge(summary, large) {
     const badge = document.createElement('span');
-    const isCold = isColdLevel(summary);
+    const isCold = summary.cold === true || isColdLevel(summary);
     badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}${large ? ' badge-large' : ''}`;
+
     const symbol = document.createElement('span');
     symbol.className = 'symbol';
     symbol.setAttribute('aria-hidden', 'true');
-    const parts = (isCold ? [{ icon: 'temperature-low' }] : []).concat(
-      GRADE_SYMBOLS[summary.grade] ?? ['?'],
-    );
+    const parts =
+      summary.symbol ??
+      (isCold ? [{ icon: 'temperature-low' }] : []).concat(GRADE_SYMBOLS[summary.grade] ?? ['?']);
     renderSymbolParts(parts, symbol);
     badge.appendChild(symbol);
     badge.appendChild(document.createTextNode(summary.label));
@@ -592,18 +598,27 @@
     return note;
   }
 
-  /** 現在時刻の時間行を返す。現在時刻のデータがなければ当日の直近未来で代替する
-   * （app.jsのrenderNowCardと同じ選び方） */
+  /** 時間別の行から「現在の時間帯」を選ぶ純粋関数
+   * （現在時刻のデータがなければ当日の直近未来で代替。該当なしはnull。
+   *   app.jsの同名関数と同じ実装。ずれはtest/browserJsSync.test.tsが検出する。
+   *   会場のモニターだけ別の時間帯を「今」と掲示する事故を防ぐ） */
+  function pickCurrentHour(hours, now) {
+    return (
+      hours.find((h) => hourNumberOf(h.time) === now.hour) ??
+      hours.find((h) => hourNumberOf(h.time) > now.hour) ??
+      null
+    );
+  }
+
+  /** 現在時刻の時間行を返す。現在時刻のデータがなければ当日の直近未来で代替する */
   function currentHourTarget() {
     if (!forecast) {
       return null;
     }
     const now = nowInJst();
-    const todayHours = forecast.hours.filter((h) => h.time.startsWith(now.date));
-    return (
-      todayHours.find((h) => hourNumberOf(h.time) === now.hour) ??
-      todayHours.find((h) => hourNumberOf(h.time) > now.hour) ??
-      null
+    return pickCurrentHour(
+      forecast.hours.filter((h) => h.time.startsWith(now.date)),
+      now,
     );
   }
 
