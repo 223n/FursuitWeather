@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "build": "npm run minify && node scripts/inline-css.mjs",
+    "build": "npm run minify && node scripts/inline-css.mjs && node scripts/optimize-sprite.mjs",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -25,6 +25,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "0.28.2",
     "eslint": "^10.9.1",
+    "svgo": "^4.1.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.68.0",
     "vitest": "^4.1.10",
