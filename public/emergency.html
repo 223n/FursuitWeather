@@ -79,6 +79,13 @@
   <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
   <a class="skip-link" href="#main">本文へスキップ</a>
 
+  <!-- Font Awesome Free 7.3.1 のアイコン定義（SVGスプライト・自前配信でどの環境でも同一表示） -->
+  <!-- Icons: Font Awesome Free https://fontawesome.com/ - License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true">
+    <symbol id="fa-arrow-up-right-from-square" viewBox="0 0 512 512"><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0-201.4 201.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3 448 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 96C35.8 96 0 131.8 0 176L0 432c0 44.2 35.8 80 80 80l256 0c44.2 0 80-35.8 80-80l0-80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 80c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l80 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 96z"/></symbol>
+    <symbol id="fa-house" viewBox="0 0 512 512"><path d="M277.8 8.6c-12.3-11.4-31.3-11.4-43.5 0l-224 208c-9.6 9-12.8 22.9-8 35.1S18.8 272 32 272l16 0 0 176c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-176 16 0c13.2 0 25-8.1 29.8-20.3s1.6-26.2-8-35.1l-224-208zM240 320l32 0c26.5 0 48 21.5 48 48l0 96-128 0 0-96c0-26.5 21.5-48 48-48z"/></symbol>
+  </svg>
+
   <header class="site-header">
     <h1><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z"/></svg> FursuitWeather</h1>
     <p class="tagline">もしものとき - 熱中症が疑われるときの応急対応</p>
@@ -87,7 +94,7 @@
   <main id="main" class="emergency">
     <nav class="breadcrumb" aria-label="戻るリンク">
       <p>
-        <a href="/"><span aria-hidden="true">← </span>予報トップへ戻る</a>
+        <a href="/"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-house"/></svg><span aria-hidden="true">← </span>予報トップへ戻る</a>
       </p>
     </nav>
 
@@ -198,7 +205,7 @@
     <section aria-labelledby="prevention-heading">
       <h2 id="prevention-heading">ふだんの予防</h2>
       <p>
-        <a href="/">予報トップ</a>で当日の判定と連続活動時間の目安を確認し、
+        <a href="/"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-house"/></svg>予報トップ</a>で当日の判定と連続活動時間の目安を確認し、
         「30分着たら30分休む」を基本にしてください。<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動は必ず2人以上で行い、
         着用者以外の付き添い（ハンドラー・アテンド）を付けてください。
       </p>
@@ -208,8 +215,8 @@
       <h2 id="sources-heading">出典と免責事項</h2>
       <p>このページの手順は、次の公的資料の応急処置の考え方に沿って作成しています（参照日: 2026年8月）。</p>
       <ul>
-        <li><a href="https://www.wbgt.env.go.jp/heatillness_manual.php" rel="noopener">環境省「熱中症環境保健マニュアル」</a></li>
-        <li><a href="https://www.jaam.jp/" rel="noopener">日本救急医学会</a>「熱中症診療ガイドライン2024」（学会サイト内で公開）</li>
+        <li><a href="https://www.wbgt.env.go.jp/heatillness_manual.php" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>環境省「熱中症環境保健マニュアル」</a></li>
+        <li><a href="https://www.jaam.jp/" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>日本救急医学会</a>「熱中症診療ガイドライン2024」（学会サイト内で公開）</li>
       </ul>
       <p>
         <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの脱がせ方（ヘッド<span aria-hidden="true">→</span><span class="sr-only">、</span>ハンド<span aria-hidden="true">→</span><span class="sr-only">、</span>ジッパー）は、顔と気道の確認を最優先にする
@@ -226,13 +233,13 @@
 
   <footer class="site-footer">
     <p>
-      Icons by <a href="https://fontawesome.com/" rel="noopener">Font Awesome Free</a>（CC BY 4.0）
+      Icons by <a href="https://fontawesome.com/" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>Font Awesome Free</a>（CC BY 4.0）
     </p>
     <p>
-      <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
+      <a href="https://github.com/223n/FursuitWeather" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.11.0</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>v1.11.0</a>
     </p>
   </footer>
 </body>

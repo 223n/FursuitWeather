@@ -24,6 +24,15 @@
   <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
   <a class="skip-link" href="#main">本文へスキップ</a>
 
+  <!-- Font Awesome Free 7.3.1 のアイコン定義（SVGスプライト・自前配信でどの環境でも同一表示） -->
+  <!-- Icons: Font Awesome Free https://fontawesome.com/ - License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true">
+    <symbol id="fa-arrow-up-right-from-square" viewBox="0 0 512 512"><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0-201.4 201.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3 448 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 96C35.8 96 0 131.8 0 176L0 432c0 44.2 35.8 80 80 80l256 0c44.2 0 80-35.8 80-80l0-80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 80c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l80 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 96z"/></symbol>
+    <symbol id="fa-circle-info" viewBox="0 0 512 512"><path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/></symbol>
+    <symbol id="fa-house" viewBox="0 0 512 512"><path d="M277.8 8.6c-12.3-11.4-31.3-11.4-43.5 0l-224 208c-9.6 9-12.8 22.9-8 35.1S18.8 272 32 272l16 0 0 176c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-176 16 0c13.2 0 25-8.1 29.8-20.3s1.6-26.2-8-35.1l-224-208zM240 320l32 0c26.5 0 48 21.5 48 48l0 96-128 0 0-96c0-26.5 21.5-48 48-48z"/></symbol>
+    <symbol id="fa-triangle-exclamation" viewBox="0 0 512 512"><path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/></symbol>
+  </svg>
+
   <header class="site-header">
     <h1><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z"/></svg> FursuitWeather</h1>
     <p class="tagline"><span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ天気予報</p>
@@ -38,9 +47,9 @@
       </p>
       <nav class="error-nav" aria-label="主要ページへのリンク">
         <ul>
-          <li><a href="/">予報トップ</a></li>
-          <li><a href="/about">このサービスについて（判定の仕組み・API・免責事項）</a></li>
-          <li><a href="/emergency">もしものとき（熱中症の応急対応）</a></li>
+          <li><a href="/"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-house"/></svg>予報トップ</a></li>
+          <li><a href="/about"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-circle-info"/></svg>このサービスについて（判定の仕組み・API・免責事項）</a></li>
+          <li><a href="/emergency"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-triangle-exclamation"/></svg>もしものとき（熱中症の応急対応）</a></li>
         </ul>
       </nav>
     </section>
@@ -48,10 +57,10 @@
 
   <footer class="site-footer">
     <p>
-      <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
+      <a href="https://github.com/223n/FursuitWeather" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.11.0</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>v1.11.0</a>
     </p>
   </footer>
 </body>
