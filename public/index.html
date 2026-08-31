@@ -338,7 +338,7 @@
       <!-- 屋外判定・連続活動目安の列が画面外に隠れることをスマホ利用者へ知らせる
            （広い画面では表が収まるためCSSで非表示にする） -->
       <p class="hint table-scroll-hint">表が画面に収まらないときは、表を横にずらす（スクロールする）と屋外判定などの続きが見られます。</p>
-      <div class="table-wrapper">
+      <div class="table-wrapper" tabindex="0">
         <table id="hours-table">
           <caption class="sr-only">
             選択した日の時間別予報。行ごとに時刻、天気、気温、湿度、降水確率、風速、
@@ -447,7 +447,7 @@
         <h3 id="wbgt-log-heading" tabindex="-1">会場ログ（この端末に保存）</h3>
         <!-- 記録・削除の完了通知（判定結果の表示を上書きしないよう別領域にする） -->
         <p id="wbgt-log-status" class="hint" role="status"></p>
-        <div class="table-wrapper">
+        <div class="table-wrapper" tabindex="0">
           <table id="wbgt-log-table" aria-labelledby="wbgt-log-heading">
             <caption class="sr-only">実測WBGTの記録。行ごとに記録時刻、場所、実測値、補正後の値、判定、削除ボタンを示します。</caption>
             <thead>

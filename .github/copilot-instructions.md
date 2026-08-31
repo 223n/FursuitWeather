@@ -69,6 +69,11 @@
   形式は`test/events.test.ts`がCIで検証する（書き方は`docs/events.md`）
 - 判定表示は色だけに依存させず記号+文字を併記する（CUD配色。
   詳細は`docs/accessibility.md`）
+- アクセシビリティは`e2e/accessibility.spec.mjs`がCIで検証する
+  （配信5ページ×ライト／ダーク×PC／スマホ。axe-core違反0件と
+  ページごとのCLS上限）。ページを足したら同ファイルの`PAGES`へ1行足す。
+  横スクロールする領域を足すときはキーボードでも動かせるようにする
+  （表は`tabindex="0"`、本文のコード片は折り返し。WCAG 2.1 SC 2.1.1）
 
 ## コマンド
 

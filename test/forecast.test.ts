@@ -125,14 +125,27 @@ describe('buildForecast', () => {
     expect(forecast.notices.length).toBeGreaterThan(0);
   });
 
-  it('日付文字列が不完全でもデモデータは既定値で補って2日分を返す', () => {
+  it('日付文字列が不完全でもデモデータは既定値で補って3日分を返す', () => {
     // demoWeatherの日付分解フォールバック（年のみ指定→1月1日扱い）の防御動作を固定する
     const demo = demoWeather('2026');
-    expect(demo.hours).toHaveLength(48);
-    expect(demo.hours[demo.hours.length - 1]!.time.startsWith('2026-01-02')).toBe(true);
+    expect(demo.hours).toHaveLength(72);
+    expect(demo.hours[demo.hours.length - 1]!.time.startsWith('2026-01-03')).toBe(true);
   });
 
-  it('デモデータから危険な猛暑日と雨天日の予報を組み立てられる', () => {
+  it('デモデータの日の出・大気質は全日そろっている', () => {
+    // 日数を増やしたときにsunTimes・airQualityの追加を忘れると、
+    // 最終日だけ日没表示と空気のよごれ指数が欠ける
+    const demo = demoWeather('2026-08-15');
+    const dates = [...new Set(demo.hours.map((h) => h.time.slice(0, 10)))];
+    expect(demo.sunTimes.size).toBe(dates.length);
+    expect(demo.airQuality.size).toBe(dates.length);
+    for (const date of dates) {
+      expect(demo.sunTimes.has(date), date).toBe(true);
+      expect(demo.airQuality.has(date), date).toBe(true);
+    }
+  });
+
+  it('デモデータから危険な猛暑日・雨天日・曇天日の予報を組み立てられる', () => {
     const demo = demoWeather('2026-08-15');
     const forecast = buildForecast(
       demo.hours,
@@ -140,7 +153,7 @@ describe('buildForecast', () => {
       'demo',
       '2026-08-15T00:00:00.000Z',
     );
-    expect(forecast.days).toHaveLength(2);
+    expect(forecast.days).toHaveLength(3);
 
     // 1日目: 猛暑の晴天日 → 日中の最悪レベルは危険、冷房必須
     const sunny = forecast.days[0]!;
@@ -150,5 +163,10 @@ describe('buildForecast', () => {
     // 2日目: 雨天 → 洗濯は外干しNG
     const rainy = forecast.days[1]!;
     expect(rainy.laundry.level).toBe('noDryRain');
+
+    // 3日目: 曇天 → 雨は降らないため外干しはできる（晴天日とは別の乾き具合）
+    const cloudy = forecast.days[2]!;
+    expect(cloudy.laundry.level).not.toBe('noDryRain');
+    expect(cloudy.laundry.level).not.toBe(sunny.laundry.level);
   });
 });

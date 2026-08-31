@@ -1,6 +1,13 @@
 // デモ用の気象データ生成
 // 上流APIに接続できない環境での動作確認と、UIのプレビューに使用する
-// 真夏の晴天日（1日目）と雨の日（2日目）を模した決定的なデータを返す
+// 真夏の晴天日（1日目）・雨の日（2日目）・曇りの過ごしやすい日（3日目）を
+// 模した決定的なデータを返す
+//
+// 日数はFORECAST_DAYS（3日）と同じにする。トップページの日付タブ
+// （今日・明日・明後日）は取得できた日数に合わせて出し入れするため、デモが
+// 2日分だと明後日タブだけが読み込み後に消え、タブ行の折り返しが変わって
+// レイアウトシフトが起きる。E2Eの見た目・CLSの検証を本番と同じ形で行うため、
+// デモも本番と同じ日数を返す
 
 import { round1 } from '../logic/round';
 import { nextDateOf } from '../logic/time';
@@ -57,9 +64,10 @@ function buildDay(
   return hours;
 }
 
-/** 指定日から2日分のデモデータを返す */
+/** 指定日から3日分のデモデータを返す */
 export function demoWeather(startDate: string): WeatherResult {
   const nextDate = nextDateOf(startDate);
+  const thirdDate = nextDateOf(nextDate);
 
   // 朝晩は警戒レベル、日中は危険レベルと段階が変化する晴天日を再現する
   const sunnyDay = buildDay(startDate, {
@@ -79,8 +87,20 @@ export function demoWeather(startDate: string): WeatherResult {
     weatherCode: 61,
   });
 
+  // 3日目は曇天日。日射が弱く洗濯の乾きも中程度になるため、晴天日・雨天日と
+  // 並べると天気アイコン・洗濯乾燥指数の3通りをデモで見比べられる
+  // （着衣補正+11℃のため真夏の気温では判定自体はどの日も危険になる）
+  const cloudyDay = buildDay(thirdDate, {
+    minTemperature: 20,
+    maxTemperature: 28,
+    baseHumidity: 70,
+    peakSolar: 300,
+    rainHours: [],
+    weatherCode: 3,
+  });
+
   return {
-    hours: [...sunnyDay, ...rainyDay],
+    hours: [...sunnyDay, ...rainyDay, ...cloudyDay],
     latitude: 35.6785,
     longitude: 139.6823,
     timezone: 'Asia/Tokyo',
@@ -88,12 +108,14 @@ export function demoWeather(startDate: string): WeatherResult {
     sunTimes: new Map([
       [startDate, { sunrise: '05:00', sunset: '18:30' }],
       [nextDate, { sunrise: '05:01', sunset: '18:29' }],
+      [thirdDate, { sunrise: '05:02', sunset: '18:28' }],
     ]),
     // 大気質（空気のよごれ指数用）。晴天日はやや高め、雨天日は洗い流されて低めの
-    // 典型値にする（どちらも「低」の範囲。デモで行の表示を確認できるようにする）
+    // 典型値にする（いずれも「低」の範囲。デモで行の表示を確認できるようにする）
     airQuality: new Map([
       [startDate, { pm25: [12, 15, 18], dust: [2, 5] }],
       [nextDate, { pm25: [6, 8], dust: [0] }],
+      [thirdDate, { pm25: [9, 11], dust: [1, 3] }],
     ]),
   };
 }

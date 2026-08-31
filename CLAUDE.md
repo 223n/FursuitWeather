@@ -71,6 +71,7 @@ npm run build                        # minify + CSSインライン化（下記�
 - **上流ネットワークへ接続しない**: `/api/*`と`events.json`は`page.route`で同一オリジンの`?demo=1`などへ差し替え、応答を決定的にする
 - **時刻に依存させない**: 判定も表示も時刻で変わるため、`page.goto`の前に`page.clock.install`でJST基準の固定時刻を入れる。ここを外すと「夕方以降だけ落ちる」「深夜だけ落ちる」テストになる（実際に作り込んで直した経緯がある）。スライドの自動送りや鮮度警告の検証も`page.clock.fastForward`で行い、実時間を待たない
 - **`serviceWorkers: 'block'`を外さない**: SWが介在すると`page.route`のモックが素通しされ、2回目以降の遷移でキャッシュが返る。変更が効いていないのに効いて見えるため、計測を誤る。その代わりSW自体（`public/sw.js`）の挙動はE2Eの検証対象外になり、自動検証は`test/csp.test.ts`のSHELL_URLS一致のみ。sw.jsを変えたときは手動で確認する
+- **アクセシビリティはE2Eが常に見る**: `e2e/accessibility.spec.mjs`が配信5ページ×ライト／ダーク×PC／スマホでaxe-core監査（WCAG 2.0/2.1のA・AA）とCLS測定を行う。ページを足したら`PAGES`へ1行足す。CLSの上限は実測値に余裕を持たせた「悪化したら気付く」ための値で、根拠は同ファイルのコメントと`docs/accessibility.md`にある。axe-coreはTrusted Typesで`page.addScriptTag`が弾かれるため`page.evaluate`で読み込む
 - CSPにより`page.addStyleTag`は弾かれる。CSSを差し替えて試したいときは`page.route('**/display.css', …)`で応答を作る
 - ローカルに`ms-playwright`のブラウザが無い環境では、`PLAYWRIGHT_CHROMIUM_PATH`にシステムのChromeの実行ファイルを指定して実行できる
 
@@ -103,4 +104,4 @@ npm run build                        # minify + CSSインライン化（下記�
 
 ## アクセシビリティ
 
-安全情報を扱うため機能要件として扱う（詳細は`docs/accessibility.md`）。判定は色だけに依存させず記号+文字を併記、CUD配色パレット（`style.css`の`:root`）を使う。動的な表示領域は高さ事前確保などのCLS対策を守る。注意文は`.notice-panel`（黄色系の枠+左上の△!）で全ページ統一し、警戒レベルの`.alert-notice`（赤）とは色で区別する。UIを追加するときは既存の設計判断（ライブ領域・aria・フォーカスリング#A66E00）に合わせる。
+安全情報を扱うため機能要件として扱う（詳細は`docs/accessibility.md`）。判定は色だけに依存させず記号+文字を併記、CUD配色パレット（`style.css`の`:root`）を使う。動的な表示領域は高さ事前確保などのCLS対策を守る。注意文は`.notice-panel`（黄色系の枠+左上の△!）で全ページ統一し、警戒レベルの`.alert-notice`（赤）とは色で区別する。UIを追加するときは既存の設計判断（ライブ領域・aria・フォーカスリング#A66E00）に合わせる。検証は`e2e/accessibility.spec.mjs`がCIで行う（配信5ページ×ライト／ダーク×PC／スマホ。axe-core違反0件とページごとのCLS上限）。**横スクロールする領域を足すときはキーボードでも動かせるようにする**（表は`tabindex="0"`、本文のコード片は折り返し。WCAG 2.1 SC 2.1.1）。
