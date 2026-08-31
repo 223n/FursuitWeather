@@ -98,10 +98,18 @@
     return wrapper;
   }
 
+  /** 低温側の判定か（levelのcold接頭辞。types.tsのColdLevelIdの契約）
+   * 判定規則の単一情報源。暑熱/低温の取り違えは安全に直結するため、
+   * 個別のstartsWith複製は使わずここへ寄せる（levelの型崩れにも防御する。
+   * public/app.jsの同名関数と同じ実装。ずれはtest/browserJsSync.test.tsが検出する） */
+  function isColdLevel(levelSummary) {
+    return String(levelSummary.level || '').startsWith('cold');
+  }
+
   /** バッジ要素を作る（色+記号+文字の3要素。低温側は温度計アイコン+青系） */
   function createBadge(summary, large) {
     const badge = document.createElement('span');
-    const isCold = String(summary.level || '').startsWith('cold');
+    const isCold = isColdLevel(summary);
     badge.className = `badge grade-${summary.grade}${isCold ? ' cold' : ''}${large ? ' badge-large' : ''}`;
     const symbol = document.createElement('span');
     symbol.className = 'symbol';
@@ -326,7 +334,7 @@
       return true;
     }
     const target = currentHourTarget();
-    return Boolean(target) && target.outdoor.grade >= 3 && !target.outdoor.level.startsWith('cold');
+    return Boolean(target) && target.outdoor.grade >= 3 && !isColdLevel(target.outdoor);
   }
 
   /** 表示対象のスライド（設定で絞り込んだもの。空にはならない） */
