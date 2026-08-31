@@ -103,7 +103,7 @@ public/                 静的アセット（HTML・CSS・JS・アイコン類�
 ├── display.css         会場表示モード専用スタイル（通常ページの配信サイズを増やさないよう分離）
 ├── sw.js               Service Worker（オフライン表示。下記「オフライン表示」参照）
 scripts/inline-css.mjs  ビルド時のCSSインライン化（ページごとに不要な規則を落としてから埋め込む）
-scripts/purge-css.mjs   ページで使わないCSS規則を落とす（development.md「デプロイ時の最適化」参照）
+scripts/purge-css.mjs   ページで使わないCSS規則を落とす（development.md「ビルド」参照）
 scripts/optimize-sprite.mjs  HTML内のSVGスプライトをsvgoで最適化する（同上）
 test/                   vitestテスト
 e2e/                    Playwright E2Eテスト（実ブラウザでの挙動検証）
