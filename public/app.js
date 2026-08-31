@@ -197,11 +197,13 @@
     return fragment;
   }
 
-  /** URL由来のテキストから制御文字・書式文字を除去する（display.jsのsanitizeTextと
-   * 同じ規則。U+202E等の双方向制御文字はtextContent経由でも表示順を反転できるため、
+  /** 外部由来のテキストから制御文字・書式文字を除去する
+   * U+202E等の双方向制御文字はtextContent経由でも表示順を反転できるため、
    * 共有URLの地点名・イベント名の見た目の偽装対策として必須。
-   * ZWJ絵文字合成が崩れる副作用は許容する） */
-  function sanitizeUrlText(text) {
+   * ZWJ絵文字合成が崩れる副作用は許容する。
+   * display.jsの同名関数と同じ実装。ずれはtest/browserJsSync.test.tsが検出する
+   * （規則がずれた側だけが名前偽装の穴になるため） */
+  function sanitizeText(text) {
     return String(text).replace(/[\p{Cc}\p{Cf}]/gu, '').trim();
   }
 
@@ -1040,7 +1042,9 @@
         continue;
       }
       const tab = document.getElementById(target.tabId);
-      const day = currentForecast ? currentForecast.days[target.dayIndex] : undefined;
+      // renderForecastはadoptForecastBodyの後にしか呼ばれず、同関数が先に呼ぶ
+      // renderDayCardsがcurrentForecast.daysを無防備に触るため、ここではnullを取らない
+      const day = currentForecast.days[target.dayIndex];
       tab.hidden = day === undefined;
       if (day) {
         // タブ名は配列位置ではなく実際の日付との差で決める（日付またぎの
@@ -2017,10 +2021,11 @@
       setStatus('先に予報を読み込んでください。', true);
       return;
     }
-    let shareUrl = `${window.location.origin}/`;
+    // 上のガードでdisplayedQueryが空の場合は返しているため、以降は必ずどちらかが代入される
+    let shareUrl;
     if (displayedQuery === DEMO_QUERY) {
       shareUrl = `${window.location.origin}/?${DEMO_QUERY}`;
-    } else if (displayedQuery) {
+    } else {
       const params = new URLSearchParams(shareQueryString(displayedQuery, displayedName));
       // 任意設定: 日付とプランナーの時間帯（date/from/to）を含める。
       // 開いた側は最新の予報で再計算されるため、古い画面写真を信じる事故を防げる。
@@ -4689,7 +4694,7 @@
     // 名前と座標の食い違い（偽装リンク）に気付けるようにし、記憶には座標由来の
     // 名前だけを使って偽装名が次回以降の表示に固定されないようにする。
     // 表示自体はtextContent経由のため、タグや装飾は無効化される
-    const sharedName = sanitizeUrlText(pageParams.get('name') ?? '').slice(0, 80);
+    const sharedName = sanitizeText(pageParams.get('name') ?? '').slice(0, 80);
     const coordName = describeSharedLocation(sharedLat, sharedLon);
     const displayLabel = sharedName
       ? `${sharedName}（共有・${nearestCityText(sharedLat, sharedLon)}）`
@@ -4707,10 +4712,10 @@
         applySharedPlan(tabSeqAtStart);
       }
     });
-  } else if (sanitizeUrlText(pageParams.get('event') ?? '') !== '') {
+  } else if (sanitizeText(pageParams.get('event') ?? '') !== '') {
     // イベント固定リンク（?event=イベント名）: 一覧の読み込み完了後に
     // initEventsの続き（下のinitEvents().then）が該当イベントを自動選択する
-    pendingEventName = sanitizeUrlText(pageParams.get('event') ?? '').slice(0, 80);
+    pendingEventName = sanitizeText(pageParams.get('event') ?? '').slice(0, 80);
   } else {
     loadInitialStoredOrDefault();
   }

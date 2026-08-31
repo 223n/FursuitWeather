@@ -39,6 +39,14 @@ const SHARED_FUNCTIONS = [
   'hiddenSpan',
   // 時刻文字列から時の数値を取り出す
   'hourNumberOf',
+  // 「いまの判定」に出す行の選び方（会場のモニターだけ別の時間帯を「今」と
+  // 掲示する事故を防ぐ。現在時刻が無いときの代替規則までそろえる）
+  'pickCurrentHour',
+  // 外部由来テキストの制御文字・書式文字の除去
+  // （規則がずれた側だけが名前偽装（U+202E等）の穴になる）
+  'sanitizeText',
+  // 判定バッジの組み立て（配色クラス・記号・低温アイコンが色に依存しない判別の要）
+  'createBadge',
 ] as const;
 
 /** app.jsとdisplay.jsで値が一致していなければならない定数 */
@@ -144,6 +152,20 @@ describe('ブラウザJSの共通部品の同期', () => {
 
   it('app.jsとwbgt-tool.jsのGRADE_SYMBOLSは同じ値', () => {
     expect(constantCode(wbgtToolJs, 'GRADE_SYMBOLS')).toBe(constantCode(appJs, 'GRADE_SYMBOLS'));
+  });
+
+  it('「いまの判定」の時刻表記はapp.jsとdisplay.jsで同一', () => {
+    // 関数として共有していない1行だが、片側だけ文言が変わると
+    // 「代替の時間帯を出している」ことが会場側だけ伝わらなくなる。
+    // 配信バイトを増やさずにずれを止めるため、文字列そのものを突き合わせる
+    const line =
+      '`${hourNumber === now.hour ? `${hourNumber}時` : `本日${hourNumber}時（直近の時間帯）`}・`';
+    for (const [label, source] of [
+      ['app.js', appJs],
+      ['display.js', displayJs],
+    ] as const) {
+      expect(source.split(line).length - 1, `${label}の代替時刻表記`).toBe(1);
+    }
   });
 
   it('低温判定の生のstartsWithはisColdLevelの中だけにある', () => {

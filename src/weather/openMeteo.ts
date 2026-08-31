@@ -363,42 +363,6 @@ function collectAirQualityByDate(
   return byDate;
 }
 
-/**
- * 降水確率を標準予報APIから取得し、時刻→確率のMapに変換する
- * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
- */
-function fetchPrecipitationProbability(
-  latitude: number,
-  longitude: number,
-  days: number,
-  fetchImpl: typeof fetch,
-): Promise<Map<string, number>> {
-  return fetchAuxiliaryHourly(
-    buildProbabilityUrl(latitude, longitude, days),
-    '降水確率',
-    fetchImpl,
-    collectProbabilityByTime,
-  );
-}
-
-/**
- * 大気質（PM2.5・黄砂）をAir Quality APIから取得し、日付→生値のMapに変換する
- * 補助情報のため、失敗しても予報本体を巻き込まず空のMapを返す（ログには残す）
- */
-function fetchAirQuality(
-  latitude: number,
-  longitude: number,
-  days: number,
-  fetchImpl: typeof fetch,
-): Promise<Map<string, AirQualityValues>> {
-  return fetchAuxiliaryHourly(
-    buildAirQualityUrl(latitude, longitude, days),
-    '大気質',
-    fetchImpl,
-    collectAirQualityByDate,
-  );
-}
-
 /** 予報本体（気象データ）用の文言 */
 const WEATHER_FETCH_MESSAGES: UpstreamMessages = {
   logLabel: '気象データの取得に失敗:',
@@ -445,7 +409,11 @@ async function requestUpstream(
   return requestOnce(url, fetchImpl, messages);
 }
 
-/** 組み立て済みURLから気象データを取得・検証する（fetchWeatherBase/fetchWeatherForDate共通） */
+/**
+ * 組み立て済みURLから気象データを取得・検証する（fetchWeather/fetchWeatherForDate共通）
+ * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる。
+ * モジュール内専用（予報本体の公開入口はfetchWeather / fetchWeatherForDateの2つ）
+ */
 async function fetchWeatherFromUrl(url: string, fetchImpl: typeof fetch): Promise<WeatherResult> {
   const response = await requestUpstream(url, fetchImpl, WEATHER_FETCH_MESSAGES);
 
@@ -464,22 +432,6 @@ async function fetchWeatherFromUrl(url: string, fetchImpl: typeof fetch): Promis
     }
     throw error;
   }
-}
-
-/**
- * 時間別の気象データを取得する（降水確率の補完なし）
- * HTTP通信とトランスポート層のエラー処理のみを担い、検証・変換はparseWeatherResponseに委ねる。
- * モジュール内専用（予報本体の公開入口はfetchWeather / fetchWeatherForDateの2つ）
- *
- * @param fetchImpl テスト時にモックを注入するためのfetch実装
- */
-function fetchWeatherBase(
-  latitude: number,
-  longitude: number,
-  days: number,
-  fetchImpl: typeof fetch = fetch,
-): Promise<WeatherResult> {
-  return fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, days), fetchImpl);
 }
 
 /**
@@ -536,11 +488,25 @@ export async function fetchWeather(
   days: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<WeatherResult> {
+  // 本ファイルが担うOpen-Meteo系3系統を、ここで一度に見せる
+  // （予報本体＋補助2本。補助は失敗しても空Mapを返し、本体を巻き込まない。
+  //   気象庁モデルAPIが降水確率を持たないため標準予報APIから補う。
+  //   ベストエフォートの実体はfetchAuxiliaryHourlyを参照）
   const [base, probabilities, airQuality] = await Promise.all([
-    fetchWeatherBase(latitude, longitude, days, fetchImpl),
-    fetchPrecipitationProbability(latitude, longitude, days, fetchImpl),
-    // 大気質（空気のよごれ指数用）も並行取得する（同じベストエフォート）
-    fetchAirQuality(latitude, longitude, days, fetchImpl),
+    fetchWeatherFromUrl(buildForecastUrl(latitude, longitude, days), fetchImpl),
+    fetchAuxiliaryHourly(
+      buildProbabilityUrl(latitude, longitude, days),
+      '降水確率',
+      fetchImpl,
+      collectProbabilityByTime,
+    ),
+    // 大気質（空気のよごれ指数用）
+    fetchAuxiliaryHourly(
+      buildAirQualityUrl(latitude, longitude, days),
+      '大気質',
+      fetchImpl,
+      collectAirQualityByDate,
+    ),
   ]);
   return mergeAuxiliaryData(base, probabilities, airQuality);
 }

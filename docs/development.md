@@ -83,7 +83,7 @@ axe-core監査とCLS測定はリリース時の手動確認です（手順は
 デプロイ時に次の最適化を行います（CI・デプロイの両ワークフローで自動実行）。
 
 ```bash
-npm run build   # minify（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とstyle.css・display.cssの圧縮）+ 各HTMLへのCSSインライン化（display.htmlは2ファイル分）
+npm run build   # minify（JS5本（app.js・prefs.js・wbgt-tool.js・display.js・sw.js）とstyle.css・display.cssの圧縮）+ 各HTMLへのCSSインライン化（display.htmlは2ファイル分）+ SVGスプライトの最適化
 ```
 
 インライン化するCSSは、**そのページで使わない規則を落として**から埋め込みます
@@ -108,7 +108,14 @@ HTML・JSに文字列として現れないため、`scripts/purge-css.mjs`の
 HTMLを検証できません）なので、`test/cssPurge.test.ts`がブラウザJSを走査して
 未登録の接頭辞を検出します。
 
-配信物の実測（Brotli。Cloudflareがテキストへ既定で適用する方式）:
+### 計測はBrotliで行う
+
+配信サイズの評価はBrotliで行います。Cloudflareがテキストへ既定で適用する方式で、
+利用者が実際に受け取るのはこれだからです。gzipは参考値に留めます。
+PNGなど既に圧縮済みのバイナリはCloudflareの圧縮対象外なので、生バイト数が
+そのまま転送量になります。
+
+配信物の実測（Brotli）:
 
 | ページ | 導入前 | 導入後 | 削減 |
 |---|---|---|---|
@@ -126,6 +133,41 @@ HTMLページを追加する場合は、`<link rel="stylesheet" href="/style.css
 のタグを完全一致で含める必要があります。ビルドは`public/`直下の全HTMLを
 CSSインライン化の対象にし、このタグがないページがあるとビルドを
 失敗させます（`scripts/inline-css.mjs`の安全確認）。
+
+### SVGスプライトの最適化
+
+アイコンはFont Awesomeのパスを自前配信のスプライト（HTML内の`<symbol>`）として
+持っています。ビルドの最後に`scripts/optimize-sprite.mjs`がsvgoを掛けます。
+
+`floatPrecision`は**1**にします。svgoの円弧化の許容誤差は`0.1^floatPrecision`に
+連動するため、桁を1つ下げたところで初めて曲線→円弧のコマンド併合が起きます。
+
+| floatPrecision | 配信物のBrotli削減 |
+|---|---|
+| 3 | -114バイト |
+| 2 | -206バイト |
+| **1** | **-2,681バイト** |
+
+座標を丸めるため描画は厳密には同一になりません。**アイコンを増やしたときは
+実寸での見え方を確かめてください**。導入時はChromiumで32シンボル×5サイズ
+（16/24/48/96/200px）を1枚ずつ描いて全画素比較し、実寸24px（`.fa-icon`の
+大きさ）での塗りの反転画素が最悪でも26/2304（1.1%、輪郭のアンチエイリアス
+1画素分）であること、6倍に拡大しても判別できないことを確認しています。
+
+最適化の前後で次が変わるとビルドが止まります。CIは全PRで`npm run build`を
+流すため、svgoの更新で黙って壊れた場合はマージ前に落ちます。
+
+- シンボルのid（`use`要素の参照先。1つ欠けるとアイコンが消える）
+- viewBoxの数（欠けると拡大縮小が効かなくなる）
+- pathの数
+- `class="icon-sprite"`と`aria-hidden="true"`（欠けるとアイコン定義が画面に並ぶ）
+
+### PNGの再圧縮
+
+`public/*.png`はoxipng（`-o max --strip safe`）で1回だけ再圧縮済みです
+（9本で314,389→173,351バイト、-44%）。ビルド段には入れていません。
+差し替えたときは同じコマンドを手で流し、画素が変わっていないことを
+確かめてください（IDATをzlib展開してPNGフィルタを解いた生画素の一致で見ます）。
 
 なお`npm run deploy`（手動デプロイ）はビルドを経由しません。緊急時は
 非最適化のまま配信されますが、動作に支障はありません（最適化配信は
