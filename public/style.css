@@ -945,6 +945,13 @@ th {
   margin-right: 0.35em;
 }
 
+/* リンク先頭のアイコン（外部リンク・PDF・ページ種別の区別）。
+   装飾のためaria-hidden。リンク文言だけで意味が通る前提を崩さない。
+   .btn-icon より詰めるのは、ボタンと違い文中に並ぶため */
+.link-icon {
+  margin-right: 0.25em;
+}
+
 .th-note {
   font-weight: 400;
   font-size: 0.75rem;

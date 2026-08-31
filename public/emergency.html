@@ -79,6 +79,13 @@
   <!-- スクリーンリーダー・キーボード利用者向け: 本文へのスキップリンク -->
   <a class="skip-link" href="#main">本文へスキップ</a>
 
+  <!-- Font Awesome Free 7.3.1 のアイコン定義（SVGスプライト・自前配信でどの環境でも同一表示） -->
+  <!-- Icons: Font Awesome Free https://fontawesome.com/ - License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true">
+    <symbol id="fa-arrow-up-right-from-square" viewBox="0 0 512 512"><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0-201.4 201.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3 448 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 96C35.8 96 0 131.8 0 176L0 432c0 44.2 35.8 80 80 80l256 0c44.2 0 80-35.8 80-80l0-80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 80c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l80 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 96z"/></symbol>
+    <symbol id="fa-house" viewBox="0 0 512 512"><path d="M277.8 8.6c-12.3-11.4-31.3-11.4-43.5 0l-224 208c-9.6 9-12.8 22.9-8 35.1S18.8 272 32 272l16 0 0 176c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-176 16 0c13.2 0 25-8.1 29.8-20.3s1.6-26.2-8-35.1l-224-208zM240 320l32 0c26.5 0 48 21.5 48 48l0 96-128 0 0-96c0-26.5 21.5-48 48-48z"/></symbol>
+  </svg>
+
   <header class="site-header">
     <h1><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M234.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5 .3-86.2 32.6-96.8 70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3-14.3-70.1 10.2-84.1 59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2-25.8 0-46.7-20.9-46.7-46.7l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3 29.1 51.7 10.2 84.1-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5 46.9 53.9 32.6 96.8-52.1 69.1-84.4 58.5z"/></svg> FursuitWeather</h1>
     <p class="tagline">もしものとき - 熱中症が疑われるときの応急対応</p>
@@ -87,20 +94,20 @@
   <main id="main" class="emergency">
     <nav class="breadcrumb" aria-label="戻るリンク">
       <p>
-        <a href="/"><span aria-hidden="true">← </span>予報トップへ戻る</a>
+        <a href="/"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-house"/></svg><span aria-hidden="true">← </span>予報トップへ戻る</a>
       </p>
     </nav>
 
     <!-- 最重要の判断を最初に置く: 意識の異常はためらわず119 -->
     <section class="emergency-call" aria-labelledby="call-heading">
-      <h2 id="call-heading"><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480L40 480c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24l0 112c0 13.3 10.7 24 24 24s24-10.7 24-24l0-112c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>まず、意識を確認</h2>
+      <h2 id="call-heading"><svg class="fa-icon heading-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/></svg>まず、意識を確認</h2>
       <p>
         肩をやさしく叩きながら呼びかけてください。
         <strong>呼びかけに反応しない・返事がおかしい・まっすぐ歩けない</strong>ときは、
         重い熱中症の疑いがあります。ためらわず救急車を呼んでください。
       </p>
       <p class="emergency-call-button-line">
-        <a class="emergency-call-button" href="tel:119"><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M164.9 24.6c-7.7-18.6-28-28.5-47.4-23.2l-88 24C12.1 30.2 0 46 0 64 0 311.4 200.6 512 448 512c18 0 33.8-12.1 38.6-29.5l24-88c5.3-19.4-4.6-39.7-23.2-47.4l-96-40c-16.3-6.8-35.2-2.1-46.3 11.6L304.7 368C234.3 334.7 177.3 277.7 144 207.3L193.3 167c13.7-11.2 18.4-30 11.6-46.3l-40-96z"/></svg>119番に電話する</a>
+        <a class="emergency-call-button" href="tel:119"><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M160.2 25C152.3 6.1 131.7-3.9 112.1 1.4l-5.5 1.5c-64.6 17.6-119.8 80.2-103.7 156.4 37.1 175 174.8 312.7 349.8 349.8 76.3 16.2 138.8-39.1 156.4-103.7l1.5-5.5c5.4-19.7-4.7-40.3-23.5-48.1l-97.3-40.5c-16.5-6.9-35.6-2.1-47 11.8l-38.6 47.2C233.9 335.4 177.3 277 144.8 205.3L189 169.3c13.9-11.3 18.6-30.4 11.8-47L160.2 25z"/></svg>119番に電話する</a>
       </p>
       <p class="hint">
         押すと電話アプリが開き、119番（消防・救急）へ発信できます。
@@ -187,7 +194,7 @@
     </section>
 
     <section class="notice-panel" aria-labelledby="notes-heading">
-      <h2 id="notes-heading"><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480L40 480c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24l0 112c0 13.3 10.7 24 24 24s24-10.7 24-24l0-112c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>やってはいけないこと</h2>
+      <h2 id="notes-heading"><svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/></svg>やってはいけないこと</h2>
       <ul>
         <li>意識がはっきりしない人に、飲み物を無理に飲ませる（気道に入る危険）</li>
         <li>本人を1人にする（「少し休めば大丈夫」と言っても、必ず誰かが付き添う）</li>
@@ -198,7 +205,7 @@
     <section aria-labelledby="prevention-heading">
       <h2 id="prevention-heading">ふだんの予防</h2>
       <p>
-        <a href="/">予報トップ</a>で当日の判定と連続活動時間の目安を確認し、
+        <a href="/"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-house"/></svg>予報トップ</a>で当日の判定と連続活動時間の目安を確認し、
         「30分着たら30分休む」を基本にしてください。<span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみ活動は必ず2人以上で行い、
         着用者以外の付き添い（ハンドラー・アテンド）を付けてください。
       </p>
@@ -208,8 +215,8 @@
       <h2 id="sources-heading">出典と免責事項</h2>
       <p>このページの手順は、次の公的資料の応急処置の考え方に沿って作成しています（参照日: 2026年8月）。</p>
       <ul>
-        <li><a href="https://www.wbgt.env.go.jp/heatillness_manual.php" rel="noopener">環境省「熱中症環境保健マニュアル」</a></li>
-        <li><a href="https://www.jaam.jp/" rel="noopener">日本救急医学会</a>「熱中症診療ガイドライン2024」（学会サイト内で公開）</li>
+        <li><a href="https://www.wbgt.env.go.jp/heatillness_manual.php" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>環境省「熱中症環境保健マニュアル」</a></li>
+        <li><a href="https://www.jaam.jp/" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>日本救急医学会</a>「熱中症診療ガイドライン2024」（学会サイト内で公開）</li>
       </ul>
       <p>
         <span aria-hidden="true">着</span><span class="sr-only">き</span>ぐるみの脱がせ方（ヘッド<span aria-hidden="true">→</span><span class="sr-only">、</span>ハンド<span aria-hidden="true">→</span><span class="sr-only">、</span>ジッパー）は、顔と気道の確認を最優先にする
@@ -217,7 +224,7 @@
       </p>
       <div class="notice-panel">
         <p>
-          <svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480L40 480c-14.3 0-27.6-7.7-34.7-20.1s-7-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24l0 112c0 13.3 10.7 24 24 24s24-10.7 24-24l0-112c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg><span class="sr-only">注意: </span>このページは一般的な応急対応の目安であり、医療上の助言に代わるものではありません。
+          <svg class="fa-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/></svg><span class="sr-only">注意: </span>このページは一般的な応急対応の目安であり、医療上の助言に代わるものではありません。
           判断に迷うときは119番通報、または救急安心センター事業（<span aria-hidden="true">#7119</span><span class="sr-only">シャープ7119</span>）などの窓口へ相談してください。
         </p>
       </div>
@@ -226,13 +233,13 @@
 
   <footer class="site-footer">
     <p>
-      Icons by <a href="https://fontawesome.com/" rel="noopener">Font Awesome Free</a>（CC BY 4.0）
+      Icons by <a href="https://fontawesome.com/" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>Font Awesome Free</a>（CC BY 4.0）
     </p>
     <p>
-      <a href="https://github.com/223n/FursuitWeather" rel="noopener">GitHub: 223n/FursuitWeather</a>
+      <a href="https://github.com/223n/FursuitWeather" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>GitHub: 223n/FursuitWeather</a>
     </p>
     <p class="version-note">
-      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener">v1.11.0</a>
+      <a href="https://github.com/223n/FursuitWeather/releases" rel="noopener"><svg class="fa-icon link-icon" aria-hidden="true"><use href="#fa-arrow-up-right-from-square"/></svg>v1.11.0</a>
     </p>
   </footer>
 </body>
