@@ -57,17 +57,18 @@ test('初期表示とタブ切り替え: 各タブの内容が描画される', 
   await expect(page.locator('#now-card .now-indoor .badge')).toBeVisible();
   await expect(page.locator('#days-section')).toBeHidden();
 
-  // 「3日間の天気」タブ: 日別カード（デモは2日分）
+  // 「3日間の天気」タブ: 日別カード（デモは本番と同じ3日分）
   await page.click('#tab-days');
   await expect(page.locator('#days-section')).toBeVisible();
   await expect(page.locator('#now-section')).toBeHidden();
-  await expect(page.locator('#day-cards .day-card:not(.skeleton-card)')).toHaveCount(2);
+  await expect(page.locator('#day-cards .day-card:not(.skeleton-card)')).toHaveCount(3);
 
-  // 「今日の天気」タブ: 時間別テーブル。デモは2日分のため明後日タブは非表示
+  // 「今日の天気」タブ: 時間別テーブル。3日分あるため明後日タブも出ている
+  // （日数が減るとタブが消え、タブ行の折り返しが変わってレイアウトシフトになる）
   await page.click('#tab-day-0');
   await expect(page.locator('#hours-section')).toBeVisible();
   expect(await page.locator('#hours-body tr').count()).toBeGreaterThan(0);
-  await expect(page.locator('#tab-day-2')).toBeHidden();
+  await expect(page.locator('#tab-day-2')).toBeVisible();
 
   // 日別カードのクリックはその日の時間別タブへの切り替えになる
   await page.click('#tab-days');
@@ -256,8 +257,8 @@ test('活動プランナー: 日付と時間帯を選んで計画を表示する
 
   await page.click('#tab-planner');
   await expect(page.locator('#planner-section')).toBeVisible();
-  // 日付候補は取得済みの日数分（デモは2日=今日・明日）
-  await expect(page.locator('#plan-date option')).toHaveCount(2);
+  // 日付候補は取得済みの日数分（デモは3日=今日・明日・明後日）
+  await expect(page.locator('#plan-date option')).toHaveCount(3);
 
   await page.click('#plan-button');
   await expect(page.locator('#plan-result')).toContainText('10時から16時の計画');

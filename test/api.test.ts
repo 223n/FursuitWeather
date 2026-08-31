@@ -438,7 +438,7 @@ describe('handleForecast', () => {
 
     const body = (await response.json()) as { model: string; days: unknown[] };
     expect(body.model).toBe('demo');
-    expect(body.days).toHaveLength(2);
+    expect(body.days).toHaveLength(3);
   });
 
   it('demo=1の初日は日本時間の今日になる（UTCとJSTの日付が食い違う時刻でも）', async () => {

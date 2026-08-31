@@ -27,6 +27,7 @@ import displayHtml from '../public/display.html?raw';
 import displayMd from '../docs/display.md?raw';
 import displayJs from '../public/display.js?raw';
 import eventsApiTs from '../src/logic/events.ts?raw';
+import { demoWeather } from '../src/weather/demoData';
 // style.cssは「?raw」ではなくfsで読む（vitestはCSSを専用パイプラインで処理する
 // ため、?raw指定でも空文字列になる）
 import { readFileSync } from 'node:fs';
@@ -125,6 +126,16 @@ describe('静的HTMLとconstantsの同期', () => {
     // （カードの閉じ）の直後に行スケルトンが続く形は、カード削除時の取り残し。
     // カード内の連続する行スケルトン（…></div>で行が終わる形）は誤検出しない
     expect(html).not.toMatch(/\n\s*<\/div>\s*\n\s*<div class="skeleton-line/);
+  });
+
+  it('デモデータの日数はFORECAST_DAYSと一致する', () => {
+    // 日付タブ（今日・明日・明後日）は取得できた日数に合わせて出し入れするため、
+    // デモが本番より少ないとデモでだけタブが1つ減る。読み込み後にタブ行の
+    // 折り返しが変わってレイアウトシフトが起き、E2Eが実際の見た目より
+    // 悪いCLSを測ることになる（実際にトップのCLSが0.005→0.144に見えていた）
+    const days = appJs.match(/const FORECAST_DAYS = (\d+);/);
+    expect(days).not.toBeNull();
+    expect(demoWeather('2026-08-15').hours).toHaveLength(Number(days![1]) * 24);
   });
 
   it('API先読み（preload）はfetchと照合されるようcrossorigin属性を持つ', () => {

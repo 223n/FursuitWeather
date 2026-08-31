@@ -75,7 +75,8 @@ npm run test:e2e   # Playwright（APIはモック。wrangler devを自動起動�
 ```
 
 E2EテストはCI（`ci.yml`のe2eジョブ）でも実行されます。
-axe-core監査とCLS測定はリリース時の手動確認です（手順は
+axe-core監査とCLS測定もこのE2Eに含まれます（`e2e/accessibility.spec.mjs`。
+5ページ×ライト／ダーク×PC／スマホ。対象と上限は
 [アクセシビリティ設計](accessibility.md)の検証方法を参照）。
 
 ## ビルド

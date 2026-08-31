@@ -17,9 +17,10 @@
 - [ ] `npm test` が通る
 - [ ] `npm run lint` が通る（ESLint + `tsc --noEmit`）
 - [ ] `npm run test:coverage` が通る（`src/`はstatements・lines・functions 100%）
-- [ ] UIに触れた場合、E2E（`npm run test:e2e`）が通る
+- [ ] UIに触れた場合、E2E（`npm run test:e2e`）が通る（axe-core監査・CLS測定を含む。`e2e/accessibility.spec.mjs`）
 - [ ] 文言・しきい値の複製箇所を両側そろえた（htmlSync同期テスト。`src/constants/`とHTML、`docs/`、`public/llms.txt`など）
 - [ ] 安全情報のUIに触れた場合、色だけに依存しない表示（記号+文字の併記）とCUD配色を守った（`docs/accessibility.md`）
+- [ ] 横スクロールする領域（表・コード片）を足した場合、キーボードでも動かせる（`tabindex="0"`または折り返し。WCAG 2.1 SC 2.1.1）
 - [ ] `npm run build` を実行した場合、未コミットの`public/`編集がない状態で実行し、検証後に`git checkout -- public/`で復元した
 
 ## 動作確認

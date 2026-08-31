@@ -863,9 +863,19 @@ summary:focus {
   border-color: var(--level-cold-accent);
 }
 
-/* 表の横スクロールコンテナ */
+/* 表の横スクロールコンテナ
+ * 横スクロールする領域はキーボードでも動かせる必要があるため（WCAG 2.1 SC 2.1.1、
+ * axeのscrollable-region-focusable）、HTML側でtabindex="0"を付けてフォーカス可能に
+ * している。表は列幅を詰めても狭い画面では収まらないため、折り返しではなく
+ * 横スクロール+キーボード操作で対応する（本文のコード片は.formulaで折り返す） */
 .table-wrapper {
   overflow-x: auto;
+}
+
+/* スクロール領域にフォーカスが来たことを示す。ボタン・入力欄と同じ濃色のリング */
+.table-wrapper:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 /* 時間別テーブルはデータ到着前から領域を確保してレイアウトシフトを抑える */
@@ -1113,12 +1123,18 @@ main a {
   font-size: 0.9rem;
 }
 
+/* 数式・APIの応答例・埋め込みタグなどのコード片
+ * 折り返して表示する（横スクロールにしない）。スマホ幅では式もcurlの1行も
+ * 画面幅を超えるため、横スクロールにするとキーボードで動かせない領域になり
+ * （WCAG 2.1 SC 2.1.1）、指でも読み進めづらい。改行位置は原文どおり保ち、
+ * 収まらない行だけを折り返す */
 .formula {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   border-radius: 6px;
   padding: 0.75rem 1rem;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 0.9rem;
   line-height: 1.5;
 }

@@ -45,7 +45,7 @@ paths:
           required: false
           description: >-
             `1`でデモデータを返す。このとき`lat`・`lon`・`days`は
-            検証されず無視され、常に当日からの2日分を返す
+            検証されず無視され、常に当日からの3日分を返す
           schema: { type: string, enum: ['1'] }
       responses:
         '200':
