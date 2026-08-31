@@ -15,6 +15,12 @@
   // 223n.techゾーンの設定（セキュリティ機能など）を経由しない検証用URLとして使える。
   // 重複コンテンツ対策は各ページのcanonicalタグ（カスタムドメイン指定）で担保済み
   "workers_dev": true,
+  // プレビューURL（<別名>-fursuit-weather.<サブドメイン>.workers.dev）を有効にする。
+  // PRごとの確認用で、.github/workflows/preview.ymlが`wrangler versions upload`で作る。
+  // 既定値はwrangler側の版で揺れる（workers_devに追従する版と、falseに倒す版がある）ため
+  // 明示する。ダッシュボード側で切り替えるとwranglerのデプロイ時に上書きされるので、
+  // 変更するときはこの値を直すこと
+  "preview_urls": true,
   "assets": {
     // 静的アセット（UI）は無料・無制限で配信され、無料枠のリクエスト数を消費しない
     "directory": "./public",

@@ -42,6 +42,9 @@
   URL反映もしない。URLに現れる座標は常に小数2桁。サーバー側も
   `parseLatLonParams`（`src/api/http.ts`）で同じ桁へ丸める
 - ワークフローの外部アクションはコミットSHAで固定する
+- PRごとに`preview.yml`がプレビュー版を上げてURLをコメントする
+  （`wrangler versions upload`。本番は差し替えない。フォークと
+  DependabotのPRはSecretsが渡らないため動かない）
   （`uses: actions/checkout@<sha> # v7`。`# vN`はDependabotが追従）
 - `public/app.js`の世代ガード（`requestSeq`・`searchSeq`・
   `cityChangeTimer`・`manualTabSeq`）による「最後の明示操作が勝つ」

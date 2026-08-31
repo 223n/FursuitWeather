@@ -125,8 +125,43 @@ npm run deploy
 | `ci.yml` | lint→テスト→ビルド検証（PRと、mainへのpushで実行） |
 | `deploy.yml` | lint→テスト→ビルド→wrangler deploy（mainのみ。並走時は最後のpushが勝つ） |
 | `release.yml` | GitHubリリースの自動作成（`v*`タグのpushまたは手動実行。詳細は[リリース手順](release.md)） |
+| `preview.yml` | PRごとのプレビュー版を上げ、URLをPRへコメント（下記） |
 
 各ワークフローは`permissions`で必要最小限の権限を宣言しています。
+
+### PRプレビュー
+
+`preview.yml`はPRごとに`wrangler versions upload`で新しいバージョンを上げ、
+プレビューURLをPRへコメントします。**アクティブなデプロイ（本番）は
+差し替えません。** 本番へ出るのはmainへのマージで走る`deploy.yml`だけ、という
+関係は変わりません。
+
+URLは2種類できます。
+
+| 種類 | 形式 | 性質 |
+|------|------|------|
+| ブランチ単位 | `<別名>-fursuit-weather.<サブドメイン>.workers.dev` | PRへpushしても変わらない（`--preview-alias`） |
+| コミット単位 | `<バージョン接頭辞>-fursuit-weather.<サブドメイン>.workers.dev` | その版だけを指す |
+
+別名はブランチ名を小文字化し、英数字以外をハイフンへ潰して作ります
+（`claude/link-icons-20260831` → `claude-link-icons-20260831`）。
+サブドメインのラベルは63文字までのため、別名は40文字で切ります。
+
+コメントは`<!-- pr-preview -->`の印で既存のものを探して書き換えます。
+pushのたびにコメントが増えることはありません。
+
+**フォークからのPRとDependabotのPRでは動きません。** どちらもSecretsが
+渡らないためです。`pull_request_target`にすればフォークでも動かせますが、
+PRのheadのコードをSecrets付きで実行することになり、公開リポジトリでは
+乗っ取りの経路になるため採っていません。
+
+プレビューURLの有効・無効は`wrangler.jsonc`の`preview_urls`で明示しています。
+既定値はwranglerの版で揺れる（`workers_dev`に追従する版と、falseに倒す版がある）
+ため、暗黙に頼らず書いています。ダッシュボード側で切り替えても、次に
+wranglerでデプロイした時点でこの値に戻る点に注意してください。
+
+プレビューURLは公開されます。各ページのcanonicalタグがカスタムドメインを
+指しているため、重複コンテンツの扱いは`workers.dev`と同じ考え方です。
 
 このほか、リポジトリの設定として次が有効です。
 

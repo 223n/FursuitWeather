@@ -86,6 +86,7 @@ npm run build                        # minify + CSSインライン化（下記�
   同じブランチの過去のPRを引き当て、無関係な古いPRが表示される。
   マージ済みブランチはリポジトリ設定の「Automatically delete head branches」で自動削除する
 - mainへのマージで`deploy.yml`が本番へ自動デプロイ（並走時は最後のpushが勝つconcurrency設定）
+- PRごとに`preview.yml`がプレビュー版を上げ、URLをPRへコメントする（`wrangler versions upload`。本番のアクティブなデプロイは差し替えない。フォークとDependabotのPRはSecretsが渡らないため動かない。詳細は`docs/development.md`）
 - ワークフローの外部アクションはタグではなく**コミットSHAで固定**する（`uses: actions/checkout@<sha> # v7`）。タグは付け替えられるため、乗っ取られたタグでシークレット付きのジョブが動く事故を防ぐ。併記の`# vN`はDependabotが追従する
 - リリースは`docs/release.md`の手順（バージョン更新は`npm version X.Y.Z --no-git-tag-version`でlockも同期し、フッター4ページ（index・about・404・emergency）とdisplay.htmlのバージョンコメントも更新。タグ作成はActionsの`Release`ワークフロー手動実行が簡単）
 
