@@ -851,6 +851,11 @@ test('風速列と応急対応ページ: 時間別に風速が出て、/emergenc
   // 応急対応ページ: 5つの手順・119発信リンク・免責が表示される
   await page.goto('/emergency');
   await expect(page.locator('.emergency-call-button')).toHaveAttribute('href', 'tel:119');
+  // 119番ボタンの文字色を固定する。style.cssの`.emergency-call a`が:not()で
+  // ボタンを除外していないと、パネル本文向けの濃紺（#094F73）が詳細度で勝ち、
+  // 赤地（#CC3311）の上でコントラスト比1.70:1まで落ちる（WCAG AAの大きい文字3:1未満）。
+  // 属性だけを見ていた間はこの退行に誰も気付けなかったため、色を契約として残す
+  await expect(page.locator('.emergency-call-button')).toHaveCSS('color', 'rgb(255, 255, 255)');
   await expect(page.locator('.emergency-steps > li')).toHaveCount(5);
   await expect(page.locator('.emergency-steps')).toContainText('ヘッド');
   await expect(page.locator('main')).toContainText('医療上の助言に代わるものではありません');

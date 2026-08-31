@@ -588,10 +588,14 @@ input[type='number'] {
   vertical-align: -0.15em;
 }
 
-/* 応急対応ページの赤パネル（.emergency-call）内のリンク: 既定のリンク色は
+/* 応急対応ページの赤パネル（.emergency-call）本文のリンク: 既定のリンク色は
    level-3-surface上で4.23:1とWCAG AAに届かないため、.alert-notice aと同じ
-   濃色（ライト#094F73=7.21:1、ダークは明水色）へ寄せる */
-.emergency-call a {
+   濃色（ライト#094F73=7.21:1、ダークは明水色）へ寄せる。
+   119番ボタン（.emergency-call-button）だけは:not()で除外する。ボタンはパネルの
+   地色ではなくlevel-3-accent（#CC3311）の上に載るため、この規則（詳細度0,1,1）が
+   ボタン側の白抜き指定（同0,1,0）に詳細度で勝つと、文字が濃紺へ潰れて1.70:1まで
+   落ちる。除外を外すと同じ退行が再発するため、e2eで色を固定してある */
+.emergency-call a:not(.emergency-call-button) {
   color: var(--color-code-text);
 }
 
