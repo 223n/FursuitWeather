@@ -18,8 +18,12 @@
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <!-- 計測ビーコン（Cloudflare Web Analytics）はこのページには載せない:
-       会場のモニター1台が終日計測され続けるとアクセス解析が歪むため -->
+  <!-- 計測ビーコン（Cloudflare Web Analytics）。他の配信ページと同じタグ・同じトークンで、
+       会場表示モードがどれだけ使われているかを見るために載せる。
+       このページは会場のモニターへ掲示したまま置かれるため、1回の掲示が
+       1PVとして数えられ、滞在時間は実際の閲覧者数と対応しない。
+       数字を読むときは他ページと同じ尺度で比べないこと -->
+  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "056ce50991c54fc7a3d0c5461b86c8af"}'></script>
 </head>
 <body class="display-body">
   <!-- バージョン: v1.15.0（package.jsonと同期。test/htmlSync.test.tsが検証する） -->

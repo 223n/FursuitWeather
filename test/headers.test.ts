@@ -11,6 +11,17 @@ import headers from '../public/_headers?raw';
 import html from '../public/index.html?raw';
 import aboutHtml from '../public/about.html?raw';
 import notFoundHtml from '../public/404.html?raw';
+import emergencyHtml from '../public/emergency.html?raw';
+import displayHtml from '../public/display.html?raw';
+
+/** 外部スクリプトを載せる配信ページ（増やしたらここへ足す） */
+const PAGES_WITH_EXTERNAL_SCRIPT = [
+  ['index.html', html],
+  ['about.html', aboutHtml],
+  ['404.html', notFoundHtml],
+  ['emergency.html', emergencyHtml],
+  ['display.html', displayHtml],
+] as const;
 
 /** _headersからディレクティブ名で値を取り出す */
 function headerValue(name: string): string {
@@ -54,18 +65,29 @@ describe('Content-Security-Policy', () => {
   });
 
   it('読み込む外部スクリプトはCSPで許可した配信元と一致する', () => {
-    // HTMLのsrcとCSPの許可元がずれると、計測タグが黙ってブロックされる
+    // HTMLのsrcとCSPの許可元がずれると、計測タグが黙ってブロックされる。
+    // srcの引用符はシングル・ダブルの両方を拾う。ダブルだけを見ていると、
+    // Cloudflareのダッシュボードが配るシングルクォートのタグを貼ったときに
+    // そのページが検査対象から静かに外れ、テストは通ったままガードだけ失われる
     const scriptSrc = cspDirective('script-src');
-    for (const [name, page] of [
-      ['index.html', html],
-      ['about.html', aboutHtml],
-      ['404.html', notFoundHtml],
-    ] as const) {
-      for (const src of page.matchAll(/<script[^>]*\ssrc="(https?:\/\/[^"]+)"/g)) {
+    for (const [name, page] of PAGES_WITH_EXTERNAL_SCRIPT) {
+      for (const src of page.matchAll(/<script[^>]*\ssrc=["'](https?:\/\/[^"']+)["']/g)) {
         const origin = new URL(src[1]!).origin;
         expect(scriptSrc, `${name}の${origin}がCSPで許可されていません`).toContain(origin);
       }
     }
+  });
+
+  it('計測タグのトークンは全ページで同一', () => {
+    // トークンは配信ページごとに複製している。1ページだけ直し忘れると
+    // 計測が2つのサイトへ分かれ、どちらの数字も実態とずれる
+    // （画面にもCIにも出ないため、気付くのは解析画面を見たときになる）
+    const tokens = PAGES_WITH_EXTERNAL_SCRIPT.map(([name, page]) => {
+      const match = page.match(/data-cf-beacon='\{"token": "([0-9a-f]{32})"\}'/);
+      expect(match, `${name}に計測タグのトークンがありません`).not.toBeNull();
+      return match![1]!;
+    });
+    expect(new Set(tokens).size, `ページごとのトークン: ${tokens.join(' / ')}`).toBe(1);
   });
 
   it('インラインCSSはビルドが埋めるハッシュで許可する', () => {
