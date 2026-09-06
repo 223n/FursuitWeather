@@ -1,7 +1,7 @@
 name: バグ報告
 description: 表示や動作の不具合を報告する
 title: "[バグ] "
-labels: ["bug"]
+labels: ["バグ"]
 body:
   - type: markdown
     attributes:
