@@ -1,7 +1,7 @@
 name: 機能要望
 description: 新しい機能や改善を提案する
 title: "[要望] "
-labels: ["enhancement"]
+labels: ["機能追加"]
 body:
   - type: textarea
     id: problem
