@@ -18,6 +18,18 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     groups:
+      # vitest本体と@vitest/*はpeerがバージョン完全一致で固定されている。
+      # 別々のPRに分かれるとpeerの解決に失敗し、必ずERESOLVEで落ちる
+      # （PR #116・#117がこれ）。メジャーも含めて1つのPRにまとめる。
+      # 先に書いた組が優先されるため、minor-and-patchより上に置く。
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
       minor-and-patch:
         update-types:
           - "minor"
