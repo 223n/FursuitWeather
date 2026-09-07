@@ -207,6 +207,28 @@ paths:
                       targetDate: { type: string, example: '2026-08-25' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
+  /events.json:
+    get:
+      summary: 登録済みイベントの一覧を取得する
+      description: |
+        トップページのイベントタブが読む定義ファイルそのものを、静的アセットとして
+        配信しています。`/api/*`ではなく`public/`直下のファイルであり、
+        Workerを経由しません。
+
+        FursuitWeather_iOSとFursuitWeather_iMacの各アプリが、このパスを直接
+        取得しています。一覧を別のエンドポイントへ写すとイベントの登録が
+        二重管理になるため、静的ファイルのまま公開しています。
+
+        そのため、このファイルの構造（トップレベルの`events`配列と各項目の
+        キー名）は、`/api/*`と同じ互換性の約束の対象です。キーの改名・削除は
+        破壊的変更にあたります。各項目の書き方は
+        [イベント予報の定義](events.md)を参照してください。
+      responses:
+        '200':
+          description: イベント定義
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventsResponse' }
 components:
   responses:
     BadRequest:
@@ -229,6 +251,43 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    EventsResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/EventDefinition' }
+    EventDefinition:
+      type: object
+      required: [name, place, zip, startDate]
+      properties:
+        name:
+          type: string
+          description: イベント名。固定リンク（`?event=`）と判定バッジ（`/api/badge.svg?event=`）の照合キー
+        place:
+          type: string
+          description: 開催場所の表示名
+        zip:
+          type: string
+          pattern: '^\d{3}-?\d{4}$'
+          description: 開催地の郵便番号
+        startDate:
+          type: string
+          format: date
+          description: 開催初日（`YYYY-MM-DD`）
+        endDate:
+          type: string
+          format: date
+          description: 開催最終日（`YYYY-MM-DD`）。省略時は`startDate`と同じ（単日開催）
+        startTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 開催初日の開始時刻（`HH:MM`）。未指定は終日扱い
+        endTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 開催最終日の終了時刻（`HH:MM`）。未指定は終日扱い
     Error:
       type: object
       description: >-
