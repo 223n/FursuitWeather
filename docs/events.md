@@ -15,6 +15,21 @@
 フォームの項目は下の表と対応しているため、届いた内容をそのまま
 `events.json`へ書き写せます。
 
+## このファイルは公開APIの一部
+
+`public/events.json`は静的アセットとして`https://fursuit-weather.223n.tech/events.json`
+で配信しており、**FursuitWeather_iOSとFursuitWeather_iMacの各アプリが
+このパスを直接取得しています**。一覧を別のエンドポイントへ写すと
+イベントの登録が二重管理になるため、静的ファイルのまま公開しています。
+
+そのため、トップレベルの`events`配列と下記のキー名は、`/api/*`と同じ
+互換性の約束の対象です。キーの改名・削除はクライアントを壊す破壊的変更に
+あたり、[リリース手順](release.md)のmajor更新に該当します。
+項目の追加は後方互換として扱えます。
+
+機械可読な定義は[OpenAPI定義（openapi.yaml）](openapi.yaml)の
+`/events.json`にあります。
+
 ## 書き方
 
 `public/events.json`の`events`配列にイベントを追加します。
