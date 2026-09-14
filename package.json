@@ -20,16 +20,16 @@
     "minify": "esbuild public/app.js --minify --charset=utf8 --allow-overwrite --outfile=public/app.js && esbuild public/prefs.js --minify --charset=utf8 --allow-overwrite --outfile=public/prefs.js && esbuild public/wbgt-tool.js --minify --charset=utf8 --allow-overwrite --outfile=public/wbgt-tool.js && esbuild public/display.js --minify --charset=utf8 --allow-overwrite --outfile=public/display.js && esbuild public/sw.js --minify --charset=utf8 --allow-overwrite --outfile=public/sw.js && esbuild public/style.css --minify --charset=utf8 --allow-overwrite --outfile=public/style.css && esbuild public/display.css --minify --charset=utf8 --allow-overwrite --outfile=public/display.css"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260827.1",
-    "@playwright/test": "^1.62.1",
+    "@cloudflare/workers-types": "^5.20260910.1",
+    "@playwright/test": "^1.63.0",
     "@vitest/coverage-v8": "^5.0.0",
     "axe-core": "^4.13.0",
     "esbuild": "0.28.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "svgo": "^4.1.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.68.0",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^5.0.0",
-    "wrangler": "^4.127.0"
+    "wrangler": "^4.131.0"
   }
 }
