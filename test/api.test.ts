@@ -506,6 +506,16 @@ describe('parseWeatherResponse', () => {
     expect(result.hours[5]!.weatherCode).toBe(-1);
   });
 
+  it('天気コードは整数へ丸める（公開仕様は整数。クライアントの整数型デコードを落とさない）', () => {
+    const body = openMeteoBody() as { hourly: { weather_code: number[] } };
+    body.hourly.weather_code[5] = 3.4;
+    body.hourly.weather_code[6] = 60.6;
+    const result = parseWeatherResponse(body);
+    expect(result.hours[5]!.weatherCode).toBe(3);
+    expect(result.hours[6]!.weatherCode).toBe(61);
+    expect(result.hours.every((h) => Number.isInteger(h.weatherCode))).toBe(true);
+  });
+
   it('数値であるべき要素が文字列の時間は破棄する（型主張の実行時検証）', () => {
     const body = openMeteoBody() as { hourly: { temperature_2m: unknown[] } };
     body.hourly.temperature_2m[3] = '28';
