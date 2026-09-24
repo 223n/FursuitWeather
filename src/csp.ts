@@ -23,6 +23,22 @@ export const HTML_PATHS: readonly string[] = [
   '/404.html',
 ];
 
+/** 機械向けの案内先をLinkヘッダー（RFC 8288）で示すホームページのパス */
+const HOME_PATHS: ReadonlySet<string> = new Set(['/', '/index.html']);
+
+/**
+ * ホームページのLinkヘッダー。AIエージェントなどの機械が、HTMLを解析せずに
+ * APIカタログ（RFC 9727）とサービスの説明（llms.txt）の場所を知れるようにする
+ * （Workerのエントリ（index.ts）はハンドラ以外をexportできないため、ここに置く）
+ */
+export const HOME_LINK_HEADER =
+  '</.well-known/api-catalog>; rel="api-catalog", </llms.txt>; rel="describedby"; type="text/plain"';
+
+/** そのパスがLinkヘッダーを付けるホームページか */
+export function isHomePath(pathname: string): boolean {
+  return HOME_PATHS.has(pathname);
+}
+
 /** そのパスをWorkerがHTMLとして処理するか */
 export function isHtmlPath(pathname: string): boolean {
   return HTML_PATHS.includes(pathname);

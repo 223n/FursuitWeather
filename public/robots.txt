@@ -1,4 +1,6 @@
 User-agent: *
+# 利用目的の意思表示（Content Signals）: 検索は許可、AIの学習・回答生成への入力は不許可
+Content-Signal: ai-train=no, search=yes, ai-input=no
 Allow: /
 # APIエンドポイントはクロール不要
 Disallow: /api/

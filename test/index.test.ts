@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as forecastApi from '../src/api/forecast';
 import * as geocodeApi from '../src/api/geocode';
 import worker, { type Env } from '../src/index';
+import { HOME_LINK_HEADER } from '../src/csp';
 import { todayInJst } from '../src/logic/time';
 
 // spyモードで実体を残したままモック化し、500系のテストでのみ失敗を注入する
@@ -334,6 +335,18 @@ describe('HTMLページへのnonce注入', () => {
     expect(csp).toContain(`script-src 'nonce-${nonce}'`);
     // nonceが漏れて共有キャッシュに載らないようにする
     expect(response.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('ホームページはLinkヘッダーでAPIカタログとllms.txtの場所を示す', async () => {
+    for (const path of ['/', '/index.html']) {
+      const response = await worker.fetch(new Request(`https://example.com${path}`), createEnv(), ctx);
+      expect(response.headers.get('Link')).toBe(HOME_LINK_HEADER);
+    }
+  });
+
+  it('ホーム以外のHTMLページにはLinkヘッダーを付けない', async () => {
+    const response = await worker.fetch(new Request('https://example.com/about'), createEnv(), ctx);
+    expect(response.headers.get('Link')).toBeNull();
   });
 
   it('実行されるscriptとstyleにnonceを付け、JSON-LDには付けない', async () => {

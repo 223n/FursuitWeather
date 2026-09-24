@@ -81,4 +81,8 @@ describe('sitemap.xmlと公開ページの整合', () => {
   it('robots.txtはsitemapの場所を指している', () => {
     expect(robotsTxt).toContain(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`);
   });
+
+  it('robots.txtはAIの学習・回答生成への入力を拒否する意思表示（Content-Signal）を持つ', () => {
+    expect(robotsTxt).toContain('Content-Signal: ai-train=no, search=yes, ai-input=no');
+  });
 });

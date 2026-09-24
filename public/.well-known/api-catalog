@@ -1,0 +1,19 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://fursuit-weather.223n.tech/api/",
+      "service-desc": [
+        {
+          "href": "https://raw.githubusercontent.com/223n/FursuitWeather/main/docs/openapi.yaml",
+          "type": "application/vnd.oai.openapi"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/223n/FursuitWeather/blob/main/docs/api.md",
+          "type": "text/html"
+        }
+      ]
+    }
+  ]
+}

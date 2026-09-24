@@ -9,7 +9,7 @@ import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
 import { handleNational } from './api/national';
 import { jsonError, logSafeSearch, methodGuard, upstreamErrorResponse } from './api/http';
-import { isHtmlPath, withNonce } from './csp';
+import { HOME_LINK_HEADER, isHomePath, isHtmlPath, withNonce } from './csp';
 import { ogSummaryFor } from './ogp';
 import { forecastPreloadQuery } from './preload';
 
@@ -67,7 +67,11 @@ export default {
     //   ベストエフォートのためnull（通常閲覧・取得失敗）でもHTML配信は続行する）
     if (isHtmlPath(url.pathname)) {
       const [asset, og] = await Promise.all([env.ASSETS.fetch(request), ogSummaryFor(request)]);
-      return withNonce(asset, crypto.randomUUID(), og ?? undefined, forecastPreloadQuery(url));
+      const page = withNonce(asset, crypto.randomUUID(), og ?? undefined, forecastPreloadQuery(url));
+      if (isHomePath(url.pathname)) {
+        page.headers.set('Link', HOME_LINK_HEADER);
+      }
+      return page;
     }
 
     // run_worker_firstの対象外パスは通常ここに到達しないが、念のためアセットへ委譲する
