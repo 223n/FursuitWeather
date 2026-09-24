@@ -172,7 +172,10 @@ function pickHour(hourly: OpenMeteoResponse['hourly'], index: number): HourlyWea
     // 降水確率は気象庁モデルにないため、後段で標準予報APIの値を合流させる
     // （合流できなかった時間はnullのまま。フロントは「-」表示）
     precipitationProbability: null,
-    weatherCode: isFiniteNumber(weatherCode) ? weatherCode : -1,
+    // 天気コードは公開仕様（docs/openapi.yaml）で整数と約束しており、クライアント
+    // （iOS・macOS版）は整数型で受ける。上流が小数を返してもデコードを落とさないよう丸める
+    // （日別・全国の天気コードはこの値を引き継ぐため、ここだけで3か所とも守られる）
+    weatherCode: isFiniteNumber(weatherCode) ? Math.round(weatherCode) : -1,
     solarRadiation,
     windSpeed,
   };
