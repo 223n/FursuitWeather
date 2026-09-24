@@ -340,13 +340,72 @@ describe('HTMLページへのnonce注入', () => {
   it('ホームページはLinkヘッダーでAPIカタログとllms.txtの場所を示す', async () => {
     for (const path of ['/', '/index.html']) {
       const response = await worker.fetch(new Request(`https://example.com${path}`), createEnv(), ctx);
-      expect(response.headers.get('Link')).toBe(HOME_LINK_HEADER);
+      expect(response.headers.get('Link')).toContain(HOME_LINK_HEADER);
     }
   });
 
-  it('ホーム以外のHTMLページにはLinkヘッダーを付けない', async () => {
+  it('ホーム以外のHTMLページにはAPIカタログのLinkを付けない', async () => {
     const response = await worker.fetch(new Request('https://example.com/about'), createEnv(), ctx);
+    expect(response.headers.get('Link')).not.toContain('api-catalog');
+  });
+
+  it('Markdown版のあるページはLinkヘッダーでその場所を示し、Acceptで出し分けることを宣言する', async () => {
+    const response = await worker.fetch(new Request('https://example.com/about'), createEnv(), ctx);
+    expect(response.headers.get('Link')).toBe('</about.md>; rel="alternate"; type="text/markdown"');
+    expect(response.headers.get('Vary')).toContain('Accept');
+    // ホームはAPIカタログとMarkdown版の両方を示す
+    const home = await worker.fetch(new Request('https://example.com/'), createEnv(), ctx);
+    expect(home.headers.get('Link')).toContain('</index.md>; rel="alternate"; type="text/markdown"');
+  });
+
+  it('404ページにはMarkdown版の案内を付けない', async () => {
+    const response = await worker.fetch(new Request('https://example.com/404.html'), createEnv(), ctx);
     expect(response.headers.get('Link')).toBeNull();
+    expect(response.headers.get('Vary')).toBeNull();
+  });
+
+  it('Markdownを求めるリクエストにはMarkdown版を返す（HTMLの書き換えを通さない）', async () => {
+    const env = {
+      ASSETS: { fetch: vi.fn(async () => new Response('# 見出し', { status: 200 })) },
+    } as unknown as Env;
+    const response = await worker.fetch(
+      new Request('https://example.com/emergency', { headers: { Accept: 'text/markdown' } }),
+      env,
+      ctx,
+    );
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(response.headers.get('Vary')).toContain('Accept');
+    expect(await response.text()).toBe('# 見出し');
+    const fetched = vi.mocked(env.ASSETS.fetch).mock.calls[0]![0] as URL;
+    expect(fetched.pathname).toBe('/emergency.md');
+    expect(HTMLRewriterStub.applied).toHaveLength(0);
+  });
+
+  it('Markdown版を取得できないときはHTMLへ戻る', async () => {
+    const env = {
+      ASSETS: {
+        fetch: vi.fn(async (input: URL | Request) =>
+          input instanceof URL ? new Response('', { status: 404 }) : new Response('<html>'),
+        ),
+      },
+    } as unknown as Env;
+    const response = await worker.fetch(
+      new Request('https://example.com/about', { headers: { Accept: 'text/markdown' } }),
+      env,
+      ctx,
+    );
+    expect(response.headers.get('Content-Security-Policy')).toContain('nonce-');
+  });
+
+  it('ブラウザのAcceptにはHTMLを返す', async () => {
+    const accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+    const response = await worker.fetch(
+      new Request('https://example.com/', { headers: { Accept: accept } }),
+      createEnv(),
+      ctx,
+    );
+    expect(response.headers.get('Content-Security-Policy')).toContain('nonce-');
+    expect(response.headers.get('Content-Type')).not.toContain('markdown');
   });
 
   it('実行されるscriptとstyleにnonceを付け、JSON-LDには付けない', async () => {

@@ -10,6 +10,7 @@ import { handleGeocode } from './api/geocode';
 import { handleNational } from './api/national';
 import { jsonError, logSafeSearch, methodGuard, upstreamErrorResponse } from './api/http';
 import { HOME_LINK_HEADER, isHomePath, isHtmlPath, withNonce } from './csp';
+import { markdownAlternateLink, markdownPathFor, markdownResponse, prefersMarkdown } from './markdown';
 import { ogSummaryFor } from './ogp';
 import { forecastPreloadQuery } from './preload';
 
@@ -66,10 +67,24 @@ export default {
     // （リンクプレビュー用クローラーには当日判定のOGサマリーも差し込む。
     //   ベストエフォートのためnull（通常閲覧・取得失敗）でもHTML配信は続行する）
     if (isHtmlPath(url.pathname)) {
+      // Markdownを求めるクライアント（AIエージェントなど）にはMarkdown版を返す。
+      // 取得できなければHTMLへ戻る
+      const markdownPath = markdownPathFor(url.pathname);
+      if (markdownPath !== undefined && prefersMarkdown(request.headers.get('Accept'))) {
+        const markdown = await markdownResponse(env.ASSETS, request.url, markdownPath);
+        if (markdown) {
+          return markdown;
+        }
+      }
+
       const [asset, og] = await Promise.all([env.ASSETS.fetch(request), ogSummaryFor(request)]);
       const page = withNonce(asset, crypto.randomUUID(), og ?? undefined, forecastPreloadQuery(url));
       if (isHomePath(url.pathname)) {
         page.headers.set('Link', HOME_LINK_HEADER);
+      }
+      if (markdownPath !== undefined) {
+        page.headers.append('Link', markdownAlternateLink(markdownPath));
+        page.headers.append('Vary', 'Accept');
       }
       return page;
     }

@@ -23,6 +23,9 @@
   60件を超えるため、触る前に同ファイルの`describe`・`it`名を確認する
 - 長い説明は`public/about.html`へ集約する。index.htmlからの`/about#…`
   リンクは、飛び先の見出しidが実在するかも`test/htmlSync.test.ts`が検証する
+- ページのMarkdown版（`public/*.md`）は`Accept: text/markdown`のときに
+  同じURLで返す手書きのファイル（`src/markdown.ts`）。HTMLの節・凡例・
+  注意事項を変えたら両方を直す（`test/markdownPages.test.ts`が検証）
 - `src/csp.ts`のHTML_PATHSは`wrangler.jsonc`の`run_worker_first`・
   `public/sw.js`のSHELL_URLS・`public/sitemap.xml`と一致させる
   （ずれるとnonceの無いCSPで無言配信される。`test/csp.test.ts`が検証）
