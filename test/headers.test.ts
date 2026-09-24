@@ -160,3 +160,9 @@ describe('Trusted Typesと衝突するDOMシンクを使っていない', () => 
     },
   );
 });
+
+describe('Markdownの文字コード', () => {
+  it('*.mdにcharset=utf-8付きのContent-Typeを付ける（本番の既定はcharsetなしで日本語が化けうる）', () => {
+    expect(headers).toMatch(/^\/\*\.md\s*\n\s+Content-Type: text\/markdown; charset=utf-8$/m);
+  });
+});
