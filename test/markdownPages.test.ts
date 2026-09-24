@@ -16,17 +16,32 @@ import { HEAT_BANDS, YEAR_ROUND_NOTICES } from '../src/constants';
 
 const SITE_ORIGIN = 'https://fursuit-weather.223n.tech';
 
-/** h2・h3見出しの表示テキスト（アイコン・読み上げ専用テキスト・タグを除く） */
+/**
+ * HTML片の表示テキスト。タグで区切ったテキストのうち、アイコン（svg）と
+ * 読み上げ専用テキスト（sr-only）の内側を除いて連結する。
+ * タグを置換で消す方式はCodeQLが不完全なサニタイズとして検出するため、
+ * テキスト部分だけを拾い出す方式にしている（入力はリポジトリ内のHTMLのみ）
+ */
+function visibleText(fragment: string): string {
+  let text = '';
+  let hiddenDepth = 0;
+  for (const [, tag = '', chunk = ''] of fragment.matchAll(/(<[^>]*>)?([^<]*)/g)) {
+    if (tag.startsWith('<svg') || tag.startsWith('<span class="sr-only"')) {
+      hiddenDepth += 1;
+    } else if (hiddenDepth > 0 && (tag === '</svg>' || tag === '</span>')) {
+      hiddenDepth -= 1;
+    }
+    if (hiddenDepth === 0) {
+      text += chunk;
+    }
+  }
+  return text.replace(/\s+/g, '');
+}
+
+/** h2・h3見出しの表示テキスト */
 function headings(html: string): string[] {
   const pattern = /<h([23])[^>]*>([^]*?)<\/h\1>/g;
-  return [...html.matchAll(pattern)].map((m) =>
-    m[2]!
-      .replace(/<svg[^]*?<\/svg>/g, '')
-      .replace(/<span class="sr-only">[^<]*<\/span>/g, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, '')
-      .trim(),
-  );
+  return [...html.matchAll(pattern)].map((m) => visibleText(m[2]!));
 }
 
 /** Markdownの見出しの本文（番号付きの「1. 」は外して比べる） */
