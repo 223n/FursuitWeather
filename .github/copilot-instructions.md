@@ -13,8 +13,9 @@
   テスト（CIの`e2e`ジョブ）が受け持つ。上流へは接続せず`page.route`で
   APIをモックし、時刻は`page.clock`で固定する（固定しないと実行時刻に
   よって落ちるテストになる）。ただし`public/sw.js`はE2Eが
-  `serviceWorkers: 'block'`で遮断するため検証対象外で、自動検証は
-  `test/csp.test.ts`のSHELL_URLS一致のみ。変更時は手動確認する
+  `serviceWorkers: 'block'`で遮断するため検証対象外。自動検証は
+  `test/sw.test.ts`（fetchイベントの応答）と`test/csp.test.ts`の
+  SHELL_URLS一致。登録・キャッシュの実挙動は変更時に実ブラウザで確認する
 - 係数・しきい値・文言は`src/constants/`が単一情報源。静的HTML・
   `public/app.js`・`public/display.js`・`public/wbgt-tool.js`・
   `public/prefs.js`・`public/style.css`・`docs/*`・`public/llms.txt`・
