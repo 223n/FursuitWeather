@@ -7,6 +7,7 @@ import { handleBadge } from './api/badge';
 import { handleEventsCalendar } from './api/events';
 import { handleForecast } from './api/forecast';
 import { handleGeocode } from './api/geocode';
+import { handleLevels } from './api/levels';
 import { handleNational } from './api/national';
 import { jsonError, logSafeSearch, methodGuard, upstreamErrorResponse } from './api/http';
 import { HOME_LINK_HEADER, isHomePath, isHtmlPath, withNonce } from './csp';
@@ -31,6 +32,7 @@ const API_ROUTES = new Map<string, (request: Request, env: Env) => Promise<Respo
   ['/api/events.ics', handleEventsCalendar],
   ['/api/badge.svg', handleBadge],
   ['/api/alert', handleAlert],
+  ['/api/levels', handleLevels],
 ]);
 
 export default {

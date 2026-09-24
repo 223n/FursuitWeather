@@ -207,6 +207,23 @@ paths:
                       targetDate: { type: string, example: '2026-08-25' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
+  /api/levels:
+    get:
+      summary: 活動判定のレベルID（暑熱側・低温側）の一覧を取得する
+      description: |
+        予報レスポンスの`level`に現れるレベルIDの一覧を、日本語ラベル・深刻度・
+        連続活動時間の目安とともに返します。クライアントが手元に持つレベルIDの
+        定数を、CIなどで機械的に突き合わせる用途を想定しています。
+        値はサービスの判定表そのものから組み立てるため、判定表の変更に追従します。
+        正常レスポンスは`Cache-Control: public, max-age=600`で10分間
+        ブラウザキャッシュされます。
+      responses:
+        '200':
+          description: レベルの一覧（それぞれ深刻度の低い順）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LevelsResponse' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
   /events.json:
     get:
       summary: 登録済みイベントの一覧を取得する
@@ -412,6 +429,44 @@ components:
         level: { type: string }
         label: { type: string }
         grade: { type: integer }
+    LevelsResponse:
+      type: object
+      required: [heat, cold]
+      properties:
+        heat:
+          type: array
+          description: 暑熱側のレベル（深刻度の低い順）
+          items: { $ref: '#/components/schemas/LevelDefinition' }
+        cold:
+          type: array
+          description: 低温側のレベル（深刻度の低い順）
+          items: { $ref: '#/components/schemas/LevelDefinition' }
+    LevelDefinition:
+      type: object
+      required: [id, label, grade, activityMinutes]
+      properties:
+        id:
+          type: string
+          description: レベルID（予報レスポンスのlevelに現れる値）
+          enum:
+            - safe
+            - caution
+            - warning
+            - severe
+            - danger
+            - optimal
+            - coldCaution
+            - coldWarning
+            - coldDanger
+        label: { type: string, description: 日本語ラベル }
+        grade:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: 深刻度（0=快適〜4=危険）
+        activityMinutes:
+          type: integer
+          description: 連続活動時間の上限目安（分）。0は着用中止
     DayForecast:
       type: object
       properties:

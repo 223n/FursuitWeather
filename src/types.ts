@@ -278,3 +278,21 @@ export interface ForecastResponse {
   hours: readonly HourForecast[];
   days: readonly DayForecast[];
 }
+
+/** /api/levels の1レベル分 */
+export interface LevelDefinition<Id extends OutdoorLevelId> {
+  /** レベルID（予報レスポンスのlevelに現れる値） */
+  id: Id;
+  /** 日本語ラベル */
+  label: string;
+  /** 深刻度（0=快適〜4=危険） */
+  grade: number;
+  /** 連続活動時間の上限目安（分）。0は着用中止 */
+  activityMinutes: number;
+}
+
+/** /api/levels レスポンス全体（深刻度の低い順） */
+export interface LevelsResponse {
+  heat: readonly LevelDefinition<HeatLevelId>[];
+  cold: readonly LevelDefinition<ColdLevelId>[];
+}
