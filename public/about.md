@@ -273,7 +273,7 @@ curl "https://fursuit-weather.223n.tech/api/forecast?lat=35.6785&lon=139.6823"
 - 大量アクセスはデータ提供元（Open-Meteo）の無料枠を圧迫するためお控えください
 - フィールドの追加は後方互換として予告なく行うことがあります。未知のフィールドは無視してください
 
-このページで紹介しているのは主要な2エンドポイントです。全6エンドポイント（`/api/forecast`・`/api/geocode`・`/api/national`・`/api/events.ics`・`/api/badge.svg`・`/api/alert`）の完全な仕様は、GitHubリポジトリの[API仕様（docs/api.md）](https://github.com/223n/FursuitWeather/blob/main/docs/api.md)を参照してください（機械可読な[OpenAPI定義](https://github.com/223n/FursuitWeather/blob/main/docs/openapi.yaml)もあります）。
+このページで紹介しているのは主要な2エンドポイントです。全7エンドポイント（`/api/forecast`・`/api/geocode`・`/api/national`・`/api/events.ics`・`/api/badge.svg`・`/api/alert`・`/api/levels`）の完全な仕様は、GitHubリポジトリの[API仕様（docs/api.md）](https://github.com/223n/FursuitWeather/blob/main/docs/api.md)を参照してください（機械可読な[OpenAPI定義](https://github.com/223n/FursuitWeather/blob/main/docs/openapi.yaml)もあります）。
 
 ## エッジ配信とキャッシュ
 

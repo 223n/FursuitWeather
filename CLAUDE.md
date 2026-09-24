@@ -49,7 +49,7 @@ npm run build                        # minify + CSSインライン化（下記�
 ### バックエンド（src/）
 
 - 2層構成: 静的アセット（`public/`）+ Worker（`/api/*`とHTMLページで起動、`wrangler.jsonc`の`run_worker_first`。HTMLはCSP nonceのため）
-- **APIルーター**: エンドポイントの追加は`src/index.ts`の`API_ROUTES`表へ1行足す（現在6本: `/api/forecast`・`/api/geocode`・`/api/national`・`/api/events.ics`・`/api/badge.svg`・`/api/alert`）。メソッド制約・CORSプリフライト・`UpstreamError`→502・予期しない例外→500はルーターが一括で持つため、ハンドラはGET前提で書き、`UpstreamError`はそのまま投げてよい
+- **APIルーター**: エンドポイントの追加は`src/index.ts`の`API_ROUTES`表へ1行足す（現在7本: `/api/forecast`・`/api/geocode`・`/api/national`・`/api/events.ics`・`/api/badge.svg`・`/api/alert`・`/api/levels`）。メソッド制約・CORSプリフライト・`UpstreamError`→502・予期しない例外→500はルーターが一括で持つため、ハンドラはGET前提で書き、`UpstreamError`はそのまま投げてよい
 - レスポンスヘッダー（CORS・nosniff・キャッシュ）の単一情報源は`src/api/http.ts`の`apiHeaders()`。JSON以外（SVG・iCal）の応答もここを通す
 - `src/logic/`は純粋関数のみでIO（fetch）から分離。係数・しきい値は`src/constants/`に出典コメント付きで集約（単一情報源。文言やしきい値を変えるときはここを起点にする)。関心事ごとに`activity`・`laundry`・`staticElectricity`・`airQuality`・`weather`・`upstream`・`geo`・`badge`へ分けてあるが、`index.ts`が全てを再exportするため利用側は`../constants`から取ればよい（どこに足すか迷ったら`index.ts`の一覧表を見る）
 - 上流は6系統: Open-Meteo JMAモデル（予報本体）、標準予報API（降水確率の補完）、Air Quality API（黄砂・PM2.5）、ジオコーディング（地名検索）、zipcloud（郵便番号→市区町村名）、環境省アラート発表状況CSV（公式発表の突合。全経路ベストエフォート）

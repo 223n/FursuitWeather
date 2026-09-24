@@ -92,7 +92,7 @@ npm run lint    # ESLint + tsc
 | ドキュメント | 内容 |
 |--------------|------|
 | [判定ロジック](docs/logic.md) | WBGT・着衣補正・低温判定・冷房要否・洗濯乾燥指数の仕組みと根拠 |
-| [API仕様](docs/api.md) | `GET /api/forecast`・`GET /api/geocode`・`GET /api/national`・`GET /api/events.ics`・`GET /api/badge.svg`・`GET /api/alert` のパラメータ・レスポンス・エラーの仕様 |
+| [API仕様](docs/api.md) | `GET /api/forecast`・`GET /api/geocode`・`GET /api/national`・`GET /api/events.ics`・`GET /api/badge.svg`・`GET /api/alert`・`GET /api/levels` のパラメータ・レスポンス・エラーの仕様 |
 | [アーキテクチャ](docs/architecture.md) | システム構成、ソースコード構成、キャッシュ設計、エラー処理、プライバシー設計 |
 | [開発ガイド](docs/development.md) | セットアップ、テスト、ビルド、CI/CD、カスタムドメイン |
 | [アクセシビリティ設計](docs/accessibility.md) | 色覚多様性対応、スクリーンリーダー対応、キーボード操作、CLS対策 |

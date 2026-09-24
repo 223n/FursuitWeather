@@ -77,6 +77,7 @@ src/
 │   ├── events.ts       /api/events.ics ハンドラ（イベントのカレンダー配信）
 │   ├── badge.ts        /api/badge.svg ハンドラ（埋め込みバッジ。地点は主要都市+イベント限定）
 │   ├── alert.ts        /api/alert ハンドラ（環境省アラート発表状況の突合。全経路ベストエフォート）
+│   ├── levels.ts       /api/levels ハンドラ（活動判定のレベルID一覧。クライアントの突き合わせ用）
 │   └── http.ts         APIレスポンスの共通契約（CORS・キャッシュ・メソッドガード・502変換）
 ├── weather/
 │   ├── openMeteo.ts    上流APIクライアント（取得・検証・変換）

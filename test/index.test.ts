@@ -84,6 +84,13 @@ describe('Workerルーティング', () => {
     expect(body.alert.prefectureName).toBe('東京都');
   });
 
+  it('/api/levels はhandleLevelsに委譲する', async () => {
+    const response = await worker.fetch(new Request('https://example.com/api/levels'), createEnv(), ctx);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { heat: { id: string }[] };
+    expect(body.heat[0]!.id).toBe('safe');
+  });
+
   it('/api/geocode はhandleGeocodeに委譲する', async () => {
     vi.mocked(geocodeApi.handleGeocode).mockResolvedValueOnce(
       new Response(JSON.stringify({ results: [] }), { status: 200 }),
