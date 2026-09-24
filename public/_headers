@@ -10,3 +10,8 @@
 /.well-known/api-catalog
   Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"
   Access-Control-Allow-Origin: *
+
+# Markdown（ページのMarkdown版・auth.md）。既定のtext/markdownにはcharsetが付かず、
+# 直接開いたときに日本語が文字化けすることがあるためUTF-8を明示する
+/*.md
+  Content-Type: text/markdown; charset=utf-8
