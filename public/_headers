@@ -5,3 +5,8 @@
   Cross-Origin-Opener-Policy: same-origin
   Permissions-Policy: geolocation=(self), screen-wake-lock=(self), camera=(), microphone=(), payment=()
   Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' __INLINE_STYLE_HASH__ 'unsafe-inline'; img-src 'self'; connect-src 'self' https://cloudflareinsights.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types fursuitweather-sw; upgrade-insecure-requests
+
+# APIカタログ（RFC 9727）。拡張子が無いためContent-Typeを明示する
+/.well-known/api-catalog
+  Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"
+  Access-Control-Allow-Origin: *
