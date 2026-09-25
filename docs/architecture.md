@@ -277,6 +277,36 @@ HTMLはnonceのため元からWorkerが書き換えているので、リクエ�
 残ります。既定都市で開く初回訪問は先読みが効いており（PageSpeedが測るのも
 この経路）、そこを遅くしないことを優先した判断です。
 
+**Service Workerの制御下で出る警告は無害です。** 同じ地点を10分以内に開き直したときや
+再読み込みしたときは、コンソールに次の2つが出ます。
+
+```text
+A preload for '…/api/forecast?…' is found, but is not used because it is a
+  cross-world service worker resource mismatch.
+The resource …/api/forecast?… was preloaded using link preload but not used
+  within a few seconds from the window's load event.
+```
+
+2026-09-25にシステムのChromeで、サーバーが受けた`/api/forecast`の回数を数えました
+（`serviceWorkers: 'allow'`のPlaywright。ローカルの`wrangler dev`のログで計数）。
+
+| 状況 | サーバーの受信 | 警告 |
+| --- | --- | --- |
+| 初回訪問（SW未制御から制御へ切り替わる） | 1回 | なし |
+| 同じ地点を10分以内に開き直す・再読み込み（SW制御下） | 0回 | 出る |
+| SW制御下で新しい地点を開く | 1回 | なし |
+
+警告が出るのは、SW制御下で応答がブラウザのHTTPキャッシュ（APIの
+`Cache-Control: public, max-age=600`）から返るときだけです。このとき先読みも
+アプリの取得もブラウザ内のキャッシュで完結し、ネットワークへの二重取得は
+起きません（無駄になるのはブラウザ内部のキャッシュ参照1回分）。
+
+警告を消すには、SWの制御下では先読みリンクを外す必要があります（SWが
+ページ移動のリクエストへ目印のヘッダーを付け、Workerがそれを見て外すなど）。
+SWとWorkerの間の取り決めが増えるうえ、新しい地点での先読みの効果も失うため、
+直さない判断をしています。なお`sw.js`の`clients.claim()`（初回訪問で
+読み込み中に制御が切り替わる）は原因ではありません（初回訪問では警告が出ない）。
+
 `script-src`の後半（`https:` `http:` `'unsafe-inline'`）は古いブラウザ向けの
 後方互換です。ブラウザは解釈できない指定を読み飛ばすため、結果として
 「解釈できる中で最も厳しい規則」が働きます。
@@ -496,6 +526,12 @@ PWAのService Worker（`public/sw.js`）が、オフライン時の表示を担�
 - オフライン時は、シェル（`SHELL_URLS`のHTML・JS・favicon・`events.json`。
   CSSはビルドでHTMLへインライン化済みのためHTML側に含まれる）と直近の予報
   （`DATA_CACHE`、上限10件）から応答します
+- ページ移動のキャッシュは、クエリを除き`/index.html`・`/about.html`などの
+  別名を拡張子なしの正規のパス（`SHELL_URLS`と同じ形）へ寄せて引きます。
+  保存分も無いページ移動には、ブラウザのエラー画面の代わりに、119番の案内と
+  「もしものとき」（事前保存済み）へのリンクを載せた簡易オフラインページ
+  （503）を`sw.js`の中で組み立てて返します。挙動は`test/sw.test.ts`が
+  `sw.js`を読み込んで検証します
 - 全国天気（`/api/national`）は専用キャッシュ（`NATIONAL_CACHE`）へ
   1件だけ保存します。地点予報（`DATA_CACHE`、上限10件）の追い出しに
   巻き込まれると、会場表示モードの再起動時に全国スライドだけ空になるためです
